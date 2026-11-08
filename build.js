@@ -4,6 +4,7 @@ const path = require("path");
 const src = f => fs.readFileSync(path.join(__dirname, "src", f), "utf8");
 const VERSION = new Date().toISOString().slice(0, 16).replace("T", " ");
 const CACHE = Date.now().toString(36);
+const FONT = fs.readFileSync(path.join(__dirname, "src", "fonts", "space-grotesk.woff2")).toString("base64"); // police libre (OFL), embarquée pour marcher hors ligne
 
 const html = `<!doctype html>
 <html lang="fr">
@@ -12,11 +13,12 @@ const html = `<!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Muscu</title>
 <meta name="description" content="Suivi de mes séances de musculation">
-<meta name="theme-color" content="#F5F4F0">
+<meta name="theme-color" content="#F4F2F8">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <style>
+@font-face { font-family: "Space Grotesk"; src: url(data:font/woff2;base64,${FONT}) format("woff2"); font-weight: 300 700; font-display: swap; }
 ${src("style.css")}
 </style>
 </head>
@@ -37,7 +39,7 @@ for (const f of ["icon-192.png", "icon-512.png"]) fs.copyFileSync(path.join(__di
 fs.writeFileSync(path.join(dist, "manifest.webmanifest"), JSON.stringify({
   name: "Muscu", short_name: "Muscu", description: "Suivi de mes séances de musculation",
   start_url: "./", scope: "./", display: "standalone", lang: "fr",
-  background_color: "#F5F4F0", theme_color: "#F5F4F0",
+  background_color: "#08080D", theme_color: "#08080D",
   icons: [
     { src: "icon-192.png", sizes: "192x192", type: "image/png" },
     { src: "icon-512.png", sizes: "512x512", type: "image/png" },

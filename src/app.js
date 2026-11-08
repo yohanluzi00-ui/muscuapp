@@ -126,7 +126,7 @@ const templates = () => all("template").sort((a, b) => (a.order - b.order) || a.
 const workouts = () => all("workout").sort((a, b) => b.startedAt - a.startedAt);
 const finished = () => workouts().filter(w => w.endedAt);
 const activeWorkout = () => workouts().find(w => !w.endedAt) || null;
-function settings() { return Object.assign({ id: "settings", theme: "auto", alert: "vibration" }, getItem("settings") || {}); }
+function settings() { return Object.assign({ id: "settings", theme: "auto", alert: "vibration", goal: "5" }, getItem("settings") || {}); }
 function setSetting(k, v) { const s = settings(); s[k] = v; put("settings", s); applyTheme(); render(); }
 const newExercise = () => ({ id: "e-" + uid(), name: "Nouvel exercice", type: "reps", sets: 3, target: "8-10", rest: 90, note: "" });
 const blankSet = drops => ({ kg: "", reps: "", sec: "", done: false, drops: Array.from({ length: Math.max(0, num(drops) || 0) }, () => ({ kg: "", reps: "" })) });
@@ -209,7 +209,7 @@ function applyTheme() {
   const dark = t === "sombre" || (t === "auto" && darkQuery && darkQuery.matches);
   document.documentElement.dataset.theme = dark ? "dark" : "light";
   const m = document.querySelector('meta[name="theme-color"]');
-  if (m) m.content = dark ? "#121212" : "#F5F4F0";
+  if (m) m.content = dark ? "#08080D" : "#F4F2F8";
 }
 if (darkQuery && darkQuery.addEventListener) darkQuery.addEventListener("change", applyTheme);
 
@@ -388,7 +388,7 @@ function softRender() {
   render();
 }
 
-const NAV = [["home", "Accueil", "home"], ["programs", "Programmes", "list"], ["history", "Historique", "clock"], ["progress", "Progrès", "chart"], ["settings", "Réglages", "gear"]];
+const NAV = [["home", "Accueil", "home"], ["programs", "Programmes", "list"], ["history", "Historique", "clock"], ["progress", "Stats", "chart"], ["settings", "Réglages", "gear"]];
 // Remplacer l'écran retire le champ actif : son « blur »/« change » peut redemander un rendu pendant celui-ci.
 let rendering = false;
 function render() {
@@ -617,7 +617,12 @@ function viewSession(id) {
     '<div class="rp-time num" data-rptime>0:00</div><div class="rp-bar"><span data-rpbar></span></div>' +
     '<div class="rp-btns"><button class="rp-b" data-act="restadd" data-v="-15">−15 s</button><button class="rp-b rp-go" data-act="skiprest">Passer</button><button class="rp-b" data-act="restadd" data-v="15">+15 s</button></div>' +
     '<button class="rp-min" data-act="restmin">Réduire</button></div></div>' +
-    '<button class="restpill num" data-restpill data-act="restmax" hidden></button>';
+    '<button class="restpill num" data-restpill data-act="restmax" hidden></button>' +
+    '<div class="restpop" data-chronopop hidden><div class="rp-box gain-box" role="timer" aria-label="Chrono de gainage"><div class="rp-label">Gainage</div><div class="rp-sub" data-cpname></div>' +
+    '<div class="rp-time num" data-cptime>0:00</div><div class="rp-bar"><span data-cpbar></span></div><div class="rp-sub" data-cpgoal style="margin-top:10px"></div>' +
+    '<div class="rp-btns"><button class="rp-b" data-act="chronocancel">Annuler</button><button class="rp-b rp-go" data-act="chronostop">Terminer</button></div>' +
+    '<button class="rp-min" data-act="chronomin">Réduire</button></div></div>' +
+    '<button class="restpill gain num" data-chronopill data-act="chronomax" hidden></button>';
   else h += '<div class="bottom-bar"><div class="inner"><button class="btn danger big" data-act="delworkout" style="flex:1">Supprimer cette séance</button></div></div>';
   return { html: h, wide, active };
 }
@@ -679,6 +684,16 @@ function afterSet(w, i, s) {
     if (!mem.every(x => !x.sets[s] || x.sets[s].done)) return;
     startRest(mem[0].rest);
   } else startRest(e.rest);
+}
+// arrête le chrono de gainage : le temps est noté dans la série, qui est validée, puis le repos démarre
+function stopChrono(w) {
+  const c = db.live.chrono; if (!c || c.wid !== w.id) return;
+  const set = w.exercises[c.i] && w.exercises[c.i].sets[c.s];
+  db.live.chrono = null;
+  if (!set) return;
+  set.sec = String(Math.round((Date.now() - c.start) / 1000)); set.done = true;
+  afterSet(w, c.i, c.s);
+  put("workout", w);
 }
 function startRest(sec) {
   sec = num(sec) || 0;
@@ -838,39 +853,84 @@ function progressData() {
   return Object.values(map).sort((a, b) => a.name.localeCompare(b.name, "fr"));
 }
 const unitOf = p => p.type === "time" ? " s" : " kg";
+const DAY = 86400000;
+function weekStart(t) { const d = new Date(t); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); }
+function prevWeek(t) { const d = new Date(t); d.setDate(d.getDate() - 7); return d.getTime(); }
 function viewProgress() {
+  const ws = finished(), now = Date.now(), goal = num(settings().goal) || 5;
+  let h = '<div class="page-head"><h1>Stats</h1></div>';
+  if (!ws.length) return h + '<div class="card empty">Termine une première séance pour voir tes stats.</div>';
+  const perWeek = {}; ws.forEach(w => { const k = weekStart(w.startedAt); perWeek[k] = (perWeek[k] || 0) + 1; });
+  const cur = weekStart(now), thisWeek = perWeek[cur] || 0;
+  const m0 = new Date(now); m0.setHours(0, 0, 0, 0); m0.setDate(1);
+  const thisMonth = ws.filter(w => w.startedAt >= m0.getTime()).length;
+  // semaines d'affilée avec l'objectif atteint (la semaine en cours compte si l'objectif est déjà atteint)
+  let streak = 0, wk = (perWeek[cur] || 0) >= goal ? cur : prevWeek(cur);
+  while ((perWeek[wk] || 0) >= goal) { streak++; wk = prevWeek(wk); }
+  const durs = ws.map(w => w.endedAt - w.startedAt).filter(d => d > 0 && d < 6 * 3600000);
+  const avg = durs.length ? Math.round(durs.reduce((a, b) => a + b, 0) / durs.length / 60000) : null;
+  const pct = Math.min(100, Math.round(100 * thisWeek / goal));
+  h += '<div class="stats k3">' +
+    '<div class="card stat"><div class="muted small">Cette semaine</div><div class="v num">' + thisWeek + " <small>/ " + goal + '</small></div><div class="meter" role="img" aria-label="' + thisWeek + " séances sur " + goal + '"><span style="width:' + pct + '%"></span></div></div>' +
+    '<div class="card stat"><div class="muted small">Ce mois-ci</div><div class="v num">' + thisMonth + "</div></div>" +
+    '<div class="card stat"><div class="muted small">Au total</div><div class="v num">' + ws.length + "</div></div>" +
+    '<div class="card stat"><div class="muted small">Semaines objectif atteint</div><div class="v num">' + streak + " <small>d'affilée</small></div></div>" +
+    '<div class="card stat"><div class="muted small">Durée moyenne</div><div class="v num">' + (avg != null ? avg + " <small>min</small>" : "—") + "</div></div>" +
+    '<div class="card stat"><div class="muted small">Séries validées</div><div class="v num">' + ws.reduce((n, w) => n + w.exercises.reduce((m, e) => m + e.sets.filter(x => x.done).length, 0), 0) + "</div></div>" +
+    "</div>";
+  // séances par semaine (8 dernières), avec la ligne d'objectif
+  const weeks = []; let t = cur; for (let k = 0; k < 8; k++) { weeks.unshift(t); t = prevWeek(t); }
+  const vals = weeks.map(k => perWeek[k] || 0), max = Math.max(goal, ...vals, 1);
+  const W = 360, H = 150, top = 18, bw = W / weeks.length, y = v => H - (v / max) * (H - top);
+  let svg = '<svg class="chart" viewBox="0 0 ' + W + " " + (H + 26) + '" role="img" aria-label="Séances par semaine sur les 8 dernières semaines, objectif ' + goal + '">';
+  svg += '<line class="base" x1="0" x2="' + W + '" y1="' + H + '" y2="' + H + '"></line>';
+  weeks.forEach((k, n) => {
+    const v = vals[n], x = n * bw + bw * 0.22, w = bw * 0.56, d = new Date(k), lab = pad(d.getDate()) + "/" + pad(d.getMonth() + 1);
+    const tip = "Semaine du " + lab + " : " + v + " séance" + (v > 1 ? "s" : "");
+    svg += "<g><title>" + esc(tip) + "</title>" + '<rect class="hit" x="' + n * bw + '" y="0" width="' + bw + '" height="' + H + '"></rect>';
+    if (v > 0) { const hh = H - y(v), r = Math.min(4, hh / 2, w / 2); svg += '<path class="bar' + (k === cur ? "" : " dim") + '" d="M' + x + "," + H + "V" + (y(v) + r) + "Q" + x + "," + y(v) + " " + (x + r) + "," + y(v) + "H" + (x + w - r) + "Q" + (x + w) + "," + y(v) + " " + (x + w) + "," + (y(v) + r) + "V" + H + 'Z"></path>'; }
+    svg += '<text x="' + (n * bw + bw / 2) + '" y="' + (H + 18) + '" text-anchor="middle">' + lab + "</text></g>";
+    if (k === cur) svg += '<text x="' + (n * bw + bw / 2) + '" y="' + (y(v) - 6) + '" text-anchor="middle" style="font-weight:700;fill:var(--ink)">' + v + "</text>";
+  });
+  svg += '<line class="goal" x1="0" x2="' + W + '" y1="' + y(goal) + '" y2="' + y(goal) + '"></line><text x="4" y="' + (y(goal) - 6) + '">Objectif ' + goal + "</text></svg>";
+  h += '<div class="card" style="margin-top:12px"><div class="muted small" style="font-weight:600;margin-bottom:8px">Séances par semaine</div>' + svg + "</div>";
+  // par programme
+  const byTpl = {};
+  ws.forEach(w => { const k = w.templateId; (byTpl[k] = byTpl[k] || { name: w.templateName, n: 0, last: 0 }); byTpl[k].n++; byTpl[k].last = Math.max(byTpl[k].last, w.startedAt); const t = getItem(k); if (t) byTpl[k].name = t.name; });
+  h += '<div class="section-title">Par programme</div><div class="list">' + Object.values(byTpl).sort((a, b) => b.n - a.n).map(x =>
+    '<div><div><b>' + esc(x.name) + '</b><div class="muted small">Dernière : ' + esc(fmtDate(x.last)) + '</div></div><span class="num"><b>' + x.n + '</b> <span class="muted small">séance' + (x.n > 1 ? "s" : "") + "</span></span></div>").join("") + "</div>";
+  // progression par exercice
   const ps = progressData();
-  let h = '<div class="page-head"><h1>Progrès</h1></div>';
-  if (!ps.length) return h + '<div class="card empty">Termine une première séance pour voir ta progression.</div>';
-  return h + '<div class="list">' + ps.map(p => {
-    const vals = p.entries.map(x => x.best).filter(x => x != null);
-    const rec = vals.length ? Math.max(...vals) : null;
+  if (ps.length) h += '<div class="section-title">Progression par exercice</div><div class="list">' + ps.map(p => {
+    const vs = p.entries.map(x => x.best).filter(x => x != null);
+    const rec = vs.length ? Math.max(...vs) : null;
     return '<a href="#/progress/' + encodeURIComponent(p.key) + '"><div><b>' + esc(p.name) + '</b><div class="muted small">' + p.entries.length + " séance" + (p.entries.length > 1 ? "s" : "") +
       " · dernière " + esc(fmtDate(p.entries[p.entries.length - 1].w.startedAt)) + "</div></div>" +
       '<span class="small"><b>' + (rec != null ? fmtNum(rec) + unitOf(p) : "—") + '</b> <span class="muted">record</span></span></a>';
   }).join("") + "</div>";
+  return h;
 }
 function viewProgressDetail(key) {
   const p = progressData().find(x => x.key === key);
-  if (!p) return '<a class="back" href="#/progress">‹ Progrès</a><div class="card empty">Pas de données.</div>';
+  if (!p) return '<a class="back" href="#/progress">‹ Stats</a><div class="card empty">Pas de données.</div>';
   const vals = p.entries.map(x => x.best).filter(x => x != null);
   const rec = vals.length ? Math.max(...vals) : null;
   const last = p.entries[p.entries.length - 1];
   const pts = p.entries.slice(-16);
   const max = Math.max(1, ...pts.map(x => x.best || 0));
-  const W = 600, H = 200, bw = Math.min(W / pts.length, 70), x0 = (W - bw * pts.length) / 2;
+  const W = 360, H = 170, bw = Math.min(W / pts.length, 44), x0 = (W - bw * pts.length) / 2;
   let svg = '<svg class="chart" viewBox="0 0 ' + W + " " + (H + 24) + '" role="img" aria-label="' + esc((p.type === "time" ? "Meilleur temps" : "Charge maximale") + " par séance pour " + p.name) + '">';
   pts.forEach((x, k) => {
     const v = x.best || 0, bh = Math.max(2, (v / max) * (H - 24));
-    svg += '<rect class="b' + (v === rec ? " top" : "") + '" x="' + (x0 + k * bw + bw * 0.15) + '" y="' + (H - bh) + '" width="' + (bw * 0.7) + '" height="' + bh + '" rx="4"></rect>';
+    svg += '<rect class="b' + (v === rec ? " top" : "") + '" x="' + (x0 + k * bw + bw * 0.15) + '" y="' + (H - bh) + '" width="' + (bw * 0.7) + '" height="' + bh + '" rx="4"><title>' + esc(fmtDate(x.w.startedAt) + " : " + (x.best != null ? fmtNum(x.best) + unitOf(p) : "—")) + "</title></rect>";
+    if (v === rec || k === pts.length - 1) svg += '<text x="' + (x0 + k * bw + bw / 2) + '" y="' + (H - bh - 6) + '" text-anchor="middle">' + (x.best != null ? fmtNum(x.best) : "") + "</text>";
     if (pts.length <= 12 || k % 2 === 0) {
-      svg += '<text x="' + (x0 + k * bw + bw / 2) + '" y="' + (H - bh - 6) + '" text-anchor="middle">' + (x.best != null ? fmtNum(x.best) : "") + "</text>";
       const d = new Date(x.w.startedAt);
       svg += '<text x="' + (x0 + k * bw + bw / 2) + '" y="' + (H + 16) + '" text-anchor="middle">' + pad(d.getDate()) + "/" + pad(d.getMonth() + 1) + "</text>";
     }
   });
   svg += "</svg>";
-  return '<a class="back" href="#/progress">‹ Progrès</a><div class="page-head"><h1>' + esc(p.name) + "</h1></div>" +
+  return '<a class="back" href="#/progress">‹ Stats</a><div class="page-head"><h1>' + esc(p.name) + "</h1></div>" +
     '<div class="stats"><div class="card stat"><div class="muted small">Record</div><div class="v">' + (rec != null ? fmtNum(rec) + unitOf(p) : "—") + "</div></div>" +
     '<div class="card stat"><div class="muted small">Dernière séance</div><div class="v">' + (last.best != null ? fmtNum(last.best) + unitOf(p) : "—") + "</div></div></div>" +
     '<div class="card" style="margin-top:12px"><div class="muted small" style="font-weight:600;margin-bottom:8px">' + (p.type === "time" ? "Meilleur temps par séance (s)" : "Charge maximale par séance (kg)") + "</div>" + svg + "</div>" +
@@ -887,6 +947,7 @@ function viewSettings() {
     '<div class="card"><b>Apparence</b><div style="margin-top:10px">' + seg("theme", [["auto", "Auto"], ["clair", "Clair"], ["sombre", "Sombre"]]) + "</div></div>" +
     '<div class="card"><b>Alerte de fin de repos</b><div style="margin-top:10px">' + seg("alert", [["vibration", "Vibration"], ["son", "Son"], ["les deux", "Les deux"], ["aucune", "Aucune"]]) + "</div>" +
     '<button class="btn sm" style="margin-top:10px" data-act="testalert">Tester</button></div>' +
+    '<div class="card"><b>Objectif de séances par semaine</b><div style="margin-top:10px">' + seg("goal", [["2", "2"], ["3", "3"], ["4", "4"], ["5", "5"], ["6", "6"], ["7", "7"]]) + "</div></div>" +
     '<div class="card"><b>Compte</b><div style="margin-top:8px">' +
     (db.auth ? '<div class="small">Connecté : ' + esc(db.auth.user.email) + "</div><div style=\"margin-top:6px\">" + syncBadge() + '</div><div class="small msg err" data-sync-error>' + (syncState.status === "err" ? esc(syncState.error) : "") + "</div>" +
       '<div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-act="syncnow">Synchroniser maintenant</button><button class="btn sm" data-act="logout">Se déconnecter</button></div>'
@@ -917,11 +978,28 @@ function tick() {
   }
   // chrono (gainage)
   const c = L.chrono;
+  const cpop = document.querySelector("[data-chronopop]"), cpill = document.querySelector("[data-chronopill]");
   if (c) {
     const el = document.querySelector('[data-tick="chrono"]');
     const ms = now - c.start;
     if (el) el.textContent = fmtDur(ms);
-    if (!c.alerted && c.target && ms >= c.target * 1000) { c.alerted = true; save(); signal(); toast("Objectif atteint !"); }
+    if (!c.alerted && c.target && ms >= c.target * 1000) { c.alerted = true; save(); signal(); }
+    const w = currentWorkout(), here = w && w.id === c.wid;
+    if (cpop) {
+      cpop.hidden = !here || !!c.min;
+      if (here) {
+        const ex = w.exercises[c.i];
+        cpop.querySelector("[data-cpname]").textContent = ex && norm(ex.name) !== "gainage" ? ex.name + " · série " + (c.s + 1) : "Série " + (c.s + 1);
+        cpop.querySelector("[data-cptime]").textContent = fmtDur(ms);
+        cpop.querySelector("[data-cpbar]").style.width = (c.target ? Math.min(100, 100 * ms / (c.target * 1000)) : 0) + "%";
+        cpop.querySelector("[data-cpgoal]").textContent = c.target ? (c.alerted ? "Objectif atteint !" : "Objectif " + fmtNum(c.target) + " s") : "";
+        cpop.querySelector(".gain-box").classList.toggle("reached", !!c.alerted);
+      }
+    }
+    if (cpill) { cpill.hidden = !here || !c.min; cpill.textContent = "Gainage " + fmtDur(ms) + " · Agrandir"; }
+  } else {
+    if (cpop) cpop.hidden = true;
+    if (cpill) cpill.hidden = true;
   }
 }
 setInterval(tick, 250);
@@ -990,14 +1068,14 @@ $app.addEventListener("click", async e => {
       w.exercises.push({ exId: te.id, name: te.name, type: te.type, target: te.target, rest: te.rest, drops: 0, groupId: null, groupKind: null, sets: Array.from({ length: te.sets }, () => blankSet(0)) });
       put("workout", w); render();
     } break;
+    case "chronostop": if (w) { stopChrono(w); save(); render(); } break;
+    case "chronocancel": db.live.chrono = null; save(); render(); break;
+    case "chronomin": if (db.live.chrono) { db.live.chrono.min = true; save(); tick(); } break;
+    case "chronomax": if (db.live.chrono) { db.live.chrono.min = false; save(); tick(); } break;
     case "chrono": if (w) {
       const c = db.live.chrono;
       if (c && c.wid === w.id && c.i === i && c.s === s) {
-        const sec = Math.round((Date.now() - c.start) / 1000);
-        db.live.chrono = null;
-        const set = w.exercises[i].sets[s]; set.sec = String(sec); set.done = true;
-        afterSet(w, i, s);
-        put("workout", w);
+        stopChrono(w);
       } else {
         db.live.chrono = { wid: w.id, i, s, start: Date.now(), target: num(w.exercises[i].target), alerted: false };
         db.live.restEnd = null;
