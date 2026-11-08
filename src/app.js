@@ -410,10 +410,19 @@ function renderNow() {
     case "program": body = viewProgram(r.args[0], r.args[1]); break;
     case "history": body = viewHistory(); break;
     case "progress": body = r.args[0] ? viewProgressDetail(r.args[0]) : viewProgress(); wide = false; break;
+    case "calendar": body = viewCalendar(r.args[0], r.args[1]); break;
+    case "body": body = viewBody(); break;
+    case "import": {
+      const code = r.args[0];
+      history.replaceState(null, "", "#/programs");
+      body = viewPrograms();
+      setTimeout(() => importShared(code), 0);
+      break;
+    }
     case "settings": body = viewSettings(); break;
     default: body = viewHome();
   }
-  const tab = { session: "home", program: "programs" }[r.name] || (NAV.some(n => n[0] === r.name) ? r.name : "home");
+  const tab = { session: "home", program: "programs", import: "programs", calendar: "progress", body: "progress" }[r.name] || (NAV.some(n => n[0] === r.name) ? r.name : "home");
   $app.innerHTML = '<div class="shell' + (immersive ? " hide-nav" : "") + '"><nav class="nav" aria-label="Navigation"><div class="brand">Muscu</div>' +
     NAV.map(n => '<a href="#/' + n[0] + '" class="' + (n[0] === tab ? "on" : "") + '"' + (n[0] === tab ? ' aria-current="page"' : "") + ">" + ICON[n[2]] + "<span>" + n[1] + "</span></a>").join("") +
     '</nav><main class="main' + (wide ? " wide" : "") + '">' + body + "</main></div>";
@@ -671,9 +680,11 @@ function markDone(w, i, s) {
     (set.drops || []).forEach((d, n) => fillFrom(d, src && src.drops && src.drops[n], e.type));
     set.done = true;
     afterSet(w, i, s);
+    var rec = checkRecord(w, i, s);
   } else set.done = false;
   put("workout", w);
   render();
+  if (rec) celebrate(rec);
 }
 // repos : après chaque série, ou seulement à la fin du tour pour un superset / biset / triset
 function afterSet(w, i, s) {
@@ -694,6 +705,8 @@ function stopChrono(w) {
   set.sec = String(Math.round((Date.now() - c.start) / 1000)); set.done = true;
   afterSet(w, c.i, c.s);
   put("workout", w);
+  const rec = checkRecord(w, c.i, c.s);
+  if (rec) setTimeout(() => celebrate(rec), 50);
 }
 function startRest(sec) {
   sec = num(sec) || 0;
@@ -704,7 +717,7 @@ function startRest(sec) {
 /* ================= Écran : programmes ================= */
 function viewPrograms() {
   const ts = templates();
-  return '<div class="page-head"><h1>Programmes</h1><button class="btn primary" data-act="newtpl">+ Nouveau programme</button></div>' +
+  return '<div class="page-head"><h1>Programmes</h1><div class="row" style="flex-wrap:wrap"><button class="btn" data-act="importvar">Importer une séance</button><button class="btn primary" data-act="newtpl">+ Nouveau programme</button></div></div>' +
     '<p class="muted small">Tes programmes et leurs séances. Les modifications servent pour les prochaines fois.</p>' +
     '<div class="list">' + (ts.length ? ts.map(t => '<a href="#/program/' + t.id + '"><div><b>' + esc(t.name) + '</b><div class="muted small">' +
       t.variants.map(v => esc(vLabel(v.name)) + " : " + v.exercises.length + " exo").join(" · ") + '</div></div><span class="muted">›</span></a>').join("") : '<div class="empty">Aucun programme.</div>') + "</div>";
@@ -731,7 +744,7 @@ function viewProgram(tid, vid) {
     '<button data-act="addvar">+ Séance</button></div>';
   if (!v) return h;
   h += '<div class="card"><label class="fl">Nom de la séance<input class="f" data-p="vname" value="' + esc(vLabel(v.name)) + '"></label>' +
-    '<div class="row" style="margin-top:10px;flex-wrap:wrap"><button class="btn sm" data-act="dupvar">Dupliquer cette séance</button>' +
+    '<div class="row" style="margin-top:10px;flex-wrap:wrap"><button class="btn sm" data-act="dupvar">Dupliquer cette séance</button><button class="btn sm" data-act="sharevar">Partager cette séance</button>' +
     (t.variants.length > 1 ? '<button class="btn sm danger" data-act="delvar">Supprimer cette séance</button>' : "") + "</div></div>";
   h += '<datalist id="exnames">' + knownNames().map(n => '<option value="' + esc(n) + '"></option>').join("") + "</datalist>";
   h += '<div class="section-title">Exercices (' + v.exercises.length + ')</div><div class="stack">';
@@ -846,7 +859,8 @@ function progressData() {
       const key = norm(e.name) + "|" + e.type;
       const best = Math.max(...e.sets.map(s => num(e.type === "time" ? s.sec : s.kg)).filter(x => x != null), -Infinity);
       const reps = e.type === "time" ? null : Math.max(...e.sets.map(s => num(s.reps)).filter(x => x != null), -Infinity);
-      (map[key] = map[key] || { key, name: e.name, type: e.type, entries: [] }).entries.push({ w, e, best: best === -Infinity ? null : best, reps: reps === -Infinity ? null : reps });
+      const orm = e.type === "time" ? null : Math.max(...e.sets.map(s => e1rm(num(s.kg), num(s.reps))).filter(x => x != null), -Infinity);
+      (map[key] = map[key] || { key, name: e.name, type: e.type, entries: [] }).entries.push({ w, e, best: best === -Infinity ? null : best, reps: reps === -Infinity ? null : reps, orm: orm === -Infinity ? null : orm });
       map[key].name = e.name;
     }
   }
@@ -858,7 +872,7 @@ function weekStart(t) { const d = new Date(t); d.setHours(0, 0, 0, 0); d.setDate
 function prevWeek(t) { const d = new Date(t); d.setDate(d.getDate() - 7); return d.getTime(); }
 function viewProgress() {
   const ws = finished(), now = Date.now(), goal = num(settings().goal) || 5;
-  let h = '<div class="page-head"><h1>Stats</h1></div>';
+  let h = '<div class="page-head"><h1>Stats</h1></div>' + statsTabs("progress");
   if (!ws.length) return h + '<div class="card empty">Termine une première séance pour voir tes stats.</div>';
   const perWeek = {}; ws.forEach(w => { const k = weekStart(w.startedAt); perWeek[k] = (perWeek[k] || 0) + 1; });
   const cur = weekStart(now), thisWeek = perWeek[cur] || 0;
@@ -932,10 +946,203 @@ function viewProgressDetail(key) {
   svg += "</svg>";
   return '<a class="back" href="#/progress">‹ Stats</a><div class="page-head"><h1>' + esc(p.name) + "</h1></div>" +
     '<div class="stats"><div class="card stat"><div class="muted small">Record</div><div class="v">' + (rec != null ? fmtNum(rec) + unitOf(p) : "—") + "</div></div>" +
-    '<div class="card stat"><div class="muted small">Dernière séance</div><div class="v">' + (last.best != null ? fmtNum(last.best) + unitOf(p) : "—") + "</div></div></div>" +
+    '<div class="card stat"><div class="muted small">Dernière séance</div><div class="v">' + (last.best != null ? fmtNum(last.best) + unitOf(p) : "—") + "</div></div>" +
+    (p.type === "time" ? "" : (() => { const os = p.entries.map(x => x.orm).filter(x => x != null); const best = os.length ? Math.max(...os) : null;
+      return '<div class="card stat"><div class="muted small">1RM estimé (record)</div><div class="v">' + (best != null ? fmtNum(Math.round(best * 2) / 2) + " kg" : "—") + "</div></div>" +
+        '<div class="card stat"><div class="muted small">1RM estimé (dernière)</div><div class="v">' + (last.orm != null ? fmtNum(Math.round(last.orm * 2) / 2) + " kg" : "—") + "</div></div>"; })()) + "</div>" +
+    (p.type === "time" ? "" : '<p class="muted small">1RM estimé : la charge que tu pourrais soulever une seule fois, calculée à partir de tes séries (formule d\'Epley).</p>') +
     '<div class="card" style="margin-top:12px"><div class="muted small" style="font-weight:600;margin-bottom:8px">' + (p.type === "time" ? "Meilleur temps par séance (s)" : "Charge maximale par séance (kg)") + "</div>" + svg + "</div>" +
     '<div class="section-title">Historique</div><div class="list">' + p.entries.slice().reverse().map(x =>
-      '<a href="#/session/' + x.w.id + '"><div><b>' + esc(fmtDate(x.w.startedAt)) + '</b><div class="muted small">' + esc(x.w.templateName) + " · " + esc(vLabel(x.w.variantName)) + '</div></div><span class="small" style="text-align:right">' + esc(exSummary(x.e)) + "</span></a>").join("") + "</div>";
+      '<a href="#/session/' + x.w.id + '"><div><b>' + esc(fmtDate(x.w.startedAt)) + '</b><div class="muted small">' + esc(x.w.templateName) + " · " + esc(vLabel(x.w.variantName)) + '</div></div><span class="small" style="text-align:right">' + esc(exSummary(x.e)) + (x.orm != null ? '<br><span class="muted">1RM ≈ ' + fmtNum(Math.round(x.orm * 2) / 2) + " kg</span>" : "") + "</span></a>").join("") + "</div>";
+}
+
+/* ================= Records et 1RM estimé ================= */
+// 1RM estimé (formule d'Epley), fiable jusqu'à une quinzaine de répétitions
+const e1rm = (kg, r) => (kg == null || r == null || r <= 0 || r > 20) ? null : (r === 1 ? kg : kg * (1 + r / 30));
+const TROPHY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0z"/><path d="M17 5h3v2a3 3 0 01-3 3M7 5H4v2a3 3 0 003 3"/></svg>';
+// la série qu'on vient de valider bat-elle un record ? (comparée à tout l'historique de l'exercice)
+function checkRecord(w, i, s) {
+  const e = w.exercises[i], set = e.sets[s], n = norm(e.name);
+  let any = false, maxKg = null, maxSec = null, maxReps = null, max1 = null; const repsAt = {};
+  const consider = st => {
+    if (!setHasData(st, e.type)) return;
+    any = true;
+    if (e.type === "time") { const v = num(st.sec); if (v != null && (maxSec == null || v > maxSec)) maxSec = v; return; }
+    const kg = num(st.kg), r = num(st.reps);
+    if (kg != null && (maxKg == null || kg > maxKg)) maxKg = kg;
+    if (kg == null && r != null && (maxReps == null || r > maxReps)) maxReps = r;
+    if (kg != null && r != null) { repsAt[kg] = Math.max(repsAt[kg] || 0, r); const o = e1rm(kg, r); if (o != null && (max1 == null || o > max1)) max1 = o; }
+  };
+  for (const x of finished()) if (x.id !== w.id) for (const ex of x.exercises) if (norm(ex.name) === n && ex.type === e.type) ex.sets.forEach(consider);
+  w.exercises.forEach((ex, ii) => { if (norm(ex.name) === n && ex.type === e.type) ex.sets.forEach((st, ss) => { if (st.done && !(ii === i && ss === s)) consider(st); }); });
+  if (!any) return null; // première fois : pas encore de record à battre
+  if (e.type === "time") { const v = num(set.sec); return v != null && maxSec != null && v > maxSec ? { title: "Nouveau record !", text: e.name + " : " + fmtNum(v) + " s" } : null; }
+  const kg = num(set.kg), r = num(set.reps);
+  if (kg != null && maxKg != null && kg > maxKg) return { title: "Nouveau record !", text: e.name + " : " + fmtNum(kg) + " kg" + (r != null ? " × " + fmtNum(r) : "") };
+  if (kg != null && r != null && repsAt[kg] != null && r > repsAt[kg]) return { title: "Record de reps !", text: e.name + " : " + fmtNum(kg) + " kg × " + fmtNum(r) };
+  const o = e1rm(kg, r);
+  if (o != null && max1 != null && o > max1 + 0.05) return { title: "Nouveau 1RM estimé !", text: e.name + " : " + fmtNum(Math.round(o * 2) / 2) + " kg" };
+  if (kg == null && r != null && maxReps != null && r > maxReps) return { title: "Record de reps !", text: e.name + " : " + fmtNum(r) + " reps" };
+  return null;
+}
+function celebrate(rec) {
+  if (!rec) return;
+  document.querySelectorAll(".recordpop").forEach(x => x.remove());
+  const d = document.createElement("div"); d.className = "recordpop"; d.setAttribute("role", "alert");
+  d.innerHTML = '<div class="rec-box"><div class="rec-icon">' + TROPHY + '</div><div class="rec-title">' + esc(rec.title) + '</div><div class="rec-text">' + esc(rec.text) + "</div></div>";
+  document.body.appendChild(d);
+  d.addEventListener("click", () => d.remove());
+  setTimeout(() => d.remove(), 3000);
+  if (settings().alert !== "aucune") { try { if (Native && Native.vibrate) Native.vibrate("[80,60,80,60,160]"); else if (navigator.vibrate) navigator.vibrate([80, 60, 80, 60, 160]); } catch (e) { } }
+}
+
+/* ================= Stats : onglets ================= */
+function statsTabs(on) {
+  return '<div class="tabs" role="tablist">' + [["progress", "Séances"], ["calendar", "Calendrier"], ["body", "Corps"]].map(t =>
+    '<a href="#/' + t[0] + '" class="tab' + (t[0] === on ? " on" : "") + '"' + (t[0] === on ? ' aria-current="page"' : "") + ">" + t[1] + "</a>").join("") + "</div>";
+}
+
+/* ================= Calendrier ================= */
+const MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+const ymd = t => { const d = new Date(t); return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); };
+function viewCalendar(ym, day) {
+  const now = new Date();
+  let y = now.getFullYear(), m = now.getMonth();
+  if (/^\d{4}-\d{2}$/.test(ym || "")) { y = +ym.slice(0, 4); m = +ym.slice(5, 7) - 1; }
+  const first = new Date(y, m, 1), days = new Date(y, m + 1, 0).getDate(), lead = (first.getDay() + 6) % 7;
+  const byDay = {}; finished().forEach(w => { const k = ymd(w.startedAt); (byDay[k] = byDay[k] || []).push(w); });
+  const prev = new Date(y, m - 1, 1), next = new Date(y, m + 1, 1);
+  const key = d => d.getFullYear() + "-" + pad(d.getMonth() + 1);
+  const monthCount = Object.keys(byDay).filter(k => k.startsWith(y + "-" + pad(m + 1))).reduce((n, k) => n + byDay[k].length, 0);
+  let h = '<div class="page-head"><h1>Stats</h1></div>' + statsTabs("calendar") +
+    '<div class="card"><div class="spread"><a class="btn sm" href="#/calendar/' + key(prev) + '" aria-label="Mois précédent">‹</a>' +
+    '<div style="text-align:center"><b class="cal-title">' + MONTHS[m] + " " + y + '</b><div class="muted small">' + monthCount + " séance" + (monthCount > 1 ? "s" : "") + "</div></div>" +
+    '<a class="btn sm" href="#/calendar/' + key(next) + '" aria-label="Mois suivant">›</a></div>' +
+    '<div class="cal">' + ["L", "M", "M", "J", "V", "S", "D"].map(x => '<div class="cal-h">' + x + "</div>").join("");
+  for (let k = 0; k < lead; k++) h += "<div></div>";
+  const today = ymd(Date.now());
+  for (let d = 1; d <= days; d++) {
+    const k = y + "-" + pad(m + 1) + "-" + pad(d), ws = byDay[k] || [];
+    const cls = "cal-d" + (ws.length ? " has" : "") + (k === today ? " today" : "") + (k === day ? " sel" : "");
+    const label = d + " " + MONTHS[m] + (ws.length ? " : " + ws.map(w => w.templateName).join(", ") : "");
+    h += ws.length ? '<a class="' + cls + '" href="#/calendar/' + y + "-" + pad(m + 1) + "/" + k + '" aria-label="' + esc(label) + '"><span>' + d + "</span>" + (ws.length > 1 ? "<i>" + ws.length + "</i>" : "") + "</a>"
+      : '<div class="' + cls + '" aria-label="' + esc(label) + '"><span>' + d + "</span></div>";
+  }
+  h += "</div></div>";
+  const list = day && byDay[day] ? byDay[day] : finished().filter(w => ymd(w.startedAt).startsWith(y + "-" + pad(m + 1)));
+  h += '<div class="section-title">' + (day && byDay[day] ? esc(fmtDateLong(byDay[day][0].startedAt)) : "Séances du mois") + "</div>" +
+    (list.length ? '<div class="list">' + list.map(historyRow).join("") + "</div>" : '<div class="card empty">Aucune séance ce mois-ci.</div>');
+  return h;
+}
+
+/* ================= Poids de corps et mensurations ================= */
+const BODY_FIELDS = [["weight", "Poids", "kg"], ["waist", "Tour de taille", "cm"], ["chest", "Poitrine", "cm"], ["arm", "Bras", "cm"], ["thigh", "Cuisse", "cm"], ["hips", "Hanches", "cm"]];
+const bodyEntries = () => all("body").sort((a, b) => b.date.localeCompare(a.date));
+function viewBody() {
+  const es = bodyEntries(), withW = es.filter(e => num(e.weight) != null);
+  let h = '<div class="page-head"><h1>Stats</h1></div>' + statsTabs("body");
+  if (withW.length) {
+    const cur = num(withW[0].weight), first = num(withW[withW.length - 1].weight);
+    const d30 = withW.find(e => e.date <= ymd(Date.now() - 30 * DAY));
+    const delta = (a, b) => { const v = Math.round((a - b) * 10) / 10; return (v > 0 ? "+" : "") + fmtNum(v) + " kg"; };
+    h += '<div class="stats k3"><div class="card stat"><div class="muted small">Poids actuel</div><div class="v num">' + fmtNum(cur) + " <small>kg</small></div></div>" +
+      '<div class="card stat"><div class="muted small">Sur 30 jours</div><div class="v num">' + (d30 ? delta(cur, num(d30.weight)) : "—") + "</div></div>" +
+      '<div class="card stat"><div class="muted small">Depuis le début</div><div class="v num">' + (withW.length > 1 ? delta(cur, first) : "—") + "</div></div></div>";
+    // courbe du poids (une seule série : pas de légende, le titre la nomme)
+    const pts = withW.slice(0, 30).reverse();
+    if (pts.length > 1) {
+      const W = 360, H = 140, pl = 8, pr = 8, top = 20, vs = pts.map(e => num(e.weight));
+      const lo = Math.min(...vs), hi = Math.max(...vs), span = Math.max(1, hi - lo);
+      const t0 = new Date(pts[0].date).getTime(), t1 = new Date(pts[pts.length - 1].date).getTime(), tspan = Math.max(1, t1 - t0);
+      const X = e => pl + (new Date(e.date).getTime() - t0) / tspan * (W - pl - pr), Y = v => top + (1 - (v - lo) / span) * (H - top - 10);
+      let svg = '<svg class="chart" viewBox="0 0 ' + W + " " + (H + 22) + '" role="img" aria-label="Évolution du poids">';
+      svg += '<line class="base" x1="0" x2="' + W + '" y1="' + H + '" y2="' + H + '"></line>';
+      svg += '<polyline class="wline" points="' + pts.map(e => X(e).toFixed(1) + "," + Y(num(e.weight)).toFixed(1)).join(" ") + '"></polyline>';
+      pts.forEach((e, k) => {
+        svg += '<g><circle class="hit" cx="' + X(e) + '" cy="' + Y(num(e.weight)) + '" r="14"></circle><circle class="wdot" cx="' + X(e) + '" cy="' + Y(num(e.weight)) + '" r="4"></circle><title>' + esc(fmtDate(new Date(e.date).getTime()) + " : " + fmtNum(num(e.weight)) + " kg") + "</title></g>";
+      });
+      const le = pts[pts.length - 1];
+      svg += '<text x="' + Math.min(W - 4, X(le)) + '" y="' + (Y(num(le.weight)) - 10) + '" text-anchor="end" style="font-weight:700;fill:var(--ink)">' + fmtNum(num(le.weight)) + " kg</text>";
+      svg += '<text x="' + pl + '" y="' + (H + 16) + '">' + esc(fmtDate(t0)) + '</text><text x="' + (W - pr) + '" y="' + (H + 16) + '" text-anchor="end">' + esc(fmtDate(t1)) + "</text></svg>";
+      h += '<div class="card" style="margin-top:12px"><div class="muted small" style="font-weight:600;margin-bottom:8px">Poids (kg)</div>' + svg + "</div>";
+    }
+  }
+  const last = es[0] || {};
+  h += '<div class="section-title">Nouvelle mesure</div><form class="card" data-form="body"><div class="ed-grid">' +
+    '<label class="fl full">Date<input class="f" type="date" name="date" value="' + ymd(Date.now()) + '" required></label>' +
+    BODY_FIELDS.map(f => '<label class="fl">' + f[1] + " (" + f[2] + ')<input class="f" name="' + f[0] + '" inputmode="decimal" autocomplete="off" placeholder="' + esc(last[f[0]] != null && last[f[0]] !== "" ? fmtNum(num(last[f[0]])) : "—") + '"></label>').join("") +
+    '</div><p class="muted small">Remplis seulement ce que tu as mesuré. Une seule mesure par jour : la refaire le même jour la complète.</p><button class="btn primary block" type="submit">Enregistrer</button></form>';
+  if (es.length) {
+    h += '<div class="section-title">Historique</div><div class="list">' + es.map(e =>
+      '<div><div><b>' + esc(fmtDate(new Date(e.date).getTime())) + '</b><div class="muted small">' +
+      BODY_FIELDS.filter(f => num(e[f[0]]) != null).map(f => f[1] + " " + fmtNum(num(e[f[0]])) + " " + f[2]).join(" · ") +
+      '</div></div><button class="btn sm danger" data-act="delbody" data-id="' + e.id + '" aria-label="Supprimer la mesure">Suppr.</button></div>').join("") + "</div>";
+  }
+  return h;
+}
+function saveBody(form) {
+  const date = form.date.value || ymd(Date.now());
+  const ex = all("body").find(e => e.date === date);
+  const e = ex || { id: "b-" + uid(), date };
+  let n = 0;
+  BODY_FIELDS.forEach(f => { const v = num(form[f[0]].value); if (v != null) { e[f[0]] = v; n++; } });
+  if (!n) { toast("Remplis au moins une valeur"); return; }
+  put("body", e); toast("Mesure enregistrée"); render();
+}
+
+/* ================= Partager une séance ================= */
+const b64url = str => btoa(unescape(encodeURIComponent(str))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const unb64url = s => decodeURIComponent(escape(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4))));
+const SHARE_BASE = "https://yohanluzi00-ui.github.io/muscuapp/#/import/";
+async function shareVariant(t, v) {
+  const data = { app: "muscuapp-share", v: 1, prog: t.name, name: vLabel(v.name),
+    ex: v.exercises.map(e => ({ n: e.name, t: e.type, s: e.sets, c: e.target, r: e.rest, no: e.note || "", d: num(e.drops) || 0, g: e.groupId || null, k: e.groupKind || null })) };
+  const url = SHARE_BASE + b64url(JSON.stringify(data));
+  const text = "Je te partage ma séance « " + t.name + " · " + vLabel(v.name) + " » sur Muscu :\n" + url + "\n\nDans l'appli : Programmes › Importer une séance, puis colle ce lien.";
+  try {
+    if (Native && Native.share) { Native.share(text); return; }
+    if (navigator.share) { await navigator.share({ title: "Séance Muscu", text }); return; }
+  } catch (e) { if (e && e.name === "AbortError") return; }
+  try { await navigator.clipboard.writeText(text); toast("Lien copié : envoie-le à la personne"); }
+  catch (e) { await ask({ title: "Partager la séance", text: "Copie ce texte et envoie-le :", input: text, multiline: true, cancel: false, ok: "Fermer" }); }
+}
+async function importShared(code) {
+  let data;
+  try {
+    const m = String(code || "").trim().match(/import\/([A-Za-z0-9_-]+)/);
+    data = JSON.parse(unb64url(m ? m[1] : String(code).trim()));
+    if (!data || data.app !== "muscuapp-share" || !Array.isArray(data.ex) || !data.ex.length) throw new Error();
+  } catch (e) { toast("Ce lien de séance n'est pas valide"); return; }
+  const ts = templates();
+  const dest = await choose("Importer « " + data.prog + " · " + data.name + " » (" + data.ex.length + " exercices)", [["new", "Nouveau programme « " + data.prog + " »", "Crée un programme avec cette séance"]].concat(ts.map(t => ["t:" + t.id, "Ajouter à « " + t.name + " »", "Comme nouvelle séance de ce programme"])));
+  if (!dest) return;
+  const gmap = {};
+  const exercises = data.ex.map(x => {
+    const e = { id: "e-" + uid(), name: String(x.n || "Exercice").slice(0, 80), type: x.t === "time" ? "time" : "reps", sets: Math.max(1, Math.min(20, num(x.s) || 3)), target: String(x.c == null ? "" : x.c).slice(0, 20), rest: Math.max(0, num(x.r) || 0), note: String(x.no || "").slice(0, 500), drops: Math.max(0, Math.min(3, num(x.d) || 0)) };
+    if (x.g && GROUP_LABEL[x.k]) { gmap[x.g] = gmap[x.g] || "g-" + uid(); e.groupId = gmap[x.g]; e.groupKind = x.k; }
+    return e;
+  });
+  let t, vid = "v" + uid();
+  if (dest === "new") {
+    t = { id: "tpl-" + uid(), name: String(data.prog).slice(0, 60), order: ts.length, variants: [{ id: vid, name: String(data.name).slice(0, 60), exercises }] };
+  } else {
+    t = getItem(dest.slice(2)); if (!t) return;
+    let name = String(data.name).slice(0, 60);
+    if (t.variants.some(v => vLabel(v.name) === name)) name += " (partagée)";
+    t.variants.push({ id: vid, name, exercises });
+  }
+  put("template", t); toast("Séance importée"); go("program/" + t.id + "/" + vid);
+}
+
+/* ================= Alerte de fin de repos écran éteint (appli Android) ================= */
+let nativeRestSent = null, notifAsked = false;
+function syncNativeRest() {
+  if (!Native || !Native.setRestEnd) return;
+  const v = (db.live && db.live.restEnd) || 0;
+  if (v === nativeRestSent) return;
+  nativeRestSent = v;
+  try { Native.setRestEnd(String(v), settings().alert); } catch (e) { }
+  if (v && !notifAsked && Native.askNotifications) { notifAsked = true; try { Native.askNotifications(); } catch (e) { } }
 }
 
 /* ================= Écran : réglages ================= */
@@ -963,7 +1170,12 @@ function tick() {
   const now = Date.now(), L = db.live || {};
   document.querySelectorAll('[data-tick="elapsed"]').forEach(el => { const w = getItem(el.dataset.id); if (w) el.textContent = fmtDur((w.endedAt || now) - w.startedAt); });
   // repos
-  if (L.restEnd && now >= L.restEnd && !L.restAlerted) { L.restAlerted = true; L.restEnd = null; L.restMin = false; save(); signal(); restDone(); }
+  if (L.restEnd && now >= L.restEnd && !L.restAlerted) {
+    const late = now - L.restEnd > 4000; // fini pendant que l'appli était en arrière-plan : la notification Android a déjà prévenu
+    L.restAlerted = true; L.restEnd = null; L.restMin = false; save();
+    if (!late) { signal(); restDone(); }
+  }
+  syncNativeRest();
   const pop = document.querySelector("[data-restpop]"), pill = document.querySelector("[data-restpill]");
   if (pop) {
     const on = !!L.restEnd;
@@ -1025,6 +1237,7 @@ $app.addEventListener("submit", e => {
   const f = e.target.closest("[data-form]"); if (!f) return;
   e.preventDefault();
   if (f.dataset.form === "login") onLogin(f, (e.submitter && e.submitter.value) || "in");
+  if (f.dataset.form === "body") saveBody(f);
 });
 
 $app.addEventListener("click", async e => {
@@ -1158,6 +1371,9 @@ $app.addEventListener("click", async e => {
     } break;
     case "delex": { const { t, v } = currentProgram(); if (!v) return; const ex = v.exercises[+b.dataset.e]; if (!await ask({ title: (ex.groupId ? "Retirer" : "Supprimer") + " « " + ex.name + " » ?", ok: ex.groupId ? "Retirer" : "Supprimer", danger: true })) return; v.exercises.splice(+b.dataset.e, 1); cleanGroups(v); put("template", t); render(); } break;
     case "up": case "down": { const { t, v } = currentProgram(); if (!v) return; if (moveBlock(v, +b.dataset.b, a === "up" ? -1 : 1)) { put("template", t); render(); } } break;
+    case "sharevar": { const { t, v } = currentProgram(); if (v) shareVariant(t, v); } break;
+    case "importvar": { const code = await ask({ title: "Importer une séance", text: "Colle le lien de la séance qu'on t'a envoyé.", input: "", ok: "Continuer" }); if (code) importShared(code); } break;
+    case "delbody": { const id = b.dataset.id; if (!await ask({ title: "Supprimer cette mesure ?", ok: "Supprimer", danger: true })) return; remove(id); render(); } break;
     case "deltpl": { const { t } = currentProgram(); if (!t) return; if (!await ask({ title: "Supprimer « " + t.name + " » ?", text: "Ses séances et exercices seront supprimés. L'historique des séances déjà faites est conservé.", ok: "Supprimer", danger: true })) return; remove(t.id); go("programs"); } break;
 
     /* réglages */

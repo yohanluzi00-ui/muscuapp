@@ -269,3 +269,32 @@ h1, .page-head h1, .ex-name, .tpl h2, .rp-time, .rp-end, .stat .v, .nav .brand, 
 .chart .base { stroke: var(--line); stroke-width: 1; }
 .chart .hit { fill: transparent; }
 .chart .hit:hover + .bar, .chart g:hover .bar { opacity: 1; filter: brightness(1.1); }
+
+/* ---------- Onglets des stats */
+.tabs a.tab { min-height: 40px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--in-line); background: var(--card); font-size: 14px; display: inline-flex; align-items: center; text-decoration: none; }
+.tabs a.tab.on { background: var(--grad); color: var(--on-grad); border-color: transparent; font-weight: 700; box-shadow: var(--glow); }
+
+/* ---------- Calendrier */
+.cal-title { font-family: var(--display); font-size: 18px; text-transform: capitalize; }
+.cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin-top: 14px; }
+.cal-h { text-align: center; font-size: 12px; font-weight: 700; color: var(--muted); padding-bottom: 2px; }
+.cal-d { position: relative; aspect-ratio: 1; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-family: var(--display); font-size: 15px; color: var(--muted); text-decoration: none; background: var(--soft); min-height: 40px; }
+.cal-d.has { background: var(--grad); color: var(--on-grad); font-weight: 700; box-shadow: var(--glow); }
+.cal-d.today { outline: 2px solid var(--accent); outline-offset: 1px; color: var(--ink); }
+.cal-d.has.today { color: var(--on-grad); }
+.cal-d.sel { outline: 3px solid var(--ink); outline-offset: 1px; }
+.cal-d i { position: absolute; top: 3px; right: 5px; font-style: normal; font-size: 10px; font-weight: 800; }
+
+/* ---------- Corps */
+.chart .wline { fill: none; stroke: var(--chart); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart .wdot { fill: var(--chart); stroke: var(--card); stroke-width: 2; }
+.chart g:hover .wdot { r: 6; }
+
+/* ---------- Record battu */
+.recordpop { position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(8, 8, 13, .35); animation: recIn .25s ease-out; }
+.rec-box { background: var(--grad); color: var(--on-grad); border-radius: 24px; padding: 26px 22px; width: 100%; max-width: 340px; text-align: center; box-shadow: 0 0 60px rgba(255, 61, 127, .55), 0 20px 60px rgba(0, 0, 0, .4); }
+.rec-icon svg { width: 56px; height: 56px; }
+.rec-title { font-family: var(--display); font-size: 30px; font-weight: 700; margin-top: 6px; }
+.rec-text { font-size: 17px; font-weight: 600; margin-top: 6px; }
+@keyframes recIn { from { opacity: 0; transform: scale(.92); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .recordpop { animation: none; } }

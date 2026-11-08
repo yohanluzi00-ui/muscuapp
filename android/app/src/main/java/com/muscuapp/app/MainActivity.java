@@ -3,6 +3,7 @@ package com.muscuapp.app;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -31,6 +32,9 @@ import java.util.HashMap;
 public class MainActivity extends Activity {
     private static final String HOST = "appassets.androidplatform.net";
     private WebView web;
+    // fin du repos en cours (ms) et type d'alerte, transmis par l'appli web
+    private volatile long restEnd = 0;
+    private volatile String restMode = "vibration";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -115,10 +119,46 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void setRestEnd(String at, String mode) {
+            try { restEnd = Long.parseLong(at); } catch (Exception e) { restEnd = 0; }
+            restMode = mode == null ? "vibration" : mode;
+        }
+
+        @JavascriptInterface
+        public void askNotifications() {
+            if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
+                runOnUiThread(() -> requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 2));
+            }
+        }
+
+        @JavascriptInterface
+        public void share(final String text) {
+            runOnUiThread(() -> {
+                Intent i = new Intent(Intent.ACTION_SEND);
+                i.setType("text/plain");
+                i.putExtra(Intent.EXTRA_TEXT, text);
+                try { startActivity(Intent.createChooser(i, "Partager la séance")); } catch (Exception ignored) { }
+            });
+        }
+
+        @JavascriptInterface
         public String version() {
             try { return getPackageManager().getPackageInfo(getPackageName(), 0).versionName; }
             catch (Exception e) { return ""; }
         }
+    }
+
+    // l'appli passe en arrière-plan (écran verrouillé…) : une alarme système prendra le relais pour la fin du repos
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (restEnd > System.currentTimeMillis() + 1000) RestAlarm.schedule(this, restEnd, restMode);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        RestAlarm.cancel(this);
     }
 
     @Override
