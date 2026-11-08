@@ -432,6 +432,14 @@ function renderNow() {
 
 /* ================= Écran : connexion ================= */
 function viewLogin() {
+  if (db.verify) return '<div class="login"><img class="logo" src="icon-192.png" alt="" width="72" height="72"><h1>Vérifie ton e-mail</h1>' +
+    '<p class="muted">Nous avons envoyé un code à <b>' + esc(db.verify) + '</b>. Saisis-le ci-dessous pour activer ton compte.</p>' +
+    '<form data-form="verify" class="stack">' +
+    '<label class="fl">Code reçu par e-mail<input class="f code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" pattern="[0-9 ]*" required></label>' +
+    '<button class="btn primary big" type="submit">Valider</button></form>' +
+    '<p class="msg" data-msg role="status"></p>' +
+    '<p class="muted small">Pas reçu ? Regarde dans les spams, ou</p><button class="btn" data-act="resend">Renvoyer le code</button>' +
+    '<button class="link" data-act="changemail">Changer d\'adresse e-mail</button></div>';
   return '<div class="login"><img class="logo" src="icon-192.png" alt="" width="72" height="72"><h1>Muscu</h1>' +
     '<p class="muted">Connecte-toi pour retrouver tes séances sur ton téléphone et sur ton ordinateur.</p>' +
     '<form data-form="login" class="stack">' +
@@ -445,11 +453,37 @@ function viewLogin() {
 function authMessage(e) {
   const m = String(e.message || "");
   if (/invalid login credentials/i.test(m)) return "E-mail ou mot de passe incorrect.";
-  if (/email not confirmed/i.test(m)) return "Confirme d'abord ton e-mail avec le lien reçu, puis reconnecte-toi.";
+  if (/email not confirmed/i.test(m)) return "Ton e-mail n'est pas encore vérifié.";
+  if (/expired|invalid/i.test(m) && /token|otp|code/i.test(m)) return "Code incorrect ou expiré. Vérifie-le ou demande un nouveau code.";
+  if (/rate limit/i.test(m)) return "Trop d'e-mails envoyés pour le moment. Réessaie un peu plus tard.";
+  if (/security purposes|only request this after/i.test(m)) return "Patiente une minute avant de redemander un code.";
   if (/already registered|already exists/i.test(m)) return "Un compte existe déjà avec cet e-mail : clique sur « Se connecter ».";
   if (/password/i.test(m) && /6|short|weak/i.test(m)) return "Mot de passe trop court (6 caractères minimum).";
   if (m === "Failed to fetch") return "Pas de connexion internet.";
   return m;
+}
+async function afterLogin() {
+  db.verify = null; db.seeded = false; db.lastServerAt = null;
+  // les données déjà saisies sans compte seront envoyées au compte
+  Object.values(db.items).forEach(i => { if (i.updated_at > 0) i.dirty = true; });
+  saveNow(); render(); await sync(); render();
+}
+async function onVerify(form) {
+  const msg = $app.querySelector("[data-msg]");
+  const token = form.code.value.replace(/\D/g, "");
+  if (token.length < 6) { msg.className = "msg err"; msg.textContent = "Le code fait au moins 6 chiffres."; return; }
+  msg.className = "msg"; msg.textContent = "Vérification…";
+  form.querySelectorAll("button").forEach(b => { b.disabled = true; });
+  try {
+    const j = await authReq("verify", { type: "signup", email: db.verify, token });
+    if (!j.access_token) throw new Error("Code incorrect ou expiré");
+    setSession(j); toast("E-mail vérifié, bienvenue !");
+    await afterLogin();
+  } catch (e) {
+    msg.className = "msg err"; msg.textContent = authMessage(e);
+  } finally {
+    form.querySelectorAll("button").forEach(b => { b.disabled = false; });
+  }
 }
 async function onLogin(form, mode) {
   const msg = $app.querySelector("[data-msg]");
@@ -459,15 +493,23 @@ async function onLogin(form, mode) {
   try {
     if (mode === "up") {
       const j = await authReq("signup", { email, password });
-      if (!j.access_token) { msg.textContent = "Compte créé. Ouvre le lien reçu par e-mail pour le confirmer, puis clique sur « Se connecter »."; return; }
+      // e-mail déjà inscrit : Supabase renvoie un utilisateur sans identité
+      if (j.user && Array.isArray(j.user.identities) && j.user.identities.length === 0) throw new Error("already registered");
+      if (!j.access_token) { db.verify = email; saveNow(); render(); return; } // code de vérification envoyé par e-mail
       setSession(j);
     } else {
-      setSession(await authReq("token?grant_type=password", { email, password }));
+      try { setSession(await authReq("token?grant_type=password", { email, password })); }
+      catch (e) {
+        if (/email not confirmed/i.test(e.message)) { // compte créé mais e-mail jamais vérifié : on renvoie un code
+          db.verify = email; saveNow(); render();
+          try { await authReq("resend", { type: "signup", email }); } catch (e2) { }
+          const m2 = $app.querySelector("[data-msg]"); if (m2) m2.textContent = "Ton e-mail n'est pas encore vérifié : un nouveau code vient de t'être envoyé.";
+          return;
+        }
+        throw e;
+      }
     }
-    db.seeded = false; db.lastServerAt = null;
-    // les données déjà saisies sans compte seront envoyées au compte
-    Object.values(db.items).forEach(i => { if (i.updated_at > 0) i.dirty = true; });
-    saveNow(); render(); await sync(); render();
+    await afterLogin();
   } catch (e) {
     msg.className = "msg err"; msg.textContent = authMessage(e);
   } finally {
@@ -960,30 +1002,18 @@ function viewProgressDetail(key) {
 // 1RM estimé (formule d'Epley), fiable jusqu'à une quinzaine de répétitions
 const e1rm = (kg, r) => (kg == null || r == null || r <= 0 || r > 20) ? null : (r === 1 ? kg : kg * (1 + r / 30));
 const TROPHY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0z"/><path d="M17 5h3v2a3 3 0 01-3 3M7 5H4v2a3 3 0 003 3"/></svg>';
-// la série qu'on vient de valider bat-elle un record ? (comparée à tout l'historique de l'exercice)
+// record = la série qu'on vient de valider donne le meilleur 1RM estimé jamais atteint sur cet exercice
 function checkRecord(w, i, s) {
   const e = w.exercises[i], set = e.sets[s], n = norm(e.name);
-  let any = false, maxKg = null, maxSec = null, maxReps = null, max1 = null; const repsAt = {};
-  const consider = st => {
-    if (!setHasData(st, e.type)) return;
-    any = true;
-    if (e.type === "time") { const v = num(st.sec); if (v != null && (maxSec == null || v > maxSec)) maxSec = v; return; }
-    const kg = num(st.kg), r = num(st.reps);
-    if (kg != null && (maxKg == null || kg > maxKg)) maxKg = kg;
-    if (kg == null && r != null && (maxReps == null || r > maxReps)) maxReps = r;
-    if (kg != null && r != null) { repsAt[kg] = Math.max(repsAt[kg] || 0, r); const o = e1rm(kg, r); if (o != null && (max1 == null || o > max1)) max1 = o; }
-  };
+  if (e.type === "time") return null;
+  const cur = e1rm(num(set.kg), num(set.reps));
+  if (cur == null) return null;
+  let best = null;
+  const consider = st => { const o = e1rm(num(st.kg), num(st.reps)); if (o != null && (best == null || o > best)) best = o; };
   for (const x of finished()) if (x.id !== w.id) for (const ex of x.exercises) if (norm(ex.name) === n && ex.type === e.type) ex.sets.forEach(consider);
   w.exercises.forEach((ex, ii) => { if (norm(ex.name) === n && ex.type === e.type) ex.sets.forEach((st, ss) => { if (st.done && !(ii === i && ss === s)) consider(st); }); });
-  if (!any) return null; // première fois : pas encore de record à battre
-  if (e.type === "time") { const v = num(set.sec); return v != null && maxSec != null && v > maxSec ? { title: "Nouveau record !", text: e.name + " : " + fmtNum(v) + " s" } : null; }
-  const kg = num(set.kg), r = num(set.reps);
-  if (kg != null && maxKg != null && kg > maxKg) return { title: "Nouveau record !", text: e.name + " : " + fmtNum(kg) + " kg" + (r != null ? " × " + fmtNum(r) : "") };
-  if (kg != null && r != null && repsAt[kg] != null && r > repsAt[kg]) return { title: "Record de reps !", text: e.name + " : " + fmtNum(kg) + " kg × " + fmtNum(r) };
-  const o = e1rm(kg, r);
-  if (o != null && max1 != null && o > max1 + 0.05) return { title: "Nouveau 1RM estimé !", text: e.name + " : " + fmtNum(Math.round(o * 2) / 2) + " kg" };
-  if (kg == null && r != null && maxReps != null && r > maxReps) return { title: "Record de reps !", text: e.name + " : " + fmtNum(r) + " reps" };
-  return null;
+  if (best == null || cur <= best + 0.05) return null; // première fois, ou pas mieux
+  return { title: "Nouveau record !", text: e.name + " : 1RM estimé " + fmtNum(Math.round(cur * 2) / 2) + " kg (" + fmtNum(num(set.kg)) + " kg × " + fmtNum(num(set.reps)) + ")" };
 }
 function celebrate(rec) {
   if (!rec) return;
@@ -1238,6 +1268,7 @@ $app.addEventListener("submit", e => {
   e.preventDefault();
   if (f.dataset.form === "login") onLogin(f, (e.submitter && e.submitter.value) || "in");
   if (f.dataset.form === "body") saveBody(f);
+  if (f.dataset.form === "verify") onVerify(f);
 });
 
 $app.addEventListener("click", async e => {
@@ -1248,6 +1279,12 @@ $app.addEventListener("click", async e => {
     /* connexion */
     case "local": db.mode = "local"; saveNow(); render(); break;
     case "tologin": db.mode = null; saveNow(); render(); break;
+    case "changemail": db.verify = null; saveNow(); render(); break;
+    case "resend": {
+      const msg = $app.querySelector("[data-msg]");
+      try { await authReq("resend", { type: "signup", email: db.verify }); msg.className = "msg"; msg.textContent = "Nouveau code envoyé à " + db.verify + "."; }
+      catch (err) { msg.className = "msg err"; msg.textContent = authMessage(err); }
+    } break;
     case "logout": {
       if (!await ask({ title: "Se déconnecter ?", text: "Tes données restent enregistrées dans ton compte. Elles seront effacées de cet appareil.", ok: "Se déconnecter", danger: true })) return;
       flushPending(); await sync();

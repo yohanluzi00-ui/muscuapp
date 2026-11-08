@@ -26,7 +26,10 @@ Application personnelle pour noter mes performances pendant mes séances de musc
 ### 1. Préparer la base de données Supabase
 1. Sur supabase.com, ouvre le projet, puis **SQL Editor** › **New query**.
 2. Colle tout le contenu du fichier [`supabase/schema.sql`](supabase/schema.sql), puis clique sur **Run**.
-3. (Conseillé) Dans **Authentication › Sign In / Providers › Email**, désactive **Confirm email** : tu pourras te connecter dès la création du compte, sans lien de confirmation par e-mail.
+3. **Vérification de l'e-mail par code** (à la création d'un compte, l'appli demande un code reçu par e-mail) :
+   - **Authentication › Sign In / Providers › Email** : active **Confirm email** ;
+   - **Authentication › Emails › Templates › Confirm signup** : sujet « Ton code Muscu », puis remplace le contenu par celui du fichier [`supabase/email-code-inscription.html`](supabase/email-code-inscription.html) (il affiche le code `{{ .Token }}`).
+   - Le serveur d'e-mails intégré à Supabase n'envoie que quelques e-mails par heure : pour plus d'inscriptions, configure un serveur SMTP (Authentication › Emails › SMTP Settings).
 
 ### 2. Installer l'appli Android (APK + Obtainium)
 À chaque modification poussée sur `main`, l'action GitHub « Construire l'APK » compile l'appli, la signe et publie une **Release** (`Muscu-1.N.apk`).
