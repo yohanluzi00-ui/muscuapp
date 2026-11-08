@@ -167,3 +167,23 @@ table.grid { border-collapse: collapse; width: 100%; min-width: 900px; }
 .modal-btns { display: flex; gap: 8px; justify-content: flex-end; }
 .modal-btns .btn { flex: 1; }
 .banner { background: var(--soft); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; font-size: 14px; margin-bottom: 12px; }
+
+/* ---------- Superset / biset / triset et dégressif */
+.sets { grid-template-columns: 44px minmax(0, 1fr) 48px; }
+.set { display: flex; gap: 8px; min-width: 0; }
+.set input { flex: 1; min-width: 0; }
+.set .chrono { flex: none; width: 100px; }
+.hdr { display: flex; gap: 8px; } .hdr span { flex: 1; }
+.n.drop { color: var(--muted); font-size: 18px; font-weight: 400; }
+.letter { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; background: var(--strong); color: var(--strong-ink); font-size: 13px; font-weight: 800; margin-right: 8px; vertical-align: 2px; }
+.sets .n .letter, .sets .n { line-height: 1; }
+.group-tag, .gtag { font-size: 12px; font-weight: 800; color: var(--accent); text-transform: uppercase; letter-spacing: .04em; }
+.gtag { font-size: 11px; margin-bottom: 2px; }
+.member { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line2); }
+.round-title { margin-top: 14px; font-size: 13px; font-weight: 700; color: var(--muted); }
+.round-title + .sets { margin-top: 6px; }
+.grid .cellwrap { display: flex; flex-direction: column; gap: 4px; }
+.grid .cell.drop .dl { color: var(--muted); width: 16px; flex: none; text-align: center; }
+.grid tr.chained td { border-bottom-style: dashed; }
+.btn.choice { flex-direction: column; align-items: flex-start; text-align: left; padding: 10px 14px; min-height: 56px; gap: 2px; }
+.choice-desc { font-size: 12px; color: var(--muted); font-weight: 400; }

@@ -6,6 +6,9 @@ Application personnelle pour noter mes performances pendant mes séances de musc
 
 - **5 séances-types** prêtes à remplir (Push, Pull, Legs, Haut du corps, Bas du corps), chacune avec **3 variantes** qui ont leurs propres exercices.
 - Pour chaque exercice : nombre de séries, reps cible (ou temps cible pour le gainage), temps de repos et **notes**.
+- Modes d'enchaînement, au choix en ajoutant un exercice :
+  - **Dégressif** : chaque série a 1 à 3 « baisses » (charge réduite, sans repos) ;
+  - **Superset / Biset** : 2 exercices enchaînés, **Triset** : 3 exercices enchaînés. La séance se fait par tours (A puis B puis C) et le repos ne démarre qu'à la fin du tour.
 - **Pendant la séance** :
   - tu notes les kg et reps de chaque série (ou le temps, avec un chrono, pour le gainage) ;
   - un encadré discret rappelle ta **dernière performance avec la même variante** ;
