@@ -1,0 +1,34 @@
+# À lancer UNE SEULE FOIS, à la main (onglet Actions > « Créer la clé de signature » > Run workflow).
+# Produit un fichier téléchargeable « cle-signature » contenant :
+#   - KEYSTORE_B64.txt      → à coller dans le secret KEYSTORE_B64
+#   - KEYSTORE_PASSWORD.txt → à coller dans le secret KEYSTORE_PASSWORD
+#   - release.p12           → la clé elle-même, à garder en lieu sûr
+# Rien n'est affiché dans le journal. Le fichier est supprimé automatiquement après 1 jour.
+name: Créer la clé de signature
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  cle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Générer la clé
+        run: |
+          PW=$(openssl rand -hex 16)
+          echo "::add-mask::$PW"
+          keytool -genkeypair -storetype PKCS12 -keystore release.p12 -alias muscuapp \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass "$PW" -keypass "$PW" -dname "CN=muscuapp" > /dev/null 2>&1
+          mkdir out
+          printf '%s' "$PW" > out/KEYSTORE_PASSWORD.txt
+          base64 -w0 release.p12 > out/KEYSTORE_B64.txt
+          mv release.p12 out/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cle-signature
+          path: out/
+          retention-days: 1
