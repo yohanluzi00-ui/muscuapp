@@ -8,6 +8,7 @@ const DB_KEY = "muscuapp-v1";
 const WIDE = 900; // largeur (px) à partir de laquelle la séance s'affiche en tableau
 const Native = window.AndroidBridge || null;
 const $app = document.getElementById("app");
+let flashTimer = null; // clignotement de fin de repos
 
 /* ================= Outils ================= */
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -86,7 +87,7 @@ function seedIfNeeded() {
     SEED.forEach((name, k) => {
       const id = "tpl-" + norm(name).replace(/\s+/g, "-");
       // updated_at 0 et non « dirty » : ces modèles vides ne remplacent jamais ceux d'un autre appareil
-      db.items[id] = { id, kind: "template", updated_at: 0, deleted: false, dirty: false, data: { id, name, order: k, variants: [1, 2, 3].map(n => ({ id: "v" + n, name: "Variante " + n, exercises: [] })) } };
+      db.items[id] = { id, kind: "template", updated_at: 0, deleted: false, dirty: false, data: { id, name, order: k, variants: [1, 2, 3].map(n => ({ id: "v" + n, name: "Séance " + n, exercises: [] })) } };
     });
   }
   db.seeded = true; save();
@@ -102,12 +103,24 @@ function migrate() {
     ["Lombaires", "reps", "12-15", 60, ""],
     ["Gainage", "time", "45", 60, ""],
   ];
-  const data = { id: "tpl-amanda", name: "Amanda", order: 5, variants: [{ id: "v1", name: "Variante 1",
+  const data = { id: "tpl-amanda", name: "Amanda", order: 5, variants: [{ id: "v1", name: "Séance 1",
     exercises: ex.map((x, k) => ({ id: "e-amanda-" + (k + 1), name: x[0], type: x[1], sets: 3, target: x[2], rest: x[3], note: x[4] })) }] };
   // updated_at 1 : une version déjà modifiée sur un autre appareil l'emporte toujours
   db.items["tpl-amanda"] = { id: "tpl-amanda", kind: "template", data, updated_at: 1, deleted: false, dirty: true };
   save(); scheduleSync();
   return true;
+}
+// anciens noms « Variante N » → « Séance N » (affichage, et renommage enregistré quand les données sont à jour)
+const vLabel = n => String(n == null ? "" : n).replace(/^Variante(?=\s|$)/i, "Séance");
+function renameVariants() {
+  for (const it of Object.values(db.items)) {
+    if (it.kind !== "template" || it.deleted) continue;
+    let ch = false;
+    it.data.variants.forEach(v => { const n = vLabel(v.name); if (n !== v.name) { v.name = n; ch = true; } });
+    if (!ch) continue;
+    if (it.updated_at === 0) save(); // modèle vide jamais envoyé : on renomme sur place
+    else put("template", it.data);
+  }
 }
 const templates = () => all("template").sort((a, b) => (a.order - b.order) || a.name.localeCompare(b.name));
 const workouts = () => all("workout").sort((a, b) => b.startedAt - a.startedAt);
@@ -191,6 +204,7 @@ function lastPerf(w, ex) {
 /* ================= Thème, son, vibration ================= */
 const darkQuery = window.matchMedia ? matchMedia("(prefers-color-scheme: dark)") : null;
 function applyTheme() {
+  if (flashTimer) return; // pendant le clignotement de fin de repos
   const t = settings().theme;
   const dark = t === "sombre" || (t === "auto" && darkQuery && darkQuery.matches);
   document.documentElement.dataset.theme = dark ? "dark" : "light";
@@ -317,6 +331,7 @@ async function sync() {
     db.lastServerAt = maxSeen;
     if (!db.seeded) { seedIfNeeded(); changed = true; }
     if (migrate()) changed = true;
+    renameVariants(); // après la récupération : les données sont à jour, aucun risque d'écraser une modif récente
     // 2) envoyer ce qui a changé ici
     const dirty = Object.values(db.items).filter(i => i.dirty);
     for (let k = 0; k < dirty.length; k += 200) {
@@ -386,6 +401,7 @@ function renderNow() {
   if (!db.auth && db.mode !== "local") { keepScreen(false); $app.innerHTML = viewLogin(); return; }
   seedIfNeeded();
   migrate();
+  if (!db.auth) renameVariants();
   const r = route();
   let body, wide = false, immersive = false;
   switch (r.name) {
@@ -407,7 +423,7 @@ function renderNow() {
 
 /* ================= Écran : connexion ================= */
 function viewLogin() {
-  return '<div class="login"><div class="logo">' + ICON.dumbbell + "</div><h1>Muscu</h1>" +
+  return '<div class="login"><img class="logo" src="icon-192.png" alt="" width="72" height="72"><h1>Muscu</h1>' +
     '<p class="muted">Connecte-toi pour retrouver tes séances sur ton téléphone et sur ton ordinateur.</p>' +
     '<form data-form="login" class="stack">' +
     '<label class="fl">E-mail<input class="f" type="email" name="email" autocomplete="email" required></label>' +
@@ -459,13 +475,13 @@ function viewHome() {
   const act = activeWorkout();
   let h = '<div class="page-head"><div><div class="muted small">' + esc(fmtDateLong(Date.now())) + '</div><h1>Bonjour</h1></div>' + syncBadge() + "</div>";
   if (act) {
-    h += '<div class="hero"><div class="small" style="opacity:.75">Séance en cours</div><div style="font-size:21px;font-weight:800;margin-top:2px">' + esc(act.templateName) + " · " + esc(act.variantName) + "</div>" +
+    h += '<div class="hero"><div class="small" style="opacity:.75">Séance en cours</div><div style="font-size:21px;font-weight:800;margin-top:2px">' + esc(act.templateName) + " · " + esc(vLabel(act.variantName)) + "</div>" +
       '<div class="small" style="opacity:.8;margin-top:4px">Commencée à ' + fmtTime(act.startedAt) + ' · <span class="num" data-tick="elapsed" data-id="' + act.id + '"></span></div>' +
       '<a class="btn primary block big" href="#/session/' + act.id + '">Reprendre la séance</a></div>';
   }
   const ts = templates();
-  h += '<div class="section-title">Mes séances</div><div class="stack">';
-  if (!ts.length) h += '<div class="card empty">Aucune séance. Crée-en une dans <a href="#/programs">Programmes</a>.</div>';
+  h += '<div class="section-title">Mes programmes</div><div class="stack">';
+  if (!ts.length) h += '<div class="card empty">Aucun programme. Crée-en un dans <a href="#/programs">Programmes</a>.</div>';
   for (const t of ts) {
     const st = variantStats(t);
     const lastAny = st.filter(x => x.last).sort((a, b) => b.last.startedAt - a.last.startedAt)[0];
@@ -476,10 +492,10 @@ function viewHome() {
       sugg = never ? never.v.id : st.slice().sort((a, b) => a.last.startedAt - b.last.startedAt)[0].v.id;
     }
     h += '<div class="card tpl"><div class="spread"><h2>' + esc(t.name) + "</h2>" +
-      '<span class="muted small">' + (lastAny ? "Dernière : " + esc(fmtDate(lastAny.last.startedAt)) + " (" + esc(lastAny.v.name) + ")" : "Jamais faite") + "</span></div>" +
+      '<span class="muted small">' + (lastAny ? "Dernière : " + esc(fmtDate(lastAny.last.startedAt)) + " (" + esc(vLabel(lastAny.v.name)) + ")" : "Jamais faite") + "</span></div>" +
       '<div class="variants">' + st.map(x => {
         const n = x.v.exercises.length;
-        return '<button class="variant' + (x.v.id === sugg ? " sugg" : "") + '" data-act="start" data-t="' + t.id + '" data-v="' + x.v.id + '"><b>' + esc(x.v.name) + "</b>" +
+        return '<button class="variant' + (x.v.id === sugg ? " sugg" : "") + '" data-act="start" data-t="' + t.id + '" data-v="' + x.v.id + '"><b>' + esc(vLabel(x.v.name)) + "</b>" +
           "<span>" + (n ? n + " exercice" + (n > 1 ? "s" : "") : "vide — à remplir") + "</span>" +
           "<span>" + (x.v.id === sugg ? '<span class="tag">Suggérée</span> · ' : "") + (x.last ? esc(ago(x.last.startedAt)) : "jamais faite") + "</span></button>";
       }).join("") + "</div></div>";
@@ -494,10 +510,10 @@ function viewHome() {
 async function startWorkout(tid, vid) {
   const t = getItem(tid); if (!t) return;
   const v = t.variants.find(x => x.id === vid); if (!v) return;
-  if (!v.exercises.length) { toast("Ajoute d'abord des exercices à cette variante"); go("program/" + tid + "/" + vid); return; }
+  if (!v.exercises.length) { toast("Ajoute d'abord des exercices à cette séance"); go("program/" + tid + "/" + vid); return; }
   const act = activeWorkout();
   if (act) {
-    const ok = await ask({ title: "Une séance est déjà en cours", text: act.templateName + " · " + act.variantName + "\nLa terminer et commencer celle-ci ?", ok: "Oui, la terminer" });
+    const ok = await ask({ title: "Une séance est déjà en cours", text: act.templateName + " · " + vLabel(act.variantName) + "\nLa terminer et commencer celle-ci ?", ok: "Oui, la terminer" });
     if (!ok) return;
     act.endedAt = Date.now(); put("workout", act);
   }
@@ -512,12 +528,6 @@ async function startWorkout(tid, vid) {
 }
 
 /* ================= Écran : séance ================= */
-function lastLine(w, e) {
-  const lp = lastPerf(w, e);
-  if (!lp) return '<div class="last">Pas encore de performance enregistrée pour cet exercice.</div>';
-  const where = lp.same ? esc(lp.w.variantName) : esc(lp.w.templateName) + " · " + esc(lp.w.variantName);
-  return '<div class="last">Dernière fois · ' + where + " · " + esc(fmtDate(lp.w.startedAt)) + " : <b>" + esc(exSummary(lp.e)) + "</b></div>";
-}
 // valeurs de la dernière fois, affichées en grisé dans les champs vides (d = numéro de baisse en dégressif)
 function phOf(w, e, s, d) {
   const lp = lastPerf(w, e);
@@ -537,7 +547,7 @@ function inputsHtml(w, e, i, k, d, label) {
 function chronoBtn(w, i, s) {
   const c = db.live.chrono, run = c && c.wid === w.id && c.i === i && c.s === s;
   return '<button class="chrono' + (run ? " run" : "") + '" data-act="chrono" data-i="' + i + '" data-s="' + s + '" aria-label="' + (run ? "Arrêter le chrono" : "Lancer le chrono") + '">' +
-    (run ? ICON.stop + '<span class="num" data-tick="chrono">0:00</span>' : ICON.play + "<span>Chrono</span>") + "</button>";
+    (run ? ICON.stop + '<span class="num" data-tick="chrono">0:00</span>' : ICON.play + "<span>Démarrer chrono</span>") + "</button>";
 }
 function okBtn(s, i, k) {
   return '<button class="ok' + (s.done ? " on" : "") + '" data-act="done" data-i="' + i + '" data-s="' + k + '" aria-label="Valider la série ' + (k + 1) + '" aria-pressed="' + !!s.done + '">✓</button>';
@@ -560,7 +570,7 @@ function metaText(e, inGroup) {
 }
 function exHead(w, e, i, letter) {
   return '<div class="spread"><div class="ex-name">' + (letter ? '<span class="letter">' + letter + "</span>" : "") + esc(e.name) + '</div><button class="link" data-act="rename" data-i="' + i + '">Renommer</button></div>' +
-    '<div class="ex-meta">' + metaText(e, !!letter) + "</div>" + lastLine(w, e);
+    '<div class="ex-meta">' + metaText(e, !!letter) + "</div>";
 }
 function setActions(idx, count, word) {
   const g = idx.join(",");
@@ -595,17 +605,20 @@ function viewSession(id) {
   if (!w) return { html: '<a class="back" href="#/home">‹ Accueil</a><div class="card empty">Séance introuvable.</div>', wide: false, active: false };
   const active = !w.endedAt;
   const wide = window.innerWidth >= WIDE;
-  let h = '<a class="back" href="#/' + (active ? "home" : "history") + '">‹ ' + (active ? "Accueil" : "Historique") + "</a>" +
-    '<div class="page-head"><div><div class="muted small">' + esc(w.variantName) + " · " + esc(fmtDateLong(w.startedAt)) + "</div><h1>" + esc(w.templateName) + "</h1></div>" +
+  let h = '<div class="spread"><a class="back" href="#/' + (active ? "home" : "history") + '">‹ ' + (active ? "Accueil" : "Historique") + "</a>" +
+    (active ? '<button class="btn sm primary" data-act="finish">Terminer la séance</button>' : "") + "</div>" +
+    '<div class="page-head"><div><div class="muted small">' + esc(vLabel(w.variantName)) + " · " + esc(fmtDateLong(w.startedAt)) + "</div><h1>" + esc(w.templateName) + "</h1></div>" +
     '<div class="row"><span class="num" style="font-size:18px;font-weight:700" data-tick="elapsed" data-id="' + w.id + '"></span>' +
     (active ? '<button class="btn sm" data-act="cancel">Annuler</button>' : "") + "</div></div>";
   if (!active) h += '<div class="banner">Séance terminée. Tu peux encore corriger les valeurs.</div>';
   h += wide ? sessionTable(w) : sessionCards(w);
   h += '<div style="margin-top:16px" class="row"><button class="btn" data-act="addex">+ Ajouter un exercice à cette séance</button></div>';
-  h += '<div class="bottom-bar"><div class="inner">' +
-    (active ? '<button class="rest" data-act="skiprest" hidden><span class="bar" data-restbar></span><span class="txt" data-tick="rest"></span></button>' +
-      '<button class="btn strong big" data-act="finish" style="flex:1">Terminer la séance</button>'
-      : '<button class="btn danger big" data-act="delworkout" style="flex:1">Supprimer cette séance</button>') + "</div></div>";
+  if (active) h += '<div class="restpop" data-restpop hidden><div class="rp-box" role="timer" aria-label="Minuteur de repos"><div class="rp-label">Repos</div>' +
+    '<div class="rp-time num" data-rptime>0:00</div><div class="rp-bar"><span data-rpbar></span></div>' +
+    '<div class="rp-btns"><button class="rp-b" data-act="restadd" data-v="-15">−15 s</button><button class="rp-b rp-go" data-act="skiprest">Passer</button><button class="rp-b" data-act="restadd" data-v="15">+15 s</button></div>' +
+    '<button class="rp-min" data-act="restmin">Réduire</button></div></div>' +
+    '<button class="restpill num" data-restpill data-act="restmax" hidden></button>';
+  else h += '<div class="bottom-bar"><div class="inner"><button class="btn danger big" data-act="delworkout" style="flex:1">Supprimer cette séance</button></div></div>';
   return { html: h, wide, active };
 }
 function sessionCards(w) {
@@ -624,7 +637,7 @@ function sessionTable(w) {
         (grouped ? '<div class="gtag">' + esc(GROUP_LABEL[e.groupKind] || "Enchaînement") + " · " + LETTERS[n] + "</div>" : "") +
         '<div class="spread" style="align-items:flex-start"><b style="font-size:15px">' + esc(e.name) + '</b><button class="link" data-act="rename" data-i="' + i + '">Renommer</button></div>' +
         (num(e.drops) ? '<div class="muted small">Dégressif · ' + e.drops + " baisse" + (e.drops > 1 ? "s" : "") + "</div>" : "") +
-        lastLine(w, e) + (!grouped || lastOfGroup ? setActions(grouped ? idx : [i], e.sets.length, grouped ? "Tour" : "Série") : "") + "</td>" +
+        (!grouped || lastOfGroup ? setActions(grouped ? idx : [i], e.sets.length, grouped ? "Tour" : "Série") : "") + "</td>" +
         "<td>" + e.sets.length + "</td><td>" + esc(e.target || "—") + (time ? " s" : "") + "</td><td>" + (grouped && !lastOfGroup ? "enchaîné" : esc(fmtRest(e.rest))) + "</td>";
       for (let k = 0; k < max; k++) {
         const s = e.sets[k];
@@ -670,16 +683,16 @@ function afterSet(w, i, s) {
 function startRest(sec) {
   sec = num(sec) || 0;
   if (sec <= 0) return;
-  db.live.restEnd = Date.now() + sec * 1000; db.live.restTotal = sec * 1000; db.live.restAlerted = false; save();
+  db.live.restEnd = Date.now() + sec * 1000; db.live.restTotal = sec * 1000; db.live.restAlerted = false; db.live.restMin = false; save();
 }
 
 /* ================= Écran : programmes ================= */
 function viewPrograms() {
   const ts = templates();
-  return '<div class="page-head"><h1>Programmes</h1><button class="btn primary" data-act="newtpl">+ Nouvelle séance</button></div>' +
-    '<p class="muted small">Tes séances-types et leurs variantes. Les modifications servent pour les prochaines séances.</p>' +
+  return '<div class="page-head"><h1>Programmes</h1><button class="btn primary" data-act="newtpl">+ Nouveau programme</button></div>' +
+    '<p class="muted small">Tes programmes et leurs séances. Les modifications servent pour les prochaines fois.</p>' +
     '<div class="list">' + (ts.length ? ts.map(t => '<a href="#/program/' + t.id + '"><div><b>' + esc(t.name) + '</b><div class="muted small">' +
-      t.variants.map(v => esc(v.name) + " : " + v.exercises.length + " exo").join(" · ") + '</div></div><span class="muted">›</span></a>').join("") : '<div class="empty">Aucune séance.</div>') + "</div>";
+      t.variants.map(v => esc(vLabel(v.name)) + " : " + v.exercises.length + " exo").join(" · ") + '</div></div><span class="muted">›</span></a>').join("") : '<div class="empty">Aucun programme.</div>') + "</div>";
 }
 function exFields(e, k, letter, inGroup) {
   const time = e.type === "time", d = num(e.drops) || 0;
@@ -694,17 +707,17 @@ function exFields(e, k, letter, inGroup) {
 }
 function viewProgram(tid, vid) {
   const t = getItem(tid);
-  if (!t) return '<a class="back" href="#/programs">‹ Programmes</a><div class="card empty">Séance introuvable.</div>';
+  if (!t) return '<a class="back" href="#/programs">‹ Programmes</a><div class="card empty">Programme introuvable.</div>';
   const v = t.variants.find(x => x.id === vid) || t.variants[0];
   let h = '<a class="back" href="#/programs">‹ Programmes</a>' +
-    '<label class="fl" style="margin-top:8px">Nom de la séance<input class="f" data-p="tname" value="' + esc(t.name) + '" style="font-size:20px;font-weight:700"></label>' +
-    '<div class="section-title">Variantes</div><div class="tabs">' +
-    t.variants.map(x => '<button class="' + (v && x.id === v.id ? "on" : "") + '" data-act="tab" data-v="' + x.id + '"' + (v && x.id === v.id ? " data-vtab" : "") + ">" + esc(x.name) + "</button>").join("") +
-    '<button data-act="addvar">+ Variante</button></div>';
+    '<label class="fl" style="margin-top:8px">Nom du programme<input class="f" data-p="tname" value="' + esc(t.name) + '" style="font-size:20px;font-weight:700"></label>' +
+    '<div class="section-title">Séances</div><div class="tabs">' +
+    t.variants.map(x => '<button class="' + (v && x.id === v.id ? "on" : "") + '" data-act="tab" data-v="' + x.id + '"' + (v && x.id === v.id ? " data-vtab" : "") + ">" + esc(vLabel(x.name)) + "</button>").join("") +
+    '<button data-act="addvar">+ Séance</button></div>';
   if (!v) return h;
-  h += '<div class="card"><label class="fl">Nom de la variante<input class="f" data-p="vname" value="' + esc(v.name) + '"></label>' +
-    '<div class="row" style="margin-top:10px;flex-wrap:wrap"><button class="btn sm" data-act="dupvar">Dupliquer cette variante</button>' +
-    (t.variants.length > 1 ? '<button class="btn sm danger" data-act="delvar">Supprimer la variante</button>' : "") + "</div></div>";
+  h += '<div class="card"><label class="fl">Nom de la séance<input class="f" data-p="vname" value="' + esc(vLabel(v.name)) + '"></label>' +
+    '<div class="row" style="margin-top:10px;flex-wrap:wrap"><button class="btn sm" data-act="dupvar">Dupliquer cette séance</button>' +
+    (t.variants.length > 1 ? '<button class="btn sm danger" data-act="delvar">Supprimer cette séance</button>' : "") + "</div></div>";
   h += '<datalist id="exnames">' + knownNames().map(n => '<option value="' + esc(n) + '"></option>').join("") + "</datalist>";
   h += '<div class="section-title">Exercices (' + v.exercises.length + ')</div><div class="stack">';
   const bl = blocks(v.exercises);
@@ -729,7 +742,7 @@ function viewProgram(tid, vid) {
     }
   });
   h += '<button class="btn block primary" data-act="addtplex">+ Ajouter un exercice</button></div>' +
-    '<div style="margin-top:32px"><button class="btn danger" data-act="deltpl">Supprimer la séance « ' + esc(t.name) + " »</button></div>";
+    '<div style="margin-top:32px"><button class="btn danger" data-act="deltpl">Supprimer le programme « ' + esc(t.name) + " »</button></div>";
   return h;
 }
 function moveBlock(v, bi, dir) {
@@ -794,7 +807,7 @@ function currentProgram() {
 /* ================= Écran : historique ================= */
 function historyRow(w) {
   const done = w.exercises.reduce((n, e) => n + e.sets.filter(s => s.done || setHasData(s, e.type)).length, 0);
-  return '<a href="#/session/' + w.id + '"><div><b>' + esc(w.templateName) + '</b> <span class="muted">· ' + esc(w.variantName) + '</span><div class="muted small">' +
+  return '<a href="#/session/' + w.id + '"><div><b>' + esc(w.templateName) + '</b> <span class="muted">· ' + esc(vLabel(w.variantName)) + '</span><div class="muted small">' +
     esc(fmtDate(w.startedAt)) + " · " + w.exercises.length + " exercices · " + done + ' séries</div></div><span class="muted small num">' + fmtDur((w.endedAt || Date.now()) - w.startedAt) + "</span></a>";
 }
 function viewHistory() {
@@ -862,7 +875,7 @@ function viewProgressDetail(key) {
     '<div class="card stat"><div class="muted small">Dernière séance</div><div class="v">' + (last.best != null ? fmtNum(last.best) + unitOf(p) : "—") + "</div></div></div>" +
     '<div class="card" style="margin-top:12px"><div class="muted small" style="font-weight:600;margin-bottom:8px">' + (p.type === "time" ? "Meilleur temps par séance (s)" : "Charge maximale par séance (kg)") + "</div>" + svg + "</div>" +
     '<div class="section-title">Historique</div><div class="list">' + p.entries.slice().reverse().map(x =>
-      '<a href="#/session/' + x.w.id + '"><div><b>' + esc(fmtDate(x.w.startedAt)) + '</b><div class="muted small">' + esc(x.w.templateName) + " · " + esc(x.w.variantName) + '</div></div><span class="small" style="text-align:right">' + esc(exSummary(x.e)) + "</span></a>").join("") + "</div>";
+      '<a href="#/session/' + x.w.id + '"><div><b>' + esc(fmtDate(x.w.startedAt)) + '</b><div class="muted small">' + esc(x.w.templateName) + " · " + esc(vLabel(x.w.variantName)) + '</div></div><span class="small" style="text-align:right">' + esc(exSummary(x.e)) + "</span></a>").join("") + "</div>";
 }
 
 /* ================= Écran : réglages ================= */
@@ -881,7 +894,7 @@ function viewSettings() {
     "</div></div>" +
     '<div class="card"><b>Sauvegarde</b><div class="small muted" style="margin-top:4px">Copie de secours de toutes tes données (texte à garder dans une note).</div>' +
     '<div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-act="export">Copier la sauvegarde</button><button class="btn sm" data-act="import">Restaurer…</button></div></div>' +
-    '<div class="muted small">' + esc(ver) + "</div></div>";
+    '<div class="muted small">' + esc(ver) + '</div><div class="credit">Créé par YL</div></div>';
 }
 
 /* ================= Minuteurs ================= */
@@ -889,14 +902,18 @@ function tick() {
   const now = Date.now(), L = db.live || {};
   document.querySelectorAll('[data-tick="elapsed"]').forEach(el => { const w = getItem(el.dataset.id); if (w) el.textContent = fmtDur((w.endedAt || now) - w.startedAt); });
   // repos
-  if (L.restEnd && now >= L.restEnd && !L.restAlerted) { L.restAlerted = true; L.restEnd = null; save(); signal(); toast("Repos terminé, c'est reparti !"); }
-  const btn = document.querySelector('[data-act="skiprest"]');
-  if (btn) {
-    if (L.restEnd) {
-      btn.hidden = false;
-      btn.querySelector('[data-tick="rest"]').textContent = "Repos " + fmtDur(L.restEnd - now) + " · Passer";
-      btn.querySelector("[data-restbar]").style.width = Math.max(0, Math.min(100, 100 * (L.restEnd - now) / (L.restTotal || 1))) + "%";
-    } else btn.hidden = true;
+  if (L.restEnd && now >= L.restEnd && !L.restAlerted) { L.restAlerted = true; L.restEnd = null; L.restMin = false; save(); signal(); restDone(); }
+  const pop = document.querySelector("[data-restpop]"), pill = document.querySelector("[data-restpill]");
+  if (pop) {
+    const on = !!L.restEnd;
+    pop.hidden = !on || !!L.restMin;
+    if (pill) pill.hidden = !on || !L.restMin;
+    if (on) {
+      const left = fmtDur(L.restEnd - now);
+      pop.querySelector("[data-rptime]").textContent = left;
+      pop.querySelector("[data-rpbar]").style.width = Math.max(0, Math.min(100, 100 * (L.restEnd - now) / (L.restTotal || 1))) + "%";
+      if (pill) pill.textContent = "Repos " + left + " · Agrandir";
+    }
   }
   // chrono (gainage)
   const c = L.chrono;
@@ -908,6 +925,22 @@ function tick() {
   }
 }
 setInterval(tick, 250);
+// fin du repos : l'appli clignote (sombre / clair) pendant 5 s avec un message au centre
+function restDone() {
+  document.querySelectorAll(".restpop.done").forEach(x => x.remove());
+  const d = document.createElement("div"); d.className = "restpop done"; d.setAttribute("role", "alert");
+  d.innerHTML = '<div class="rp-box"><div class="rp-end">Pause terminée, au boulot !</div></div>';
+  document.body.appendChild(d);
+  const close = () => { d.remove(); clearInterval(flashTimer); flashTimer = null; applyTheme(); };
+  d.addEventListener("click", close);
+  setTimeout(() => { if (d.isConnected) d.remove(); }, 5000);
+  clearInterval(flashTimer);
+  const root = document.documentElement; let n = 0;
+  flashTimer = setInterval(() => {
+    n++; root.dataset.theme = root.dataset.theme === "dark" ? "light" : "dark";
+    if (n >= 10) { clearInterval(flashTimer); flashTimer = null; applyTheme(); }
+  }, 500);
+}
 
 /* ================= Actions ================= */
 $app.addEventListener("submit", e => {
@@ -952,7 +985,7 @@ $app.addEventListener("click", async e => {
       const n = await ask({ title: "Nouvel exercice", input: "", ok: "Ajouter" });
       if (!n) return;
       const te = Object.assign(newExercise(), { name: n });
-      const add = await ask({ title: "L'ajouter au programme ?", text: "L'ajouter aussi à « " + w.templateName + " · " + w.variantName + " » pour les prochaines fois ?", ok: "Oui", cancel: "Juste aujourd'hui" });
+      const add = await ask({ title: "L'ajouter au programme ?", text: "L'ajouter aussi à « " + w.templateName + " · " + vLabel(w.variantName) + " » pour les prochaines fois ?", ok: "Oui", cancel: "Juste aujourd'hui" });
       if (add) { const t = getItem(w.templateId); const v = t && t.variants.find(x => x.id === w.variantId); if (v) { v.exercises.push(te); put("template", t); } }
       w.exercises.push({ exId: te.id, name: te.name, type: te.type, target: te.target, rest: te.rest, drops: 0, groupId: null, groupKind: null, sets: Array.from({ length: te.sets }, () => blankSet(0)) });
       put("workout", w); render();
@@ -971,7 +1004,10 @@ $app.addEventListener("click", async e => {
       }
       save(); render();
     } break;
-    case "skiprest": db.live.restEnd = null; save(); tick(); break;
+    case "skiprest": db.live.restEnd = null; db.live.restMin = false; save(); tick(); break;
+    case "restadd": if (db.live.restEnd) { const d = +b.dataset.v * 1000; db.live.restEnd = Math.max(Date.now() + 1000, db.live.restEnd + d); db.live.restTotal = Math.max(1000, (db.live.restTotal || 0) + d); save(); tick(); } break;
+    case "restmin": db.live.restMin = true; save(); tick(); break;
+    case "restmax": db.live.restMin = false; save(); tick(); break;
     case "finish": if (w) {
       flushPending();
       if (!await ask({ title: "Terminer la séance ?", text: "Elle sera enregistrée dans ton historique.", ok: "Terminer" })) return;
@@ -989,15 +1025,15 @@ $app.addEventListener("click", async e => {
 
     /* programmes */
     case "newtpl": {
-      const n = await ask({ title: "Nouvelle séance", input: "", ok: "Créer" });
+      const n = await ask({ title: "Nouveau programme", input: "", ok: "Créer" });
       if (!n) return;
-      const t = { id: "tpl-" + uid(), name: n, order: templates().length, variants: [1, 2, 3].map(k => ({ id: "v" + k, name: "Variante " + k, exercises: [] })) };
+      const t = { id: "tpl-" + uid(), name: n, order: templates().length, variants: [1, 2, 3].map(k => ({ id: "v" + k, name: "Séance " + k, exercises: [] })) };
       put("template", t); go("program/" + t.id);
     } break;
     case "tab": { const { t } = currentProgram(); if (t) go("program/" + t.id + "/" + b.dataset.v); } break;
-    case "addvar": { const { t } = currentProgram(); if (!t) return; const v = { id: "v" + uid(), name: "Variante " + (t.variants.length + 1), exercises: [] }; t.variants.push(v); put("template", t); go("program/" + t.id + "/" + v.id); } break;
+    case "addvar": { const { t } = currentProgram(); if (!t) return; const v = { id: "v" + uid(), name: "Séance " + (t.variants.length + 1), exercises: [] }; t.variants.push(v); put("template", t); go("program/" + t.id + "/" + v.id); } break;
     case "dupvar": { const { t, v } = currentProgram(); if (!v) return; const c = { id: "v" + uid(), name: v.name + " (copie)", exercises: v.exercises.map(e => Object.assign({}, e, { id: "e-" + uid() })) }; t.variants.push(c); put("template", t); go("program/" + t.id + "/" + c.id); } break;
-    case "delvar": { const { t, v } = currentProgram(); if (!v || t.variants.length < 2) return; if (!await ask({ title: "Supprimer « " + v.name + " » ?", text: "L'historique des séances déjà faites est conservé.", ok: "Supprimer", danger: true })) return; t.variants = t.variants.filter(x => x !== v); put("template", t); go("program/" + t.id); } break;
+    case "delvar": { const { t, v } = currentProgram(); if (!v || t.variants.length < 2) return; if (!await ask({ title: "Supprimer « " + vLabel(v.name) + " » ?", text: "L'historique des séances déjà faites est conservé.", ok: "Supprimer", danger: true })) return; t.variants = t.variants.filter(x => x !== v); put("template", t); go("program/" + t.id); } break;
     case "addtplex": {
       const { t, v } = currentProgram(); if (!v) return;
       const kind = await choose("Ajouter", ADD_CHOICES); if (!kind) return;
@@ -1038,13 +1074,13 @@ $app.addEventListener("click", async e => {
     case "delgroup": {
       const { t, v } = currentProgram(); if (!v) return;
       const f = v.exercises[+b.dataset.e]; if (!f || !f.groupId) return;
-      if (!await ask({ title: "Supprimer ce " + (GROUP_LABEL[f.groupKind] || "groupe").toLowerCase() + " ?", text: "Tous ses exercices seront retirés de la variante.", ok: "Supprimer", danger: true })) return;
+      if (!await ask({ title: "Supprimer ce " + (GROUP_LABEL[f.groupKind] || "groupe").toLowerCase() + " ?", text: "Tous ses exercices seront retirés de la séance.", ok: "Supprimer", danger: true })) return;
       const gid = f.groupId; v.exercises = v.exercises.filter(e => e.groupId !== gid);
       put("template", t); render();
     } break;
     case "delex": { const { t, v } = currentProgram(); if (!v) return; const ex = v.exercises[+b.dataset.e]; if (!await ask({ title: (ex.groupId ? "Retirer" : "Supprimer") + " « " + ex.name + " » ?", ok: ex.groupId ? "Retirer" : "Supprimer", danger: true })) return; v.exercises.splice(+b.dataset.e, 1); cleanGroups(v); put("template", t); render(); } break;
     case "up": case "down": { const { t, v } = currentProgram(); if (!v) return; if (moveBlock(v, +b.dataset.b, a === "up" ? -1 : 1)) { put("template", t); render(); } } break;
-    case "deltpl": { const { t } = currentProgram(); if (!t) return; if (!await ask({ title: "Supprimer « " + t.name + " » ?", text: "Ses variantes et exercices seront supprimés. L'historique des séances déjà faites est conservé.", ok: "Supprimer", danger: true })) return; remove(t.id); go("programs"); } break;
+    case "deltpl": { const { t } = currentProgram(); if (!t) return; if (!await ask({ title: "Supprimer « " + t.name + " » ?", text: "Ses séances et exercices seront supprimés. L'historique des séances déjà faites est conservé.", ok: "Supprimer", danger: true })) return; remove(t.id); go("programs"); } break;
 
     /* réglages */
     case "set": setSetting(b.dataset.k, b.dataset.val); break;
