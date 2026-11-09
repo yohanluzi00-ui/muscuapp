@@ -1,5 +1,5 @@
 "use strict";
-/* MuscuApp — suivi des séances de musculation.
+/* Suvess — suivi des séances de musculation.
    Données gardées sur l'appareil (localStorage) et synchronisées avec Supabase quand on est connecté. */
 
 const SUPABASE_URL = "https://krszgabjpswqjtypalsn.supabase.co";
@@ -130,6 +130,8 @@ function settings() { return Object.assign({ id: "settings", theme: "auto", aler
 function setSetting(k, v) { const s = settings(); s[k] = v; put("settings", s); applyTheme(); render(); }
 const newExercise = () => ({ id: "e-" + uid(), name: "Nouvel exercice", type: "reps", sets: 3, target: "8-10", rest: 90, note: "" });
 const blankSet = drops => ({ kg: "", reps: "", sec: "", done: false, drops: Array.from({ length: Math.max(0, num(drops) || 0) }, () => ({ kg: "", reps: "" })) });
+// baisses d'une série en dégressif : toutes les séries, ou seulement la dernière (dropScope "last")
+const dropsFor = (e, k, n) => ((num(e.drops) || 0) && (e.dropScope !== "last" || k === n - 1)) ? num(e.drops) : 0;
 const GROUP_LABEL = { superset: "Superset", biset: "Biset", triset: "Triset" };
 const GROUP_SIZE = { superset: 2, biset: 2, triset: 3 };
 const LETTERS = "ABCDEFGH";
@@ -423,7 +425,7 @@ function renderNow() {
     default: body = viewHome();
   }
   const tab = { session: "home", program: "programs", import: "programs", calendar: "progress", body: "progress" }[r.name] || (NAV.some(n => n[0] === r.name) ? r.name : "home");
-  $app.innerHTML = '<div class="shell' + (immersive ? " hide-nav" : "") + '"><nav class="nav" aria-label="Navigation"><div class="brand">Muscu</div>' +
+  $app.innerHTML = '<div class="shell' + (immersive ? " hide-nav" : "") + '"><nav class="nav" aria-label="Navigation"><div class="brand">Suvess</div>' +
     NAV.map(n => '<a href="#/' + n[0] + '" class="' + (n[0] === tab ? "on" : "") + '"' + (n[0] === tab ? ' aria-current="page"' : "") + ">" + ICON[n[2]] + "<span>" + n[1] + "</span></a>").join("") +
     '</nav><main class="main' + (wide ? " wide" : "") + '">' + body + "</main></div>";
   keepScreen(immersive);
@@ -440,7 +442,7 @@ function viewLogin() {
     '<p class="msg" data-msg role="status"></p>' +
     '<p class="muted small">Pas reçu ? Regarde dans les spams, ou</p><button class="btn" data-act="resend">Renvoyer le code</button>' +
     '<button class="link" data-act="changemail">Changer d\'adresse e-mail</button></div>';
-  return '<div class="login"><img class="logo" src="icon-192.png" alt="" width="72" height="72"><h1>Muscu</h1>' +
+  return '<div class="login"><img class="logo" src="icon-192.png" alt="" width="72" height="72"><h1>Suvess</h1>' +
     '<p class="muted">Connecte-toi pour retrouver tes séances sur ton téléphone et sur ton ordinateur.</p>' +
     '<form data-form="login" class="stack">' +
     '<label class="fl">E-mail<input class="f" type="email" name="email" autocomplete="email" required></label>' +
@@ -571,7 +573,8 @@ async function startWorkout(tid, vid) {
   const w = {
     id: "w-" + uid(), templateId: t.id, variantId: v.id, templateName: t.name, variantName: v.name, startedAt: Date.now(), endedAt: null,
     exercises: v.exercises.map(e => ({ exId: e.id, name: e.name, type: e.type, target: e.target, rest: e.rest, drops: num(e.drops) || 0, groupId: e.groupId || null, groupKind: e.groupKind || null,
-      sets: Array.from({ length: Math.max(1, num(e.sets) || 1) }, () => blankSet(e.drops)) })),
+      dropScope: e.dropScope === "last" ? "last" : "all",
+      sets: (n => Array.from({ length: n }, (_, k) => blankSet(dropsFor(e, k, n))))(Math.max(1, num(e.sets) || 1)) })),
   };
   put("workout", w);
   db.live = {}; save();
@@ -616,7 +619,7 @@ function metaText(e, inGroup) {
   const time = e.type === "time";
   let t = inGroup ? "Cible " + esc(e.target || "—") + (time ? " s" : " reps") : e.sets.length + " × " + esc(e.target || "—") + (time ? " s" : "") + " · repos " + esc(fmtRest(e.rest));
   const d = num(e.drops) || 0;
-  if (d) t += " · dégressif (" + d + " baisse" + (d > 1 ? "s" : "") + ")";
+  if (d) t += " · dégressif (" + d + " baisse" + (d > 1 ? "s" : "") + (e.dropScope === "last" ? ", dernière série" : "") + ")";
   return t;
 }
 function exHead(w, e, i, letter) {
@@ -773,6 +776,7 @@ function exFields(e, k, letter, inGroup) {
     '<label class="fl">' + (time ? "Temps cible (s)" : "Reps cible") + '<input class="f" data-p="target" data-e="' + k + '" value="' + esc(e.target) + '" placeholder="' + (time ? "45" : "8-10") + '"></label>' +
     (inGroup ? "" : '<label class="fl">Repos (s)<input class="f" type="number" min="0" step="5" inputmode="numeric" data-p="rest" data-e="' + k + '" value="' + esc(e.rest) + '"></label>') +
     (time ? "" : '<label class="fl">Dégressif<select class="f" data-p="drops" data-e="' + k + '">' + [0, 1, 2, 3].map(n => '<option value="' + n + '"' + (d === n ? " selected" : "") + ">" + (n ? "Oui · " + n + " baisse" + (n > 1 ? "s" : "") : "Non") + "</option>").join("") + "</select></label>") +
+    (time || !d ? "" : '<label class="fl">Dégressif sur<select class="f" data-p="dscope" data-e="' + k + '"><option value="all"' + (e.dropScope !== "last" ? " selected" : "") + '>Toutes les séries</option><option value="last"' + (e.dropScope === "last" ? " selected" : "") + ">La dernière série</option></select></label>") +
     '<label class="fl full">Notes<textarea class="f" data-p="note" data-e="' + k + '" placeholder="Réglages de la machine, consignes…">' + esc(e.note) + "</textarea></label></div>";
 }
 function viewProgram(tid, vid) {
@@ -1126,12 +1130,12 @@ const unb64url = s => decodeURIComponent(escape(atob(s.replace(/-/g, "+").replac
 const SHARE_BASE = "https://yohanluzi00-ui.github.io/muscuapp/#/import/";
 async function shareVariant(t, v) {
   const data = { app: "muscuapp-share", v: 1, prog: t.name, name: vLabel(v.name),
-    ex: v.exercises.map(e => ({ n: e.name, t: e.type, s: e.sets, c: e.target, r: e.rest, no: e.note || "", d: num(e.drops) || 0, g: e.groupId || null, k: e.groupKind || null })) };
+    ex: v.exercises.map(e => ({ n: e.name, t: e.type, s: e.sets, c: e.target, r: e.rest, no: e.note || "", d: num(e.drops) || 0, ds: e.dropScope === "last" ? "last" : undefined, g: e.groupId || null, k: e.groupKind || null })) };
   const url = SHARE_BASE + b64url(JSON.stringify(data));
-  const text = "Je te partage ma séance « " + t.name + " · " + vLabel(v.name) + " » sur Muscu :\n" + url + "\n\nDans l'appli : Programmes › Importer une séance, puis colle ce lien.";
+  const text = "Je te partage ma séance « " + t.name + " · " + vLabel(v.name) + " » sur Suvess :\n" + url + "\n\nDans l'appli : Programmes › Importer une séance, puis colle ce lien.";
   try {
     if (Native && Native.share) { Native.share(text); return; }
-    if (navigator.share) { await navigator.share({ title: "Séance Muscu", text }); return; }
+    if (navigator.share) { await navigator.share({ title: "Séance Suvess", text }); return; }
   } catch (e) { if (e && e.name === "AbortError") return; }
   try { await navigator.clipboard.writeText(text); toast("Lien copié : envoie-le à la personne"); }
   catch (e) { await ask({ title: "Partager la séance", text: "Copie ce texte et envoie-le :", input: text, multiline: true, cancel: false, ok: "Fermer" }); }
@@ -1148,7 +1152,7 @@ async function importShared(code) {
   if (!dest) return;
   const gmap = {};
   const exercises = data.ex.map(x => {
-    const e = { id: "e-" + uid(), name: String(x.n || "Exercice").slice(0, 80), type: x.t === "time" ? "time" : "reps", sets: Math.max(1, Math.min(20, num(x.s) || 3)), target: String(x.c == null ? "" : x.c).slice(0, 20), rest: Math.max(0, num(x.r) || 0), note: String(x.no || "").slice(0, 500), drops: Math.max(0, Math.min(3, num(x.d) || 0)) };
+    const e = { id: "e-" + uid(), name: String(x.n || "Exercice").slice(0, 80), type: x.t === "time" ? "time" : "reps", sets: Math.max(1, Math.min(20, num(x.s) || 3)), target: String(x.c == null ? "" : x.c).slice(0, 20), rest: Math.max(0, num(x.r) || 0), note: String(x.no || "").slice(0, 500), drops: Math.max(0, Math.min(3, num(x.d) || 0)), dropScope: x.ds === "last" ? "last" : "all" };
     if (x.g && GROUP_LABEL[x.k]) { gmap[x.g] = gmap[x.g] || "g-" + uid(); e.groupId = gmap[x.g]; e.groupKind = x.k; }
     return e;
   });
@@ -1166,6 +1170,16 @@ async function importShared(code) {
 
 /* ================= Alerte de fin de repos écran éteint (appli Android) ================= */
 let nativeRestSent = null, notifAsked = false;
+let nativeChronoSent = null;
+function syncNativeChrono() {
+  if (!Native || !Native.setChronoEnd) return;
+  const c = db.live && db.live.chrono;
+  const v = c && c.target && !c.alerted ? c.start + c.target * 1000 : 0;
+  if (v === nativeChronoSent) return;
+  nativeChronoSent = v;
+  try { Native.setChronoEnd(String(v), settings().alert); } catch (e) { }
+  if (v && !notifAsked && Native.askNotifications) { notifAsked = true; try { Native.askNotifications(); } catch (e) { } }
+}
 function syncNativeRest() {
   if (!Native || !Native.setRestEnd) return;
   const v = (db.live && db.live.restEnd) || 0;
@@ -1206,6 +1220,7 @@ function tick() {
     if (!late) { signal(); restDone(); }
   }
   syncNativeRest();
+  syncNativeChrono();
   const pop = document.querySelector("[data-restpop]"), pill = document.querySelector("[data-restpill]");
   if (pop) {
     const on = !!L.restEnd;
@@ -1225,7 +1240,7 @@ function tick() {
     const el = document.querySelector('[data-tick="chrono"]');
     const ms = now - c.start;
     if (el) el.textContent = fmtDur(ms);
-    if (!c.alerted && c.target && ms >= c.target * 1000) { c.alerted = true; save(); signal(); }
+    if (!c.alerted && c.target && ms >= c.target * 1000) { c.alerted = true; save(); if (ms - c.target * 1000 < 4000) signal(); } // atteint en arrière-plan : la notification Android a prévenu
     const w = currentWorkout(), here = w && w.id === c.wid;
     if (cpop) {
       cpop.hidden = !here || !!c.min;
@@ -1298,8 +1313,27 @@ $app.addEventListener("click", async e => {
 
     /* séance */
     case "done": if (w) markDone(w, i, s); break;
-    case "addset": if (w) { b.dataset.g.split(",").map(Number).forEach(k => { const ex = w.exercises[k]; ex.sets.push(blankSet(ex.drops)); }); put("workout", w); render(); } break;
-    case "delset": if (w) { b.dataset.g.split(",").map(Number).forEach(k => { const ex = w.exercises[k]; if (ex.sets.length > 1) ex.sets.pop(); }); put("workout", w); render(); } break;
+    case "addset": if (w) {
+      b.dataset.g.split(",").map(Number).forEach(k => {
+        const ex = w.exercises[k];
+        if (ex.dropScope === "last" && num(ex.drops)) {
+          // la nouvelle série devient la dernière : elle reçoit les baisses, l'ancienne les perd si elles sont vides
+          const prev = ex.sets[ex.sets.length - 1];
+          if (prev && !prev.done && !(prev.drops || []).some(d => setHasData(d, ex.type))) prev.drops = [];
+        }
+        ex.sets.push(blankSet(ex.drops));
+      });
+      put("workout", w); render();
+    } break;
+    case "delset": if (w) {
+      b.dataset.g.split(",").map(Number).forEach(k => {
+        const ex = w.exercises[k]; if (ex.sets.length <= 1) return;
+        ex.sets.pop();
+        const last = ex.sets[ex.sets.length - 1];
+        if (ex.dropScope === "last" && num(ex.drops) && !(last.drops || []).length) last.drops = blankSet(ex.drops).drops;
+      });
+      put("workout", w); render();
+    } break;
     case "rename": if (w) {
       const ex = w.exercises[i];
       const n = await ask({ title: "Renommer l'exercice", input: ex.name, ok: "Renommer" });
@@ -1310,9 +1344,11 @@ $app.addEventListener("click", async e => {
       render();
     } break;
     case "addex": if (w) {
-      const n = await ask({ title: "Nouvel exercice", input: "", ok: "Ajouter" });
+      const n = await ask({ title: "Nouvel exercice", input: "", ok: "Suivant" });
       if (!n) return;
-      const te = Object.assign(newExercise(), { name: n });
+      const type = await choose("Type d'exercice", [["reps", "Poids × reps", "Charge et nombre de répétitions"], ["time", "Temps", "Gainage, chaise… avec chrono"]]);
+      if (!type) return;
+      const te = Object.assign(newExercise(), { name: n, type }, type === "time" ? { target: "45", rest: 60 } : {});
       const add = await ask({ title: "L'ajouter au programme ?", text: "L'ajouter aussi à « " + w.templateName + " · " + vLabel(w.variantName) + " » pour les prochaines fois ?", ok: "Oui", cancel: "Juste aujourd'hui" });
       if (add) { const t = getItem(w.templateId); const v = t && t.variants.find(x => x.id === w.variantId); if (v) { v.exercises.push(te); put("template", t); } }
       w.exercises.push({ exId: te.id, name: te.name, type: te.type, target: te.target, rest: te.rest, drops: 0, groupId: null, groupKind: null, sets: Array.from({ length: te.sets }, () => blankSet(0)) });
@@ -1460,7 +1496,7 @@ $app.addEventListener("input", e => {
     if (p === "tname") { t.name = el.value; putLater("template", t); return; }
     if (p === "vname") { v.name = el.value; putLater("template", t); const tab = $app.querySelector("[data-vtab]"); if (tab) tab.textContent = el.value; return; }
     const ex = v.exercises[+el.dataset.e]; if (!ex) return;
-    if (p === "type" || p === "drops" || p === "gkind") return; // géré par « change »
+    if (p === "type" || p === "drops" || p === "gkind" || p === "dscope") return; // géré par « change »
     if (p === "gsets" || p === "grest") {
       const val = num(el.value) == null ? "" : Math.max(0, Math.round(num(el.value)));
       v.exercises.forEach(e => { if (e.groupId && e.groupId === ex.groupId) e[p === "gsets" ? "sets" : "rest"] = val; });
@@ -1479,10 +1515,11 @@ $app.addEventListener("change", e => {
     if (ex.type === "time" && !/^\d+$/.test(String(ex.target))) ex.target = "45";
     if (ex.type === "time") ex.drops = 0;
     put("template", t); render();
-  } else if (el.dataset.p === "drops" || el.dataset.p === "gkind") {
+  } else if (el.dataset.p === "drops" || el.dataset.p === "gkind" || el.dataset.p === "dscope") {
     const { t, v } = currentProgram(); if (!t) return;
     const ex = v.exercises[+el.dataset.e]; if (!ex) return;
     if (el.dataset.p === "drops") ex.drops = +el.value;
+    else if (el.dataset.p === "dscope") ex.dropScope = el.value === "last" ? "last" : "all";
     else v.exercises.forEach(e => { if (e.groupId && e.groupId === ex.groupId) e.groupKind = el.value; });
     put("template", t); render();
   } else if (el.dataset.p || el.dataset.f) {

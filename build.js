@@ -11,7 +11,7 @@ const html = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Muscu</title>
+<title>Suvess</title>
 <meta name="description" content="Suivi de mes séances de musculation">
 <meta name="theme-color" content="#F4F2F8">
 <link rel="manifest" href="manifest.webmanifest">
@@ -37,7 +37,7 @@ fs.mkdirSync(dist, { recursive: true });
 fs.writeFileSync(path.join(dist, "index.html"), html);
 for (const f of ["icon-192.png", "icon-512.png"]) fs.copyFileSync(path.join(__dirname, "src", "icons", f), path.join(dist, f));
 fs.writeFileSync(path.join(dist, "manifest.webmanifest"), JSON.stringify({
-  name: "Muscu", short_name: "Muscu", description: "Suivi de mes séances de musculation",
+  name: "Suvess", short_name: "Suvess", description: "Suivi de mes séances de musculation",
   start_url: "./", scope: "./", display: "standalone", lang: "fr",
   background_color: "#08080D", theme_color: "#08080D",
   icons: [
