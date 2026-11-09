@@ -1218,7 +1218,9 @@ function syncNativeRest() {
 function viewSettings() {
   const s = settings();
   const seg = (k, opts) => '<div class="seg" role="group">' + opts.map(o => '<button class="' + (s[k] === o[0] ? "on" : "") + '" aria-pressed="' + (s[k] === o[0]) + '" data-act="set" data-k="' + k + '" data-val="' + o[0] + '">' + o[1] + "</button>").join("") + "</div>";
-  const ver = (Native && Native.version ? "Appli Android " + Native.version() : "Version web") + " · " + (window.APP_BUILD || "dev");
+  // même numéro sur le téléphone et sur le web : 1.<nombre de modifications du code>
+  const num_ = (Native && Native.version && Native.version()) || window.APP_VERSION || "";
+  const ver = "Fiitday " + (num_ && num_ !== "1.0-dev" ? "V" + num_ : "(version de développement)");
   return '<div class="page-head"><h1>Réglages</h1></div><div class="stack">' +
     '<div class="card"><b>Apparence</b><div style="margin-top:10px">' + seg("theme", [["auto", "Auto"], ["clair", "Clair"], ["sombre", "Sombre"]]) + "</div></div>" +
     '<div class="card"><b>Alerte de fin de repos</b><div style="margin-top:10px">' + seg("alert", [["vibration", "Vibration"], ["son", "Son"], ["les deux", "Les deux"], ["aucune", "Aucune"]]) + "</div>" +
@@ -1231,7 +1233,7 @@ function viewSettings() {
     "</div></div>" +
     '<div class="card"><b>Sauvegarde</b><div class="small muted" style="margin-top:4px">Copie de secours de toutes tes données (texte à garder dans une note).</div>' +
     '<div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-act="export">Copier la sauvegarde</button><button class="btn sm" data-act="import">Restaurer…</button></div></div>' +
-    '<div class="muted small">' + esc(ver) + '</div><div class="credit">Créé par YL</div></div>';
+    '<div class="credit"><div class="appver">' + esc(ver) + '</div>Créé par YL</div></div>';
 }
 
 /* ================= Minuteurs ================= */

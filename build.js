@@ -24,7 +24,7 @@ ${src("style.css")}
 </head>
 <body>
 <div id="app"></div>
-<script>window.APP_BUILD = ${JSON.stringify(VERSION)};</script>
+<script>window.APP_BUILD = ${JSON.stringify(VERSION)}; window.APP_VERSION = ${JSON.stringify(process.env.VERSION_NAME || "")};</script>
 <script>
 ${src("app.js")}
 </script>
