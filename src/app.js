@@ -1157,6 +1157,21 @@ async function importShared(code) {
   put("template", t); toast("Séance importée"); go("program/" + t.id + "/" + vid);
 }
 
+/* ================= Minuteur de repos dans les notifications (appli Android) ================= */
+let nativeRestSent = null, notifAsked = false;
+function syncNativeRest() {
+  if (!Native || !Native.startRestTimer) return;
+  const v = (db.live && db.live.restEnd) || 0;
+  if (v === nativeRestSent) return;
+  nativeRestSent = v;
+  try {
+    if (v) {
+      if (!notifAsked && Native.askNotifications) { notifAsked = true; Native.askNotifications(); }
+      Native.startRestTimer(String(v), settings().alert);
+    } else Native.stopRestTimer();
+  } catch (e) { }
+}
+
 /* ================= Écran : réglages ================= */
 function viewSettings() {
   const s = settings();
@@ -1189,9 +1204,13 @@ function tick() {
   document.querySelectorAll('[data-tick="elapsed"]').forEach(el => { const w = getItem(el.dataset.id); if (w) el.textContent = fmtDur((w.endedAt || now) - w.startedAt); });
   // repos
   if (L.restEnd && now >= L.restEnd && !L.restAlerted) {
+    // déjà signalé par la notification Android (appli en arrière-plan) : pas de deuxième alerte en revenant
+    let nativeAlerted = false;
+    try { nativeAlerted = !!(Native && Native.restAlertedAt && Number(Native.restAlertedAt()) === L.restEnd); } catch (e) { }
     L.restAlerted = true; L.restEnd = null; L.restMin = false; save();
-    signal(); restDone();
+    if (!nativeAlerted) { signal(); restDone(); }
   }
+  syncNativeRest();
   const pop = document.querySelector("[data-restpop]"), pill = document.querySelector("[data-restpill]");
   if (pop) {
     const on = !!L.restEnd;

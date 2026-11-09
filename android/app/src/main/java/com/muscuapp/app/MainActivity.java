@@ -3,6 +3,8 @@ package com.muscuapp.app;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.app.NotificationManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -31,6 +33,8 @@ import java.util.HashMap;
 public class MainActivity extends Activity {
     private static final String HOST = "appassets.androidplatform.net";
     private WebView web;
+    /** l'appli est-elle à l'écran ? (sinon le minuteur de repos prévient par une notification) */
+    static volatile boolean visible = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -115,6 +119,26 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void startRestTimer(String at, String mode) {
+            long end;
+            try { end = Long.parseLong(at); } catch (Exception e) { return; }
+            RestTimerService.start(MainActivity.this, end, mode);
+        }
+
+        @JavascriptInterface
+        public void stopRestTimer() { RestTimerService.stop(MainActivity.this); }
+
+        @JavascriptInterface
+        public String restAlertedAt() { return String.valueOf(RestTimerService.alertedEnd); }
+
+        @JavascriptInterface
+        public void askNotifications() {
+            if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
+                runOnUiThread(() -> requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 2));
+            }
+        }
+
+        @JavascriptInterface
         public void share(final String text) {
             runOnUiThread(() -> {
                 Intent i = new Intent(Intent.ACTION_SEND);
@@ -129,6 +153,20 @@ public class MainActivity extends Activity {
             try { return getPackageManager().getPackageInfo(getPackageName(), 0).versionName; }
             catch (Exception e) { return ""; }
         }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        visible = true;
+        NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        if (nm != null) nm.cancel(RestTimerService.ALERT_ID); // de retour dans l'appli : l'alerte de fin n'est plus utile
+    }
+
+    @Override
+    protected void onPause() {
+        visible = false;
+        super.onPause();
     }
 
     @Override
