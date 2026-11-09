@@ -450,6 +450,7 @@ function renderNow() {
 }
 
 /* ================= Écran : connexion ================= */
+let loginMode = "in", loginEmail = ""; // écran de connexion : « in » se connecter, « up » créer un compte
 function viewLogin() {
   if (db.verify) return '<div class="login"><img class="logo" src="icon-192.png" alt="" width="72" height="72"><h1>Vérifie ton e-mail</h1>' +
     '<p class="muted">Nous avons envoyé un code à <b>' + esc(db.verify) + '</b>. Saisis-le ci-dessous pour activer ton compte.</p>' +
@@ -459,16 +460,21 @@ function viewLogin() {
     '<p class="msg" data-msg role="status"></p>' +
     '<p class="muted small">Pas reçu ? Regarde dans les spams, ou</p><button class="btn" data-act="resend">Renvoyer le code</button>' +
     '<button class="link" data-act="changemail">Changer d\'adresse e-mail</button></div>';
+  const up = loginMode === "up", em = esc(loginEmail);
+  // (le mode « sans compte » existe toujours dans le code, mais n'est plus proposé sur cet écran)
   return '<div class="login"><img class="logo" src="icon-192.png" alt="" width="72" height="72"><h1>Fiitday</h1>' +
-    '<p class="muted">Connecte-toi pour retrouver tes séances sur ton téléphone et sur ton ordinateur.</p>' +
+    '<p class="muted">' + (up ? "Crée ton compte pour enregistrer tes séances sur ton téléphone et sur ton ordinateur." : "Connecte-toi pour retrouver tes séances sur ton téléphone et sur ton ordinateur.") + "</p>" +
     '<form data-form="login" class="stack">' +
-    '<label class="fl">E-mail<input class="f" type="email" name="email" autocomplete="email" required></label>' +
-    '<label class="fl">Mot de passe<input class="f" type="password" name="password" minlength="6" autocomplete="current-password" required></label>' +
-    '<button class="btn primary big" type="submit" value="in">Se connecter</button>' +
-    '<label class="consent"><input type="checkbox" name="consent" id="consent"><span>Pour créer un compte : j\'ai 15 ans ou plus et j\'accepte la <a href="' + LEGAL.privacy + '" target="_blank" rel="noopener">politique de confidentialité</a>, y compris l\'enregistrement de mes données d\'entraînement.</span></label>' +
-    '<button class="btn big" type="submit" value="up">Créer un compte</button></form>' +
+    '<label class="fl">E-mail<input class="f" type="email" name="email" autocomplete="email" value="' + em + '" required></label>' +
+    '<label class="fl">Mot de passe<input class="f" type="password" name="password" minlength="6" autocomplete="' + (up ? "new-password" : "current-password") + '" required></label>' +
+    (up
+      ? '<label class="consent"><input type="checkbox" name="consent" id="consent"><span>Pour créer un compte : j\'ai 15 ans ou plus et j\'accepte la <a href="' + LEGAL.privacy + '" target="_blank" rel="noopener">politique de confidentialité</a>, y compris l\'enregistrement de mes données d\'entraînement.</span></label>' +
+        '<button class="btn primary big" type="submit" value="up">Créer mon compte</button>'
+      : '<button class="btn primary big" type="submit" value="in">Se connecter</button>') +
+    "</form>" +
     '<p class="msg" data-msg role="status"></p>' +
-    '<button class="link" data-act="local">Continuer sans compte (données sur cet appareil seulement)</button></div>';
+    (up ? '<button class="link" data-act="loginmode" data-m="in">J\'ai déjà un compte : me connecter</button>'
+        : '<button class="link" data-act="loginmode" data-m="up">Créer un compte</button>') + "</div>";
 }
 function authMessage(e) {
   const m = String(e.message || "");
@@ -483,6 +489,7 @@ function authMessage(e) {
   return m;
 }
 async function afterLogin() {
+  loginMode = "in"; loginEmail = "";
   db.verify = null; db.seeded = true; db.lastServerAt = null;
   // les données déjà saisies sans compte seront envoyées au compte
   Object.values(db.items).forEach(i => { if (i.updated_at > 0) i.dirty = true; });
@@ -1271,7 +1278,7 @@ function restDone() {
 $app.addEventListener("submit", e => {
   const f = e.target.closest("[data-form]"); if (!f) return;
   e.preventDefault();
-  if (f.dataset.form === "login") onLogin(f, (e.submitter && e.submitter.value) || "in");
+  if (f.dataset.form === "login") onLogin(f, (e.submitter && e.submitter.value) || loginMode);
   if (f.dataset.form === "verify") onVerify(f);
 });
 
@@ -1282,6 +1289,7 @@ $app.addEventListener("click", async e => {
   switch (a) {
     /* connexion */
     case "local": db.mode = "local"; saveNow(); render(); break;
+    case "loginmode": { const em = $app.querySelector('input[name="email"]'); if (em) loginEmail = em.value; loginMode = b.dataset.m === "up" ? "up" : "in"; render(); const f = $app.querySelector(loginEmail ? 'input[name="password"]' : 'input[name="email"]'); if (f) f.focus(); } break;
     case "tologin": db.mode = null; saveNow(); render(); break;
     case "changemail": db.verify = null; saveNow(); render(); break;
     case "resend": {
