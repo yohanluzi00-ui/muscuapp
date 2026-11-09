@@ -51,3 +51,8 @@ Publiée automatiquement sur GitHub Pages à chaque modification : **https://fii
 - `supabase/schema.sql` : la table `items` et ses règles de sécurité (chacun ne voit que ses données).
 - `node build.js` construit `dist/` (version web) et copie la page dans l'appli Android.
 - `src/pages/` : les pages légales publiées sur fiitday.com (confidentialité, mentions légales, suppression de compte). L'adresse de contact se règle dans `build.js` (`CONTACT`).
+
+## Idées pour plus tard (version premium)
+
+- **Programmes prêts à l'emploi** : une bibliothèque de programmes conçus à l'avance (par exemple Push / Pull / Legs, Full body, Haut / Bas du corps), que n'importe quel utilisateur peut ajouter à ses programmes en un clic.
+- **Section cardio** : noter ses séances de cardio avec les informations affichées par la machine à la fin, par exemple pour le vélo : durée, distance (km), calories, vitesse moyenne et maximale, fréquence cardiaque moyenne et maximale, niveau de résistance, dénivelé. Prévoir aussi tapis, rameur, elliptique, avec leurs propres champs, et des stats (km et minutes par semaine, records).
