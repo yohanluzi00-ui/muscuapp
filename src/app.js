@@ -795,13 +795,17 @@ function viewPrograms() {
   const ts = templates();
   return '<div class="page-head"><h1>Programmes</h1><div class="row" style="flex-wrap:wrap"><button class="btn" data-act="importvar">Importer une séance</button><button class="btn primary" data-act="newtpl">+ Nouveau programme</button></div></div>' +
     '<p class="muted small">Tes programmes et leurs séances. Les modifications servent pour les prochaines fois.</p>' +
-    '<div class="list">' + (ts.length ? ts.map(t => '<a href="#/program/' + t.id + '"><div><b>' + esc(t.name) + '</b><div class="muted small">' +
-      t.variants.map(v => esc(vLabel(v.name)) + " : " + v.exercises.length + " exo").join(" · ") + '</div></div><span class="muted">›</span></a>').join("") : '<div class="empty">Aucun programme.</div>') + "</div>";
+    '<div class="list">' + (ts.length ? ts.map((t, k) => '<div class="prow"><a class="prow-main" href="#/program/' + t.id + '"><div><b>' + esc(t.name) + '</b><div class="muted small">' +
+      t.variants.map(v => esc(vLabel(v.name)) + " : " + v.exercises.length + " exo").join(" · ") + '</div></div></a><div class="row">' +
+      (k > 0 ? '<button class="btn sm" data-act="tplmove" data-t="' + t.id + '" data-d="-1" aria-label="Monter « ' + esc(t.name) + ' »">↑</button>' : "") +
+      (k < ts.length - 1 ? '<button class="btn sm" data-act="tplmove" data-t="' + t.id + '" data-d="1" aria-label="Descendre « ' + esc(t.name) + ' »">↓</button>' : "") +
+      "</div></div>").join("") : '<div class="empty">Aucun programme.</div>') + "</div>" +
+    (ts.length > 1 ? '<p class="muted small">Les flèches ↑ ↓ changent l\'ordre des programmes, aussi sur l\'accueil.</p>' : "");
 }
 function exFields(e, k, letter, inGroup) {
   const time = e.type === "time", d = num(e.drops) || 0;
   return (inGroup ? '<div class="spread"><b><span class="letter">' + letter + '</span><span data-title="' + k + '">' + esc(e.name) + '</span></b><button class="btn sm danger" data-act="delex" data-e="' + k + '">Retirer</button></div>' : "") +
-    '<div class="ed-grid"><label class="fl full">Nom<input class="f" list="exnames" autocomplete="off" data-p="name" data-e="' + k + '" value="' + esc(e.name) + '"></label>' +
+    '<div class="ed-grid"><label class="fl full">Nom<input class="f" data-suggest autocomplete="off" data-p="name" data-e="' + k + '" value="' + esc(e.name) + '"><div class="sugg" hidden></div></label>' +
     '<label class="fl">Type<select class="f" data-p="type" data-e="' + k + '"><option value="reps"' + (!time ? " selected" : "") + '>Poids × reps</option><option value="time"' + (time ? " selected" : "") + ">Temps (gainage)</option></select></label>" +
     (inGroup ? "" : '<label class="fl">Séries<input class="f" type="number" min="1" max="20" inputmode="numeric" data-p="sets" data-e="' + k + '" value="' + esc(e.sets) + '"></label>') +
     '<label class="fl">' + (time ? "Temps cible (s)" : "Reps cible") + '<input class="f" data-p="target" data-e="' + k + '" value="' + esc(e.target) + '" placeholder="' + (time ? "45" : "8-10") + '"></label>' +
@@ -821,9 +825,11 @@ function viewProgram(tid, vid) {
     '<button data-act="addvar">+ Séance</button></div>';
   if (!v) return h;
   h += '<div class="card"><label class="fl">Nom de la séance<input class="f" data-p="vname" value="' + esc(vLabel(v.name)) + '"></label>' +
-    '<div class="row" style="margin-top:10px;flex-wrap:wrap"><button class="btn sm" data-act="dupvar">Dupliquer cette séance</button><button class="btn sm" data-act="sharevar">Partager cette séance</button>' +
+    '<div class="row" style="margin-top:10px;flex-wrap:wrap">' +
+    (t.variants.indexOf(v) > 0 ? '<button class="btn sm" data-act="varmove" data-d="-1">← Avant</button>' : "") +
+    (t.variants.indexOf(v) < t.variants.length - 1 ? '<button class="btn sm" data-act="varmove" data-d="1">Après →</button>' : "") +
+    '<button class="btn sm" data-act="dupvar">Dupliquer cette séance</button><button class="btn sm" data-act="sharevar">Partager cette séance</button>' +
     (t.variants.length > 1 ? '<button class="btn sm danger" data-act="delvar">Supprimer cette séance</button>' : "") + "</div></div>";
-  h += '<datalist id="exnames">' + knownNames().map(n => '<option value="' + esc(n) + '"></option>').join("") + "</datalist>";
   h += '<div class="section-title">Exercices (' + v.exercises.length + ')</div><div class="stack">';
   const bl = blocks(v.exercises);
   bl.forEach((blk, bi) => {
@@ -882,9 +888,8 @@ function askNames(title, n, text) {
   return new Promise(res => {
     const d = document.createElement("div"); d.className = "modal";
     let f = "";
-    for (let k = 0; k < n; k++) f += '<label class="fl">' + (n > 1 ? "Exercice " + LETTERS[k] : "Nom de l'exercice") + '<input class="f" list="exnames-m" autocomplete="off" data-k="' + k + '" placeholder="Choisis ou tape un nom"></label>';
+    for (let k = 0; k < n; k++) f += '<label class="fl">' + (n > 1 ? "Exercice " + LETTERS[k] : "Nom de l'exercice") + '<input class="f" data-suggest autocomplete="off" data-k="' + k + '" placeholder="Choisis ou tape un nom"><div class="sugg" hidden></div></label>';
     d.innerHTML = '<div class="modal-box" role="dialog" aria-modal="true" aria-label="' + esc(title) + '"><h3>' + esc(title) + "</h3>" + (text ? "<p>" + esc(text) + "</p>" : "") + f +
-      '<datalist id="exnames-m">' + knownNames().map(x => '<option value="' + esc(x) + '"></option>').join("") + "</datalist>" +
       '<p class="msg err" data-m></p><div class="modal-btns"><button class="btn" data-r="0">Annuler</button><button class="btn primary" data-r="1">Ajouter</button></div></div>';
     document.body.appendChild(d);
     const ins = Array.from(d.querySelectorAll("input"));
@@ -1179,6 +1184,39 @@ function syncNativeRest() {
   } catch (e) { }
 }
 
+/* ================= Propositions de noms d'exercices ================= */
+function suggestFor(input) {
+  const box = input.nextElementSibling;
+  if (!box || !box.classList.contains("sugg")) return;
+  const q = norm(input.value);
+  const hits = q ? knownNames().filter(n => norm(n).includes(q) && norm(n) !== q).slice(0, 6) : [];
+  if (!hits.length) { box.hidden = true; box.innerHTML = ""; return; }
+  box.innerHTML = hits.map(n => {
+    // position du texte tapé, sans tenir compte des accents ni des majuscules
+    const chars = Array.from(n).map(ch => ch.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase());
+    const qq = norm(input.value), i = chars.every(c => c.length === 1) ? chars.join("").indexOf(qq) : n.toLowerCase().indexOf(input.value.trim().toLowerCase()), len = qq.length;
+    const label = i >= 0 && len ? esc(n.slice(0, i)) + "<b>" + esc(n.slice(i, i + len)) + "</b>" + esc(n.slice(i + len)) : esc(n);
+    return '<button type="button" data-pick="' + esc(n) + '">' + label + "</button>";
+  }).join("");
+  box.hidden = false;
+}
+document.addEventListener("input", e => { if (e.target.matches && e.target.matches("input[data-suggest]")) suggestFor(e.target); });
+document.addEventListener("focusout", e => {
+  if (!e.target.matches || !e.target.matches("input[data-suggest]")) return;
+  const box = e.target.nextElementSibling;
+  setTimeout(() => { if (box && box.classList.contains("sugg") && !box.contains(document.activeElement)) box.hidden = true; }, 150);
+});
+// le choix se fait au « pointerdown » pour garder le champ actif (pas de fermeture avant le clic)
+document.addEventListener("pointerdown", e => {
+  const b = e.target.closest && e.target.closest(".sugg [data-pick]"); if (!b) return;
+  e.preventDefault();
+  const box = b.parentElement, input = box.previousElementSibling;
+  input.value = b.dataset.pick;
+  box.hidden = true; box.innerHTML = "";
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  input.dispatchEvent(new Event("change", { bubbles: true }));
+});
+
 /* ================= Écran : réglages ================= */
 function viewSettings() {
   const s = settings();
@@ -1402,6 +1440,20 @@ $app.addEventListener("click", async e => {
       if (!n) return;
       const t = { id: "tpl-" + uid(), name: n, order: templates().length, variants: [1, 2, 3].map(k => ({ id: "v" + k, name: "Séance " + k, exercises: [] })) };
       put("template", t); go("program/" + t.id);
+    } break;
+    case "tplmove": {
+      const ts = templates(), k = ts.findIndex(x => x.id === b.dataset.t), j = k + (+b.dataset.d);
+      if (k < 0 || j < 0 || j >= ts.length) return;
+      const x = ts[k]; ts[k] = ts[j]; ts[j] = x;
+      ts.forEach((t, n) => { if (t.order !== n) { t.order = n; put("template", t); } });
+      render();
+    } break;
+    case "varmove": {
+      const { t, v } = currentProgram(); if (!v) return;
+      const k = t.variants.indexOf(v), j = k + (+b.dataset.d);
+      if (j < 0 || j >= t.variants.length) return;
+      t.variants[k] = t.variants[j]; t.variants[j] = v;
+      put("template", t); render();
     } break;
     case "tab": { const { t } = currentProgram(); if (t) go("program/" + t.id + "/" + b.dataset.v); } break;
     case "addvar": { const { t } = currentProgram(); if (!t) return; const v = { id: "v" + uid(), name: "Séance " + (t.variants.length + 1), exercises: [] }; t.variants.push(v); put("template", t); go("program/" + t.id + "/" + v.id); } break;
