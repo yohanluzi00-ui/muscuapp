@@ -26,6 +26,7 @@ Application personnelle pour noter mes performances pendant mes séances de musc
 ### 1. Préparer la base de données Supabase
 1. Sur supabase.com, ouvre le projet, puis **SQL Editor** › **New query**.
 2. Colle tout le contenu du fichier [`supabase/schema.sql`](supabase/schema.sql), puis clique sur **Run**.
+   Fais de même avec [`supabase/partage.sql`](supabase/partage.sql) pour les liens de partage courts (`https://fiitday.com/#/s/CODE`).
 3. **Vérification de l'e-mail par code** (à la création d'un compte, l'appli demande un code reçu par e-mail) :
    - **Authentication › Sign In / Providers › Email** : active **Confirm email** ;
    - **Authentication › Emails › Templates › Confirm signup** : sujet « Ton code Fiitday », puis remplace le contenu par celui du fichier [`supabase/email-code-inscription.html`](supabase/email-code-inscription.html) (il affiche le code `{{ .Token }}`).

@@ -414,8 +414,9 @@ function renderNow() {
     case "progress": body = r.args[0] ? viewProgressDetail(r.args[0]) : viewProgress(); wide = false; break;
     case "calendar": body = viewCalendar(r.args[0], r.args[1]); break;
     case "body": body = viewBody(); break;
+    case "s":
     case "import": {
-      const code = r.args[0];
+      const code = r.name === "s" ? SHARE_SHORT + r.args[0] : r.args[0];
       history.replaceState(null, "", "#/programs");
       body = viewPrograms();
       setTimeout(() => importShared(code), 0);
@@ -424,7 +425,7 @@ function renderNow() {
     case "settings": body = viewSettings(); break;
     default: body = viewHome();
   }
-  const tab = { session: "home", program: "programs", import: "programs", calendar: "progress", body: "progress" }[r.name] || (NAV.some(n => n[0] === r.name) ? r.name : "home");
+  const tab = { session: "home", program: "programs", import: "programs", s: "programs", calendar: "progress", body: "progress" }[r.name] || (NAV.some(n => n[0] === r.name) ? r.name : "home");
   $app.innerHTML = '<div class="shell' + (immersive ? " hide-nav" : "") + '"><nav class="nav" aria-label="Navigation"><div class="brand">Fiitday</div>' +
     NAV.map(n => '<a href="#/' + n[0] + '" class="' + (n[0] === tab ? "on" : "") + '"' + (n[0] === tab ? ' aria-current="page"' : "") + ">" + ICON[n[2]] + "<span>" + n[1] + "</span></a>").join("") +
     '</nav><main class="main' + (wide ? " wide" : "") + '">' + body + "</main></div>";
@@ -1128,10 +1129,26 @@ function saveBody(form) {
 const b64url = str => btoa(unescape(encodeURIComponent(str))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 const unb64url = s => decodeURIComponent(escape(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4))));
 const SHARE_BASE = "https://fiitday.com/#/import/";
+const SHARE_SHORT = "https://fiitday.com/#/s/";
+// récupère une séance partagée par son code court (lisible sans compte, uniquement si on connaît le code)
+async function fetchShare(code) {
+  const headers = { apikey: SUPABASE_KEY, "Content-Type": "application/json" };
+  if (db.auth) { try { await ensureToken(); headers.Authorization = "Bearer " + db.auth.access_token; } catch (e) { } }
+  const r = await fetch(SUPABASE_URL + "/rest/v1/rpc/get_share", { method: "POST", headers, body: JSON.stringify({ p_code: code }) });
+  if (!r.ok) throw new Error("Erreur " + r.status);
+  return r.json();
+}
 async function shareVariant(t, v) {
   const data = { app: "muscuapp-share", v: 1, prog: t.name, name: vLabel(v.name),
     ex: v.exercises.map(e => ({ n: e.name, t: e.type, s: e.sets, c: e.target, r: e.rest, no: e.note || "", d: num(e.drops) || 0, ds: e.dropScope === "last" ? "last" : undefined, g: e.groupId || null, k: e.groupKind || null })) };
-  const url = SHARE_BASE + b64url(JSON.stringify(data));
+  // lien court (séance enregistrée dans Supabase avec un code) ; lien long en secours (sans compte, hors ligne…)
+  let url = null;
+  if (db.auth) {
+    const code = Array.from(crypto.getRandomValues(new Uint8Array(8)), b => "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"[b % 56]).join("");
+    try { await rest("POST", "shares", { code, data, user_id: db.auth.user.id }, { Prefer: "return=minimal" }); url = SHARE_SHORT + code; }
+    catch (e) { console.warn("partage court indisponible", e); }
+  }
+  if (!url) url = SHARE_BASE + b64url(JSON.stringify(data));
   const text = "Je te partage ma séance « " + t.name + " · " + vLabel(v.name) + " » sur Fiitday :\n" + url + "\n\nDans l'appli : Programmes › Importer une séance, puis colle ce lien.";
   try {
     if (Native && Native.share) { Native.share(text); return; }
@@ -1143,8 +1160,16 @@ async function shareVariant(t, v) {
 async function importShared(code) {
   let data;
   try {
-    const m = String(code || "").trim().match(/import\/([A-Za-z0-9_-]+)/);
-    data = JSON.parse(unb64url(m ? m[1] : String(code).trim()));
+    const str = String(code || "").trim();
+    const short = str.match(/(?:#\/s\/|^)([A-Za-z0-9]{6,12})$/);
+    if (short) {
+      try { data = await fetchShare(short[1]); }
+      catch (e) { toast(navigator.onLine === false ? "Pas de connexion internet" : "Impossible de récupérer la séance, réessaie"); return; }
+      if (!data) { toast("Cette séance partagée n'existe plus"); return; }
+    } else {
+      const m = str.match(/import\/([A-Za-z0-9_-]+)/);
+      data = JSON.parse(unb64url(m ? m[1] : str));
+    }
     if (!data || data.app !== "muscuapp-share" || !Array.isArray(data.ex) || !data.ex.length) throw new Error();
   } catch (e) { toast("Ce lien de séance n'est pas valide"); return; }
   const ts = templates();
