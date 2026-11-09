@@ -3,7 +3,6 @@ package com.muscuapp.app;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -32,11 +31,6 @@ import java.util.HashMap;
 public class MainActivity extends Activity {
     private static final String HOST = "appassets.androidplatform.net";
     private WebView web;
-    // fin du repos en cours (ms) et type d'alerte, transmis par l'appli web
-    private volatile long restEnd = 0;
-    private volatile String restMode = "vibration";
-    // objectif du chrono de gainage (ms), 0 s'il n'y en a pas
-    private volatile long chronoEnd = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -121,25 +115,6 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
-        public void setRestEnd(String at, String mode) {
-            try { restEnd = Long.parseLong(at); } catch (Exception e) { restEnd = 0; }
-            restMode = mode == null ? "vibration" : mode;
-        }
-
-        @JavascriptInterface
-        public void setChronoEnd(String at, String mode) {
-            try { chronoEnd = Long.parseLong(at); } catch (Exception e) { chronoEnd = 0; }
-            restMode = mode == null ? "vibration" : mode;
-        }
-
-        @JavascriptInterface
-        public void askNotifications() {
-            if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
-                runOnUiThread(() -> requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 2));
-            }
-        }
-
-        @JavascriptInterface
         public void share(final String text) {
             runOnUiThread(() -> {
                 Intent i = new Intent(Intent.ACTION_SEND);
@@ -154,22 +129,6 @@ public class MainActivity extends Activity {
             try { return getPackageManager().getPackageInfo(getPackageName(), 0).versionName; }
             catch (Exception e) { return ""; }
         }
-    }
-
-    // l'appli passe en arrière-plan (écran verrouillé…) : une alarme système prendra le relais pour la fin du repos
-    @Override
-    protected void onPause() {
-        super.onPause();
-        long now = System.currentTimeMillis();
-        if (restEnd > now + 1000) RestAlarm.schedule(this, RestAlarm.REST, restEnd, restMode);
-        if (chronoEnd > now + 1000) RestAlarm.schedule(this, RestAlarm.CHRONO, chronoEnd, restMode);
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        RestAlarm.cancel(this, RestAlarm.REST);
-        RestAlarm.cancel(this, RestAlarm.CHRONO);
     }
 
     @Override

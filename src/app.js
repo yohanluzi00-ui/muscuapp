@@ -112,6 +112,13 @@ function migrate() {
 }
 // anciens noms « Variante N » → « Séance N » (affichage, et renommage enregistré quand les données sont à jour)
 const vLabel = n => String(n == null ? "" : n).replace(/^Variante(?=\s|$)/i, "Séance");
+function purgeBody() {
+  for (const it of Object.values(db.items)) {
+    if (it.kind !== "body" || (it.deleted && Object.keys(it.data || {}).length <= 1)) continue;
+    db.items[it.id] = { id: it.id, kind: "body", data: { id: it.id }, updated_at: Math.max(Date.now(), it.updated_at + 1), deleted: true, dirty: true };
+    save(); scheduleSync();
+  }
+}
 function renameVariants() {
   for (const it of Object.values(db.items)) {
     if (it.kind !== "template" || it.deleted) continue;
@@ -331,6 +338,7 @@ async function sync() {
       since = rows[rows.length - 1].server_at;
     }
     db.lastServerAt = maxSeen;
+    purgeBody(); // plus de page Corps : les anciennes mesures sont effacées, contenu compris
     renameVariants(); // après la récupération : les données sont à jour, aucun risque d'écraser une modif récente
     // 2) envoyer ce qui a changé ici
     const dirty = Object.values(db.items).filter(i => i.dirty);
@@ -393,7 +401,7 @@ let consentAsked = false;
 async function askConsentIfNeeded() {
   if (consentAsked || !db.auth || !db.lastServerAt || settings().consentAt) return;
   consentAsked = true;
-  const ok = await ask({ title: "Confidentialité", text: "Pour continuer à utiliser ton compte, confirme que tu as 15 ans ou plus et que tu acceptes la politique de confidentialité (lisible dans Réglages › Informations légales), y compris l'enregistrement de tes données d'entraînement et, si tu les saisis, de ton poids et de tes mensurations.", ok: "J'accepte", cancel: "Plus tard" });
+  const ok = await ask({ title: "Confidentialité", text: "Pour continuer à utiliser ton compte, confirme que tu as 15 ans ou plus et que tu acceptes la politique de confidentialité (lisible dans Réglages › Informations légales), y compris l'enregistrement de tes données d'entraînement.", ok: "J'accepte", cancel: "Plus tard" });
   if (!ok) return;
   const st = settings(); st.consentAt = new Date().toISOString(); st.consentVersion = LEGAL.version; put("settings", st);
 }
@@ -410,7 +418,7 @@ function renderNow() {
   if (!db.auth && db.mode !== "local") { keepScreen(false); $app.innerHTML = viewLogin(); return; }
   // un nouvel utilisateur arrive sur une page vierge : plus de programmes créés d'office
   // (les programmes déjà enregistrés dans un compte ne sont pas touchés)
-  if (!db.auth) renameVariants();
+  if (!db.auth) { renameVariants(); purgeBody(); }
   const r = route();
   let body, wide = false, immersive = false;
   switch (r.name) {
@@ -420,7 +428,7 @@ function renderNow() {
     case "history": body = viewHistory(); break;
     case "progress": body = r.args[0] ? viewProgressDetail(r.args[0]) : viewProgress(); wide = false; break;
     case "calendar": body = viewCalendar(r.args[0], r.args[1]); break;
-    case "body": body = viewBody(); break;
+    case "body": history.replaceState(null, "", "#/progress"); body = viewProgress(); break; // ancienne page Corps
     case "s":
     case "import": {
       const code = r.name === "s" ? SHARE_SHORT + r.args[0] : r.args[0];
@@ -457,7 +465,7 @@ function viewLogin() {
     '<label class="fl">E-mail<input class="f" type="email" name="email" autocomplete="email" required></label>' +
     '<label class="fl">Mot de passe<input class="f" type="password" name="password" minlength="6" autocomplete="current-password" required></label>' +
     '<button class="btn primary big" type="submit" value="in">Se connecter</button>' +
-    '<label class="consent"><input type="checkbox" name="consent" id="consent"><span>Pour créer un compte : j\'ai 15 ans ou plus et j\'accepte la <a href="' + LEGAL.privacy + '" target="_blank" rel="noopener">politique de confidentialité</a>, y compris l\'enregistrement de mes données d\'entraînement et, si je les saisis, de mon poids et de mes mensurations.</span></label>' +
+    '<label class="consent"><input type="checkbox" name="consent" id="consent"><span>Pour créer un compte : j\'ai 15 ans ou plus et j\'accepte la <a href="' + LEGAL.privacy + '" target="_blank" rel="noopener">politique de confidentialité</a>, y compris l\'enregistrement de mes données d\'entraînement.</span></label>' +
     '<button class="btn big" type="submit" value="up">Créer un compte</button></form>' +
     '<p class="msg" data-msg role="status"></p>' +
     '<button class="link" data-act="local">Continuer sans compte (données sur cet appareil seulement)</button></div>';
@@ -943,16 +951,12 @@ function viewProgress() {
   // semaines d'affilée avec l'objectif atteint (la semaine en cours compte si l'objectif est déjà atteint)
   let streak = 0, wk = (perWeek[cur] || 0) >= goal ? cur : prevWeek(cur);
   while ((perWeek[wk] || 0) >= goal) { streak++; wk = prevWeek(wk); }
-  const durs = ws.map(w => w.endedAt - w.startedAt).filter(d => d > 0 && d < 6 * 3600000);
-  const avg = durs.length ? Math.round(durs.reduce((a, b) => a + b, 0) / durs.length / 60000) : null;
   const pct = Math.min(100, Math.round(100 * thisWeek / goal));
   h += '<div class="stats k3">' +
     '<div class="card stat"><div class="muted small">Cette semaine</div><div class="v num">' + thisWeek + " <small>/ " + goal + '</small></div><div class="meter" role="img" aria-label="' + thisWeek + " séances sur " + goal + '"><span style="width:' + pct + '%"></span></div></div>' +
     '<div class="card stat"><div class="muted small">Ce mois-ci</div><div class="v num">' + thisMonth + "</div></div>" +
     '<div class="card stat"><div class="muted small">Au total</div><div class="v num">' + ws.length + "</div></div>" +
     '<div class="card stat"><div class="muted small">Semaines objectif atteint</div><div class="v num">' + streak + " <small>d'affilée</small></div></div>" +
-    '<div class="card stat"><div class="muted small">Durée moyenne</div><div class="v num">' + (avg != null ? avg + " <small>min</small>" : "—") + "</div></div>" +
-    '<div class="card stat"><div class="muted small">Séries validées</div><div class="v num">' + ws.reduce((n, w) => n + w.exercises.reduce((m, e) => m + e.sets.filter(x => x.done).length, 0), 0) + "</div></div>" +
     "</div>";
   // séances par semaine (8 dernières), avec la ligne d'objectif
   const weeks = []; let t = cur; for (let k = 0; k < 8; k++) { weeks.unshift(t); t = prevWeek(t); }
@@ -1048,7 +1052,7 @@ function celebrate(rec) {
 
 /* ================= Stats : onglets ================= */
 function statsTabs(on) {
-  return '<div class="tabs" role="tablist">' + [["progress", "Séances"], ["calendar", "Calendrier"], ["body", "Corps"]].map(t =>
+  return '<div class="tabs" role="tablist">' + [["progress", "Séances"], ["calendar", "Calendrier"]].map(t =>
     '<a href="#/' + t[0] + '" class="tab' + (t[0] === on ? " on" : "") + '"' + (t[0] === on ? ' aria-current="page"' : "") + ">" + t[1] + "</a>").join("") + "</div>";
 }
 
@@ -1083,61 +1087,6 @@ function viewCalendar(ym, day) {
   h += '<div class="section-title">' + (day && byDay[day] ? esc(fmtDateLong(byDay[day][0].startedAt)) : "Séances du mois") + "</div>" +
     (list.length ? '<div class="list">' + list.map(historyRow).join("") + "</div>" : '<div class="card empty">Aucune séance ce mois-ci.</div>');
   return h;
-}
-
-/* ================= Poids de corps et mensurations ================= */
-const BODY_FIELDS = [["weight", "Poids", "kg"], ["waist", "Tour de taille", "cm"], ["chest", "Poitrine", "cm"], ["arm", "Bras", "cm"], ["thigh", "Cuisse", "cm"], ["hips", "Hanches", "cm"]];
-const bodyEntries = () => all("body").sort((a, b) => b.date.localeCompare(a.date));
-function viewBody() {
-  const es = bodyEntries(), withW = es.filter(e => num(e.weight) != null);
-  let h = '<div class="page-head"><h1>Stats</h1></div>' + statsTabs("body");
-  if (withW.length) {
-    const cur = num(withW[0].weight), first = num(withW[withW.length - 1].weight);
-    const d30 = withW.find(e => e.date <= ymd(Date.now() - 30 * DAY));
-    const delta = (a, b) => { const v = Math.round((a - b) * 10) / 10; return (v > 0 ? "+" : "") + fmtNum(v) + " kg"; };
-    h += '<div class="stats k3"><div class="card stat"><div class="muted small">Poids actuel</div><div class="v num">' + fmtNum(cur) + " <small>kg</small></div></div>" +
-      '<div class="card stat"><div class="muted small">Sur 30 jours</div><div class="v num">' + (d30 ? delta(cur, num(d30.weight)) : "—") + "</div></div>" +
-      '<div class="card stat"><div class="muted small">Depuis le début</div><div class="v num">' + (withW.length > 1 ? delta(cur, first) : "—") + "</div></div></div>";
-    // courbe du poids (une seule série : pas de légende, le titre la nomme)
-    const pts = withW.slice(0, 30).reverse();
-    if (pts.length > 1) {
-      const W = 360, H = 140, pl = 8, pr = 8, top = 20, vs = pts.map(e => num(e.weight));
-      const lo = Math.min(...vs), hi = Math.max(...vs), span = Math.max(1, hi - lo);
-      const t0 = new Date(pts[0].date).getTime(), t1 = new Date(pts[pts.length - 1].date).getTime(), tspan = Math.max(1, t1 - t0);
-      const X = e => pl + (new Date(e.date).getTime() - t0) / tspan * (W - pl - pr), Y = v => top + (1 - (v - lo) / span) * (H - top - 10);
-      let svg = '<svg class="chart" viewBox="0 0 ' + W + " " + (H + 22) + '" role="img" aria-label="Évolution du poids">';
-      svg += '<line class="base" x1="0" x2="' + W + '" y1="' + H + '" y2="' + H + '"></line>';
-      svg += '<polyline class="wline" points="' + pts.map(e => X(e).toFixed(1) + "," + Y(num(e.weight)).toFixed(1)).join(" ") + '"></polyline>';
-      pts.forEach((e, k) => {
-        svg += '<g><circle class="hit" cx="' + X(e) + '" cy="' + Y(num(e.weight)) + '" r="14"></circle><circle class="wdot" cx="' + X(e) + '" cy="' + Y(num(e.weight)) + '" r="4"></circle><title>' + esc(fmtDate(new Date(e.date).getTime()) + " : " + fmtNum(num(e.weight)) + " kg") + "</title></g>";
-      });
-      const le = pts[pts.length - 1];
-      svg += '<text x="' + Math.min(W - 4, X(le)) + '" y="' + (Y(num(le.weight)) - 10) + '" text-anchor="end" style="font-weight:700;fill:var(--ink)">' + fmtNum(num(le.weight)) + " kg</text>";
-      svg += '<text x="' + pl + '" y="' + (H + 16) + '">' + esc(fmtDate(t0)) + '</text><text x="' + (W - pr) + '" y="' + (H + 16) + '" text-anchor="end">' + esc(fmtDate(t1)) + "</text></svg>";
-      h += '<div class="card" style="margin-top:12px"><div class="muted small" style="font-weight:600;margin-bottom:8px">Poids (kg)</div>' + svg + "</div>";
-    }
-  }
-  const last = es[0] || {};
-  h += '<div class="section-title">Nouvelle mesure</div><form class="card" data-form="body"><div class="ed-grid">' +
-    '<label class="fl full">Date<input class="f" type="date" name="date" value="' + ymd(Date.now()) + '" required></label>' +
-    BODY_FIELDS.map(f => '<label class="fl">' + f[1] + " (" + f[2] + ')<input class="f" name="' + f[0] + '" inputmode="decimal" autocomplete="off" placeholder="' + esc(last[f[0]] != null && last[f[0]] !== "" ? fmtNum(num(last[f[0]])) : "—") + '"></label>').join("") +
-    '</div><p class="muted small">Remplis seulement ce que tu as mesuré. Une seule mesure par jour : la refaire le même jour la complète.</p><button class="btn primary block" type="submit">Enregistrer</button></form>';
-  if (es.length) {
-    h += '<div class="section-title">Historique</div><div class="list">' + es.map(e =>
-      '<div><div><b>' + esc(fmtDate(new Date(e.date).getTime())) + '</b><div class="muted small">' +
-      BODY_FIELDS.filter(f => num(e[f[0]]) != null).map(f => f[1] + " " + fmtNum(num(e[f[0]])) + " " + f[2]).join(" · ") +
-      '</div></div><button class="btn sm danger" data-act="delbody" data-id="' + e.id + '" aria-label="Supprimer la mesure">Suppr.</button></div>').join("") + "</div>";
-  }
-  return h;
-}
-function saveBody(form) {
-  const date = form.date.value || ymd(Date.now());
-  const ex = all("body").find(e => e.date === date);
-  const e = ex || { id: "b-" + uid(), date };
-  let n = 0;
-  BODY_FIELDS.forEach(f => { const v = num(form[f[0]].value); if (v != null) { e[f[0]] = v; n++; } });
-  if (!n) { toast("Remplis au moins une valeur"); return; }
-  put("body", e); toast("Mesure enregistrée"); render();
 }
 
 /* ================= Partager une séance ================= */
@@ -1208,27 +1157,6 @@ async function importShared(code) {
   put("template", t); toast("Séance importée"); go("program/" + t.id + "/" + vid);
 }
 
-/* ================= Alerte de fin de repos écran éteint (appli Android) ================= */
-let nativeRestSent = null, notifAsked = false;
-let nativeChronoSent = null;
-function syncNativeChrono() {
-  if (!Native || !Native.setChronoEnd) return;
-  const c = db.live && db.live.chrono;
-  const v = c && c.target && !c.alerted ? c.start + c.target * 1000 : 0;
-  if (v === nativeChronoSent) return;
-  nativeChronoSent = v;
-  try { Native.setChronoEnd(String(v), settings().alert); } catch (e) { }
-  if (v && !notifAsked && Native.askNotifications) { notifAsked = true; try { Native.askNotifications(); } catch (e) { } }
-}
-function syncNativeRest() {
-  if (!Native || !Native.setRestEnd) return;
-  const v = (db.live && db.live.restEnd) || 0;
-  if (v === nativeRestSent) return;
-  nativeRestSent = v;
-  try { Native.setRestEnd(String(v), settings().alert); } catch (e) { }
-  if (v && !notifAsked && Native.askNotifications) { notifAsked = true; try { Native.askNotifications(); } catch (e) { } }
-}
-
 /* ================= Écran : réglages ================= */
 function viewSettings() {
   const s = settings();
@@ -1261,12 +1189,9 @@ function tick() {
   document.querySelectorAll('[data-tick="elapsed"]').forEach(el => { const w = getItem(el.dataset.id); if (w) el.textContent = fmtDur((w.endedAt || now) - w.startedAt); });
   // repos
   if (L.restEnd && now >= L.restEnd && !L.restAlerted) {
-    const late = now - L.restEnd > 4000; // fini pendant que l'appli était en arrière-plan : la notification Android a déjà prévenu
     L.restAlerted = true; L.restEnd = null; L.restMin = false; save();
-    if (!late) { signal(); restDone(); }
+    signal(); restDone();
   }
-  syncNativeRest();
-  syncNativeChrono();
   const pop = document.querySelector("[data-restpop]"), pill = document.querySelector("[data-restpill]");
   if (pop) {
     const on = !!L.restEnd;
@@ -1286,7 +1211,7 @@ function tick() {
     const el = document.querySelector('[data-tick="chrono"]');
     const ms = now - c.start;
     if (el) el.textContent = fmtDur(ms);
-    if (!c.alerted && c.target && ms >= c.target * 1000) { c.alerted = true; save(); if (ms - c.target * 1000 < 4000) signal(); } // atteint en arrière-plan : la notification Android a prévenu
+    if (!c.alerted && c.target && ms >= c.target * 1000) { c.alerted = true; save(); signal(); } // atteint en arrière-plan : la notification Android a prévenu
     const w = currentWorkout(), here = w && w.id === c.wid;
     if (cpop) {
       cpop.hidden = !here || !!c.min;
@@ -1328,7 +1253,6 @@ $app.addEventListener("submit", e => {
   const f = e.target.closest("[data-form]"); if (!f) return;
   e.preventDefault();
   if (f.dataset.form === "login") onLogin(f, (e.submitter && e.submitter.value) || "in");
-  if (f.dataset.form === "body") saveBody(f);
   if (f.dataset.form === "verify") onVerify(f);
 });
 
@@ -1504,7 +1428,6 @@ $app.addEventListener("click", async e => {
     case "up": case "down": { const { t, v } = currentProgram(); if (!v) return; if (moveBlock(v, +b.dataset.b, a === "up" ? -1 : 1)) { put("template", t); render(); } } break;
     case "sharevar": { const { t, v } = currentProgram(); if (v) shareVariant(t, v); } break;
     case "importvar": { const code = await ask({ title: "Importer une séance", text: "Colle le lien de la séance qu'on t'a envoyé.", input: "", ok: "Continuer" }); if (code) importShared(code); } break;
-    case "delbody": { const id = b.dataset.id; if (!await ask({ title: "Supprimer cette mesure ?", ok: "Supprimer", danger: true })) return; remove(id); render(); } break;
     case "deltpl": { const { t } = currentProgram(); if (!t) return; if (!await ask({ title: "Supprimer « " + t.name + " » ?", text: "Ses séances et exercices seront supprimés. L'historique des séances déjà faites est conservé.", ok: "Supprimer", danger: true })) return; remove(t.id); go("programs"); } break;
 
     /* réglages */

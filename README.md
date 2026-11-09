@@ -4,7 +4,7 @@ Application personnelle pour noter mes performances pendant mes séances de musc
 
 ## Ce que fait l'appli
 
-- **5 séances-types** prêtes à remplir (Push, Pull, Legs, Haut du corps, Bas du corps), chacune avec **3 variantes** qui ont leurs propres exercices.
+- Des **programmes** (Push, Haut du corps…) que chacun crée, chacun avec ses **séances** et leurs propres exercices. Un nouveau compte démarre sur une page vierge.
 - Pour chaque exercice : nombre de séries, reps cible (ou temps cible pour le gainage), temps de repos et **notes**.
 - Modes d'enchaînement, au choix en ajoutant un exercice :
   - **Dégressif** : chaque série a 1 à 3 « baisses » (charge réduite, sans repos) ;
