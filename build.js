@@ -61,6 +61,44 @@ self.addEventListener("fetch", e => {
 `);
 fs.writeFileSync(path.join(dist, ".nojekyll"), "");
 
+// Pages légales (confidentialité, mentions légales, suppression de compte), servies sur fiitday.com
+const CONTACT = "contact@fiitday.com"; // adresse de contact affichée sur les pages légales
+const pageCss = `
+:root{--bg:#F4F2F8;--card:#FFFFFF;--line:#E4E0EC;--ink:#16131F;--muted:#5D586B;--accent:#C81E64;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#08080D;--card:#12121C;--line:#26243B;--ink:#F3F1FA;--muted:#A9A5BB;--accent:#FF5C9E;color-scheme:dark}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:720px;margin:0 auto;padding:28px max(16px,env(safe-area-inset-right,0px)) 64px max(16px,env(safe-area-inset-left,0px))}
+header{display:flex;align-items:center;gap:10px;margin-bottom:24px}header img{width:36px;height:36px;border-radius:10px}
+header a{font-family:"Space Grotesk",ui-sans-serif,sans-serif;font-weight:700;font-size:20px;color:var(--ink);text-decoration:none}
+h1,h2{font-family:"Space Grotesk",ui-sans-serif,sans-serif;line-height:1.2;text-wrap:balance}h1{font-size:32px;margin:0 0 4px}h2{font-size:20px;margin:28px 0 8px}
+.meta{color:var(--muted);font-size:14px;margin:0 0 20px}a{color:var(--accent)}li{margin:4px 0}
+footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:14px;display:flex;gap:16px;flex-wrap:wrap}`;
+for (const f of fs.readdirSync(path.join(__dirname, "src", "pages")).filter(f => f.endsWith(".html"))) {
+  const body = src("pages/" + f).replace(/\{\{CONTACT\}\}/g, CONTACT);
+  const title = (body.match(/<!-- title: (.+?) -->/) || [, "Fiitday"])[1];
+  fs.writeFileSync(path.join(dist, f), `<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>${title} · Fiitday</title>
+<link rel="icon" href="icon-192.png">
+<style>
+@font-face { font-family: "Space Grotesk"; src: url(data:font/woff2;base64,${FONT}) format("woff2"); font-weight: 300 700; font-display: swap; }
+${pageCss}
+</style>
+</head>
+<body><div class="wrap">
+<header><img src="icon-192.png" alt=""><a href="./">Fiitday</a></header>
+<main>
+${body}
+</main>
+<footer><a href="confidentialite.html">Confidentialité</a><a href="mentions-legales.html">Mentions légales</a><a href="suppression-compte.html">Supprimer son compte</a><a href="./">Ouvrir l'appli</a></footer>
+</div></body>
+</html>
+`);
+}
+
 // Appli Android : la même page, embarquée dans l'APK
 const www = path.join(__dirname, "android", "app", "src", "main", "assets", "www");
 fs.mkdirSync(www, { recursive: true });

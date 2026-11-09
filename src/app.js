@@ -331,8 +331,6 @@ async function sync() {
       since = rows[rows.length - 1].server_at;
     }
     db.lastServerAt = maxSeen;
-    if (!db.seeded) { seedIfNeeded(); changed = true; }
-    if (migrate()) changed = true;
     renameVariants(); // après la récupération : les données sont à jour, aucun risque d'écraser une modif récente
     // 2) envoyer ce qui a changé ici
     const dirty = Object.values(db.items).filter(i => i.dirty);
@@ -390,6 +388,15 @@ function softRender() {
   render();
 }
 
+const LEGAL = { version: "2026-11-09", privacy: "https://fiitday.com/confidentialite.html", legal: "https://fiitday.com/mentions-legales.html", deletion: "https://fiitday.com/suppression-compte.html" };
+let consentAsked = false;
+async function askConsentIfNeeded() {
+  if (consentAsked || !db.auth || !db.lastServerAt || settings().consentAt) return;
+  consentAsked = true;
+  const ok = await ask({ title: "Confidentialité", text: "Pour continuer à utiliser ton compte, confirme que tu as 15 ans ou plus et que tu acceptes la politique de confidentialité (lisible dans Réglages › Informations légales), y compris l'enregistrement de tes données d'entraînement et, si tu les saisis, de ton poids et de tes mensurations.", ok: "J'accepte", cancel: "Plus tard" });
+  if (!ok) return;
+  const st = settings(); st.consentAt = new Date().toISOString(); st.consentVersion = LEGAL.version; put("settings", st);
+}
 const NAV = [["home", "Accueil", "home"], ["programs", "Programmes", "list"], ["history", "Historique", "clock"], ["progress", "Stats", "chart"], ["settings", "Réglages", "gear"]];
 // Remplacer l'écran retire le champ actif : son « blur »/« change » peut redemander un rendu pendant celui-ci.
 let rendering = false;
@@ -401,8 +408,8 @@ function render() {
 function renderNow() {
   applyTheme();
   if (!db.auth && db.mode !== "local") { keepScreen(false); $app.innerHTML = viewLogin(); return; }
-  seedIfNeeded();
-  migrate();
+  // un nouvel utilisateur arrive sur une page vierge : plus de programmes créés d'office
+  // (les programmes déjà enregistrés dans un compte ne sont pas touchés)
   if (!db.auth) renameVariants();
   const r = route();
   let body, wide = false, immersive = false;
@@ -431,6 +438,7 @@ function renderNow() {
     '</nav><main class="main' + (wide ? " wide" : "") + '">' + body + "</main></div>";
   keepScreen(immersive);
   tick();
+  setTimeout(askConsentIfNeeded, 800);
 }
 
 /* ================= Écran : connexion ================= */
@@ -449,6 +457,7 @@ function viewLogin() {
     '<label class="fl">E-mail<input class="f" type="email" name="email" autocomplete="email" required></label>' +
     '<label class="fl">Mot de passe<input class="f" type="password" name="password" minlength="6" autocomplete="current-password" required></label>' +
     '<button class="btn primary big" type="submit" value="in">Se connecter</button>' +
+    '<label class="consent"><input type="checkbox" name="consent" id="consent"><span>Pour créer un compte : j\'ai 15 ans ou plus et j\'accepte la <a href="' + LEGAL.privacy + '" target="_blank" rel="noopener">politique de confidentialité</a>, y compris l\'enregistrement de mes données d\'entraînement et, si je les saisis, de mon poids et de mes mensurations.</span></label>' +
     '<button class="btn big" type="submit" value="up">Créer un compte</button></form>' +
     '<p class="msg" data-msg role="status"></p>' +
     '<button class="link" data-act="local">Continuer sans compte (données sur cet appareil seulement)</button></div>';
@@ -466,10 +475,12 @@ function authMessage(e) {
   return m;
 }
 async function afterLogin() {
-  db.verify = null; db.seeded = false; db.lastServerAt = null;
+  db.verify = null; db.seeded = true; db.lastServerAt = null;
   // les données déjà saisies sans compte seront envoyées au compte
   Object.values(db.items).forEach(i => { if (i.updated_at > 0) i.dirty = true; });
-  saveNow(); render(); await sync(); render();
+  saveNow(); render(); await sync();
+  if (db.pendingConsent) { const st = settings(); st.consentAt = db.pendingConsent; st.consentVersion = LEGAL.version; delete db.pendingConsent; put("settings", st); }
+  render();
 }
 async function onVerify(form) {
   const msg = $app.querySelector("[data-msg]");
@@ -495,7 +506,10 @@ async function onLogin(form, mode) {
   form.querySelectorAll("button").forEach(b => { b.disabled = true; });
   try {
     if (mode === "up") {
-      const j = await authReq("signup", { email, password });
+      if (!form.consent.checked) { msg.className = "msg err"; msg.textContent = "Coche la case de consentement pour créer ton compte."; return; }
+      const consentAt = new Date().toISOString();
+      const j = await authReq("signup", { email, password, data: { consent_at: consentAt, consent_version: LEGAL.version } });
+      db.pendingConsent = consentAt;
       // e-mail déjà inscrit : Supabase renvoie un utilisateur sans identité
       if (j.user && Array.isArray(j.user.identities) && j.user.identities.length === 0) throw new Error("already registered");
       if (!j.access_token) { db.verify = email; saveNow(); render(); return; } // code de vérification envoyé par e-mail
@@ -535,7 +549,8 @@ function viewHome() {
   }
   const ts = templates();
   h += '<div class="section-title">Mes programmes</div><div class="stack">';
-  if (!ts.length) h += '<div class="card empty">Aucun programme. Crée-en un dans <a href="#/programs">Programmes</a>.</div>';
+  if (!ts.length) h += '<div class="card welcome"><h2>Bienvenue sur Fiitday</h2><p class="muted">Commence par créer ton premier programme (par exemple « Push » ou « Haut du corps »), puis ajoute ses séances et ses exercices.</p>' +
+    '<div class="row" style="flex-wrap:wrap"><button class="btn primary" data-act="newtpl">+ Créer mon premier programme</button><button class="btn" data-act="importvar">Importer une séance partagée</button></div></div>';
   for (const t of ts) {
     const st = variantStats(t);
     const lastAny = st.filter(x => x.last).sort((a, b) => b.last.startedAt - a.last.startedAt)[0];
@@ -1228,11 +1243,15 @@ function viewSettings() {
     '<div class="card"><b>Objectif de séances par semaine</b><div style="margin-top:10px">' + seg("goal", [["2", "2"], ["3", "3"], ["4", "4"], ["5", "5"], ["6", "6"], ["7", "7"]]) + "</div></div>" +
     '<div class="card"><b>Compte</b><div style="margin-top:8px">' +
     (db.auth ? '<div class="small">Connecté : ' + esc(db.auth.user.email) + "</div><div style=\"margin-top:6px\">" + syncBadge() + '</div><div class="small msg err" data-sync-error>' + (syncState.status === "err" ? esc(syncState.error) : "") + "</div>" +
-      '<div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-act="syncnow">Synchroniser maintenant</button><button class="btn sm" data-act="logout">Se déconnecter</button></div>'
+      '<div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-act="syncnow">Synchroniser maintenant</button><button class="btn sm" data-act="logout">Se déconnecter</button></div>' +
+      '<button class="link" style="margin-top:6px;color:var(--danger)" data-act="delaccount">Supprimer mon compte</button>'
       : '<div class="small muted">Sans compte : tes données restent sur cet appareil.</div><button class="btn sm primary" style="margin-top:8px" data-act="tologin">Se connecter / créer un compte</button>') +
     "</div></div>" +
     '<div class="card"><b>Sauvegarde</b><div class="small muted" style="margin-top:4px">Copie de secours de toutes tes données (texte à garder dans une note).</div>' +
     '<div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-act="export">Copier la sauvegarde</button><button class="btn sm" data-act="import">Restaurer…</button></div></div>' +
+    '<div class="card"><b>Informations légales</b><div class="row" style="margin-top:8px;flex-wrap:wrap">' +
+    '<a class="btn sm" href="' + LEGAL.privacy + '" target="_blank" rel="noopener">Politique de confidentialité</a>' +
+    '<a class="btn sm" href="' + LEGAL.legal + '" target="_blank" rel="noopener">Mentions légales</a></div></div>' +
     '<div class="credit"><div class="appver">' + esc(ver) + '</div>Créé par YL</div></div>';
 }
 
@@ -1333,6 +1352,18 @@ $app.addEventListener("click", async e => {
       if (Object.values(db.items).some(x => x.dirty) && !await ask({ title: "Modifications non envoyées", text: "Certaines modifications n'ont pas pu être envoyées (pas de réseau ?). Se déconnecter quand même ?", ok: "Oui", danger: true })) return;
       db = emptyDb(); saveNow(); go("home"); render(); break;
     }
+    case "delaccount": {
+      const conf = await ask({ title: "Supprimer ton compte ?", text: "Ton compte et toutes tes données (programmes, séances, mesures, séances partagées) seront définitivement effacés, sur tous tes appareils. Cette action est irréversible.\n\nTape SUPPRIMER pour confirmer.", input: "", ok: "Supprimer définitivement", danger: true });
+      if (conf == null) return;
+      if (conf.trim().toUpperCase() !== "SUPPRIMER") { toast("Suppression annulée : tape SUPPRIMER pour confirmer"); return; }
+      try {
+        await rest("POST", "rpc/delete_my_account", {}, { Prefer: "return=minimal" });
+      } catch (err) {
+        toast(err.status === 404 ? "Suppression indisponible pour le moment. Écris-nous (voir Informations légales)." : (err.message === "Failed to fetch" ? "Pas de connexion internet" : "La suppression a échoué, réessaie"));
+        return;
+      }
+      db = emptyDb(); saveNow(); toast("Ton compte a été supprimé"); go("home"); render();
+    } break;
     case "syncnow": flushPending(); await sync(); if (syncState.status === "ok") toast("Synchronisé"); break;
 
     /* accueil */

@@ -300,3 +300,8 @@ h1, .page-head h1, .ex-name, .tpl h2, .rp-time, .rp-end, .stat .v, .nav .brand, 
 @media (prefers-reduced-motion: reduce) { .recordpop { animation: none; } }
 .login input.code { font-family: var(--display); font-size: 28px; letter-spacing: .4em; text-align: center; }
 .credit .appver { font-family: var(--display); font-size: 15px; font-weight: 700; color: var(--ink); margin-bottom: 2px; }
+.consent { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: var(--muted); text-align: left; line-height: 1.45; }
+.consent input { width: 20px; height: 20px; flex: none; margin-top: 1px; accent-color: var(--accent); }
+.consent a { color: var(--accent); }
+.welcome h2 { font-family: var(--display); font-size: 22px; }
+.welcome p { margin: 8px 0 14px; }
