@@ -46,10 +46,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          apk="Suvess-$VERSION_NAME.apk"
+          apk="Fiitday-$VERSION_NAME.apk"
           cp android/app/build/outputs/apk/release/app-release.apk "$apk"
           git log -1 --pretty=%B > notes.md
-          gh release create "v$VERSION_NAME" "$apk" --title "Suvess $VERSION_NAME" --notes-file notes.md --target "$GITHUB_SHA"
+          gh release create "v$VERSION_NAME" "$apk" --title "Fiitday $VERSION_NAME" --notes-file notes.md --target "$GITHUB_SHA"
       - name: Garder le journal en cas d'échec
         if: failure()
         env:

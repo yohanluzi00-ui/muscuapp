@@ -26,7 +26,7 @@ import java.io.InputStream;
 import java.util.HashMap;
 
 /**
- * Coque Android de Suvess : affiche l'appli web embarquée (assets/www)
+ * Coque Android de Fiitday : affiche l'appli web embarquée (assets/www)
  * et lui donne accès à la vibration et au maintien de l'écran allumé.
  */
 public class MainActivity extends Activity {

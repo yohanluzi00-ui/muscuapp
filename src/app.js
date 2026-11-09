@@ -1,5 +1,5 @@
 "use strict";
-/* Suvess — suivi des séances de musculation.
+/* Fiitday — suivi des séances de musculation.
    Données gardées sur l'appareil (localStorage) et synchronisées avec Supabase quand on est connecté. */
 
 const SUPABASE_URL = "https://krszgabjpswqjtypalsn.supabase.co";
@@ -425,7 +425,7 @@ function renderNow() {
     default: body = viewHome();
   }
   const tab = { session: "home", program: "programs", import: "programs", calendar: "progress", body: "progress" }[r.name] || (NAV.some(n => n[0] === r.name) ? r.name : "home");
-  $app.innerHTML = '<div class="shell' + (immersive ? " hide-nav" : "") + '"><nav class="nav" aria-label="Navigation"><div class="brand">Suvess</div>' +
+  $app.innerHTML = '<div class="shell' + (immersive ? " hide-nav" : "") + '"><nav class="nav" aria-label="Navigation"><div class="brand">Fiitday</div>' +
     NAV.map(n => '<a href="#/' + n[0] + '" class="' + (n[0] === tab ? "on" : "") + '"' + (n[0] === tab ? ' aria-current="page"' : "") + ">" + ICON[n[2]] + "<span>" + n[1] + "</span></a>").join("") +
     '</nav><main class="main' + (wide ? " wide" : "") + '">' + body + "</main></div>";
   keepScreen(immersive);
@@ -442,7 +442,7 @@ function viewLogin() {
     '<p class="msg" data-msg role="status"></p>' +
     '<p class="muted small">Pas reçu ? Regarde dans les spams, ou</p><button class="btn" data-act="resend">Renvoyer le code</button>' +
     '<button class="link" data-act="changemail">Changer d\'adresse e-mail</button></div>';
-  return '<div class="login"><img class="logo" src="icon-192.png" alt="" width="72" height="72"><h1>Suvess</h1>' +
+  return '<div class="login"><img class="logo" src="icon-192.png" alt="" width="72" height="72"><h1>Fiitday</h1>' +
     '<p class="muted">Connecte-toi pour retrouver tes séances sur ton téléphone et sur ton ordinateur.</p>' +
     '<form data-form="login" class="stack">' +
     '<label class="fl">E-mail<input class="f" type="email" name="email" autocomplete="email" required></label>' +
@@ -1132,10 +1132,10 @@ async function shareVariant(t, v) {
   const data = { app: "muscuapp-share", v: 1, prog: t.name, name: vLabel(v.name),
     ex: v.exercises.map(e => ({ n: e.name, t: e.type, s: e.sets, c: e.target, r: e.rest, no: e.note || "", d: num(e.drops) || 0, ds: e.dropScope === "last" ? "last" : undefined, g: e.groupId || null, k: e.groupKind || null })) };
   const url = SHARE_BASE + b64url(JSON.stringify(data));
-  const text = "Je te partage ma séance « " + t.name + " · " + vLabel(v.name) + " » sur Suvess :\n" + url + "\n\nDans l'appli : Programmes › Importer une séance, puis colle ce lien.";
+  const text = "Je te partage ma séance « " + t.name + " · " + vLabel(v.name) + " » sur Fiitday :\n" + url + "\n\nDans l'appli : Programmes › Importer une séance, puis colle ce lien.";
   try {
     if (Native && Native.share) { Native.share(text); return; }
-    if (navigator.share) { await navigator.share({ title: "Séance Suvess", text }); return; }
+    if (navigator.share) { await navigator.share({ title: "Séance Fiitday", text }); return; }
   } catch (e) { if (e && e.name === "AbortError") return; }
   try { await navigator.clipboard.writeText(text); toast("Lien copié : envoie-le à la personne"); }
   catch (e) { await ask({ title: "Partager la séance", text: "Copie ce texte et envoie-le :", input: text, multiline: true, cancel: false, ok: "Fermer" }); }

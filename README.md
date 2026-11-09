@@ -1,4 +1,4 @@
-# Suvess
+# Fiitday
 
 Application personnelle pour noter mes performances pendant mes séances de musculation, sur le téléphone (APK Android) et sur l'ordinateur (version web).
 
@@ -28,11 +28,11 @@ Application personnelle pour noter mes performances pendant mes séances de musc
 2. Colle tout le contenu du fichier [`supabase/schema.sql`](supabase/schema.sql), puis clique sur **Run**.
 3. **Vérification de l'e-mail par code** (à la création d'un compte, l'appli demande un code reçu par e-mail) :
    - **Authentication › Sign In / Providers › Email** : active **Confirm email** ;
-   - **Authentication › Emails › Templates › Confirm signup** : sujet « Ton code Suvess », puis remplace le contenu par celui du fichier [`supabase/email-code-inscription.html`](supabase/email-code-inscription.html) (il affiche le code `{{ .Token }}`).
+   - **Authentication › Emails › Templates › Confirm signup** : sujet « Ton code Fiitday », puis remplace le contenu par celui du fichier [`supabase/email-code-inscription.html`](supabase/email-code-inscription.html) (il affiche le code `{{ .Token }}`).
    - Le serveur d'e-mails intégré à Supabase n'envoie que quelques e-mails par heure : pour plus d'inscriptions, configure un serveur SMTP (Authentication › Emails › SMTP Settings).
 
 ### 2. Installer l'appli Android (APK + Obtainium)
-À chaque modification poussée sur `main`, l'action GitHub « Construire l'APK » compile l'appli, la signe et publie une **Release** (`Suvess-1.N.apk`).
+À chaque modification poussée sur `main`, l'action GitHub « Construire l'APK » compile l'appli, la signe et publie une **Release** (`Fiitday-1.N.apk`).
 
 - Les secrets `KEYSTORE_B64` et `KEYSTORE_PASSWORD` doivent exister dans Settings › Secrets and variables › Actions. Garde une copie de la clé en lieu sûr : sans la même clé, une mise à jour ne peut pas s'installer par-dessus l'appli existante.
 - Dans **Obtainium** : Ajouter une appli › URL `https://github.com/yohanluzi00-ui/muscuapp`.
