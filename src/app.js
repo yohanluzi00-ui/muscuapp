@@ -138,7 +138,9 @@ function setSetting(k, v) { const s = settings(); s[k] = v; put("settings", s); 
 const newExercise = () => ({ id: "e-" + uid(), name: "Nouvel exercice", type: "reps", sets: 3, target: "8-10", rest: 90, note: "" });
 const blankSet = drops => ({ kg: "", reps: "", sec: "", done: false, drops: Array.from({ length: Math.max(0, num(drops) || 0) }, () => ({ kg: "", reps: "" })) });
 // baisses d'une série en dégressif : toutes les séries, ou seulement la dernière (dropScope "last")
-const dropsFor = (e, k, n) => ((num(e.drops) || 0) && (e.dropScope !== "last" || k === n - 1)) ? num(e.drops) : 0;
+// nombre de baisses en dégressif ; jamais pour un exercice en temps (d'anciennes valeurs pouvaient rester cachées)
+const dropsOf = e => (e && e.type !== "time" && num(e.drops)) || 0;
+const dropsFor = (e, k, n) => (dropsOf(e) && (e.dropScope !== "last" || k === n - 1)) ? dropsOf(e) : 0;
 const GROUP_LABEL = { superset: "Superset", biset: "Biset", triset: "Triset" };
 const GROUP_SIZE = { superset: 2, biset: 2, triset: 3 };
 const LETTERS = "ABCDEFGH";
@@ -282,7 +284,7 @@ async function authReq(path, body) {
   return j;
 }
 function setSession(j) {
-  db.auth = { access_token: j.access_token, refresh_token: j.refresh_token, expires_at: Date.now() + (j.expires_in || 3600) * 1000, user: { id: j.user.id, email: j.user.email } };
+  db.auth = { access_token: j.access_token, refresh_token: j.refresh_token, expires_at: Date.now() + (j.expires_in || 3600) * 1000, user: { id: j.user.id, email: j.user.email, name: (j.user.user_metadata && j.user.user_metadata.first_name) || "" } };
   db.mode = "account"; saveNow();
 }
 let refreshing = null;
@@ -397,9 +399,18 @@ function softRender() {
 }
 
 const LEGAL = { version: "2026-11-09", privacy: "https://fiitday.com/confidentialite.html", legal: "https://fiitday.com/mentions-legales.html", deletion: "https://fiitday.com/suppression-compte.html" };
-let consentAsked = false;
+let consentAsked = false, nameAsked = false;
+const firstName = () => settings().firstName || (db.auth && db.auth.user && db.auth.user.name) || "";
+async function askNameIfNeeded() {
+  if (nameAsked || !db.auth || (!db.lastServerAt && !syncState.at) || firstName() || !settings().consentAt) return;
+  nameAsked = true;
+  const n = await ask({ title: "Comment t'appelles-tu ?", text: "Ton prénom s'affichera sur l'accueil. Tu peux le changer dans Réglages.", input: "", ok: "Enregistrer", cancel: "Plus tard" });
+  if (!n) return;
+  const st = settings(); st.firstName = n.slice(0, 40); put("settings", st); render();
+}
 async function askConsentIfNeeded() {
-  if (consentAsked || !db.auth || !db.lastServerAt || settings().consentAt) return;
+  // attendre une première synchro réussie (même si le compte est encore vide)
+  if (consentAsked || !db.auth || (!db.lastServerAt && !syncState.at) || settings().consentAt) return;
   consentAsked = true;
   const ok = await ask({ title: "Confidentialité", text: "Pour continuer à utiliser ton compte, confirme que tu as 15 ans ou plus et que tu acceptes la politique de confidentialité (lisible dans Réglages › Informations légales), y compris l'enregistrement de tes données d'entraînement.", ok: "J'accepte", cancel: "Plus tard" });
   if (!ok) return;
@@ -446,11 +457,11 @@ function renderNow() {
     '</nav><main class="main' + (wide ? " wide" : "") + '">' + body + "</main></div>";
   keepScreen(immersive);
   tick();
-  setTimeout(askConsentIfNeeded, 800);
+  setTimeout(() => askConsentIfNeeded().then(askNameIfNeeded), 800);
 }
 
 /* ================= Écran : connexion ================= */
-let loginMode = "in", loginEmail = ""; // écran de connexion : « in » se connecter, « up » créer un compte
+let loginMode = "in", loginEmail = "", loginName = ""; // écran de connexion : « in » se connecter, « up » créer un compte
 function viewLogin() {
   if (db.verify) return '<div class="login"><img class="logo" src="icon-192.png" alt="" width="72" height="72"><h1>Vérifie ton e-mail</h1>' +
     '<p class="muted">Nous avons envoyé un code à <b>' + esc(db.verify) + '</b>. Saisis-le ci-dessous pour activer ton compte.</p>' +
@@ -465,6 +476,7 @@ function viewLogin() {
   return '<div class="login"><img class="logo" src="icon-192.png" alt="" width="72" height="72"><h1>Fiitday</h1>' +
     '<p class="muted">' + (up ? "Crée ton compte pour enregistrer tes séances sur ton téléphone et sur ton ordinateur." : "Connecte-toi pour retrouver tes séances sur ton téléphone et sur ton ordinateur.") + "</p>" +
     '<form data-form="login" class="stack">' +
+    (up ? '<label class="fl">Prénom<input class="f" name="firstname" autocomplete="given-name" maxlength="40" value="' + esc(loginName) + '"></label>' : "") +
     '<label class="fl">E-mail<input class="f" type="email" name="email" autocomplete="email" value="' + em + '" required></label>' +
     '<label class="fl">Mot de passe<input class="f" type="password" name="password" minlength="6" autocomplete="' + (up ? "new-password" : "current-password") + '" required></label>' +
     (up
@@ -494,7 +506,12 @@ async function afterLogin() {
   // les données déjà saisies sans compte seront envoyées au compte
   Object.values(db.items).forEach(i => { if (i.updated_at > 0) i.dirty = true; });
   saveNow(); render(); await sync();
-  if (db.pendingConsent) { const st = settings(); st.consentAt = db.pendingConsent; st.consentVersion = LEGAL.version; delete db.pendingConsent; put("settings", st); }
+  if (db.pendingConsent || db.pendingName) {
+    const st = settings();
+    if (db.pendingConsent) { st.consentAt = db.pendingConsent; st.consentVersion = LEGAL.version; }
+    if (db.pendingName) st.firstName = db.pendingName;
+    delete db.pendingConsent; delete db.pendingName; put("settings", st);
+  }
   render();
 }
 async function onVerify(form) {
@@ -521,10 +538,12 @@ async function onLogin(form, mode) {
   form.querySelectorAll("button").forEach(b => { b.disabled = true; });
   try {
     if (mode === "up") {
+      const fname = form.firstname.value.trim().slice(0, 40);
+      if (!fname) { msg.className = "msg err"; msg.textContent = "Indique ton prénom."; return; }
       if (!form.consent.checked) { msg.className = "msg err"; msg.textContent = "Coche la case de consentement pour créer ton compte."; return; }
       const consentAt = new Date().toISOString();
-      const j = await authReq("signup", { email, password, data: { consent_at: consentAt, consent_version: LEGAL.version } });
-      db.pendingConsent = consentAt;
+      const j = await authReq("signup", { email, password, data: { consent_at: consentAt, consent_version: LEGAL.version, first_name: fname } });
+      db.pendingConsent = consentAt; db.pendingName = fname;
       // e-mail déjà inscrit : Supabase renvoie un utilisateur sans identité
       if (j.user && Array.isArray(j.user.identities) && j.user.identities.length === 0) throw new Error("already registered");
       if (!j.access_token) { db.verify = email; saveNow(); render(); return; } // code de vérification envoyé par e-mail
@@ -556,7 +575,7 @@ function variantStats(t) {
 }
 function viewHome() {
   const act = activeWorkout();
-  let h = '<div class="page-head"><div><div class="muted small">' + esc(fmtDateLong(Date.now())) + '</div><h1>Bonjour</h1></div>' + syncBadge() + "</div>";
+  let h = '<div class="page-head"><div><div class="muted small">' + esc(fmtDateLong(Date.now())) + '</div><h1>Bonjour' + (firstName() ? " " + esc(firstName()) : "") + '</h1></div>' + syncBadge() + "</div>";
   if (act) {
     h += '<div class="hero"><div class="small" style="opacity:.75">Séance en cours</div><div style="font-size:21px;font-weight:800;margin-top:2px">' + esc(act.templateName) + " · " + esc(vLabel(act.variantName)) + "</div>" +
       '<div class="small" style="opacity:.8;margin-top:4px">Commencée à ' + fmtTime(act.startedAt) + ' · <span class="num" data-tick="elapsed" data-id="' + act.id + '"></span></div>' +
@@ -596,6 +615,10 @@ async function startWorkout(tid, vid) {
   const v = t.variants.find(x => x.id === vid); if (!v) return;
   if (!v.exercises.length) { toast("Ajoute d'abord des exercices à cette séance"); go("program/" + tid + "/" + vid); return; }
   const act = activeWorkout();
+  if (!act) {
+    const n = v.exercises.length;
+    if (!await ask({ title: "Commencer la séance ?", text: t.name + " · " + vLabel(v.name) + "\n" + n + " exercice" + (n > 1 ? "s" : ""), ok: "C'est parti", cancel: "Pas maintenant" })) return;
+  }
   if (act) {
     const ok = await ask({ title: "Une séance est déjà en cours", text: act.templateName + " · " + vLabel(act.variantName) + "\nLa terminer et commencer celle-ci ?", ok: "Oui, la terminer" });
     if (!ok) return;
@@ -603,7 +626,7 @@ async function startWorkout(tid, vid) {
   }
   const w = {
     id: "w-" + uid(), templateId: t.id, variantId: v.id, templateName: t.name, variantName: v.name, startedAt: Date.now(), endedAt: null,
-    exercises: v.exercises.map(e => ({ exId: e.id, name: e.name, type: e.type, target: e.target, rest: e.rest, drops: num(e.drops) || 0, groupId: e.groupId || null, groupKind: e.groupKind || null,
+    exercises: v.exercises.map(e => ({ exId: e.id, name: e.name, type: e.type, target: e.target, rest: e.rest, drops: dropsOf(e), groupId: e.groupId || null, groupKind: e.groupKind || null,
       dropScope: e.dropScope === "last" ? "last" : "all",
       sets: (n => Array.from({ length: n }, (_, k) => blankSet(dropsFor(e, k, n))))(Math.max(1, num(e.sets) || 1)) })),
   };
@@ -649,7 +672,7 @@ function setRows(w, e, i, k, label) {
 function metaText(e, inGroup) {
   const time = e.type === "time";
   let t = inGroup ? "Cible " + esc(e.target || "—") + (time ? " s" : " reps") : e.sets.length + " × " + esc(e.target || "—") + (time ? " s" : "") + " · repos " + esc(fmtRest(e.rest));
-  const d = num(e.drops) || 0;
+  const d = dropsOf(e);
   if (d) t += " · dégressif (" + d + " baisse" + (d > 1 ? "s" : "") + (e.dropScope === "last" ? ", dernière série" : "") + ")";
   return t;
 }
@@ -726,7 +749,7 @@ function sessionTable(w) {
       h += '<tr class="' + (grouped && !lastOfGroup ? "chained" : "") + '"><td>' +
         (grouped ? '<div class="gtag">' + esc(GROUP_LABEL[e.groupKind] || "Enchaînement") + " · " + LETTERS[n] + "</div>" : "") +
         '<div class="spread" style="align-items:flex-start"><b style="font-size:15px">' + esc(e.name) + '</b><button class="link" data-act="rename" data-i="' + i + '">Renommer</button></div>' +
-        (num(e.drops) ? '<div class="muted small">Dégressif · ' + e.drops + " baisse" + (e.drops > 1 ? "s" : "") + "</div>" : "") +
+        (dropsOf(e) ? '<div class="muted small">Dégressif · ' + dropsOf(e) + " baisse" + (dropsOf(e) > 1 ? "s" : "") + "</div>" : "") +
         (!grouped || lastOfGroup ? setActions(grouped ? idx : [i], e.sets.length, grouped ? "Tour" : "Série") : "") + "</td>" +
         "<td>" + e.sets.length + "</td><td>" + esc(e.target || "—") + (time ? " s" : "") + "</td><td>" + (grouped && !lastOfGroup ? "enchaîné" : esc(fmtRest(e.rest))) + "</td>";
       for (let k = 0; k < max; k++) {
@@ -773,11 +796,24 @@ function afterSet(w, i, s) {
   } else startRest(e.rest);
 }
 // arrête le chrono de gainage : le temps est noté dans la série, qui est validée, puis le repos démarre
+const CHRONO_PREP = 5;
+// bip court du décompte de préparation (3, 2, 1) et bip plus long au départ
+function prepBeep(go) {
+  const a = settings().alert;
+  if (a === "son" || a === "les deux") {
+    const ac = audio(); if (ac) { const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
+      o.type = "sine"; o.frequency.value = go ? 1320 : 880;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.45, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + (go ? 0.45 : 0.15));
+      o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + (go ? 0.5 : 0.2)); }
+  }
+  if (go && (a === "vibration" || a === "les deux")) { try { if (Native && Native.vibrate) Native.vibrate("[250]"); else if (navigator.vibrate) navigator.vibrate(250); } catch (e) { } }
+}
 function stopChrono(w) {
   const c = db.live.chrono; if (!c || c.wid !== w.id) return;
   const set = w.exercises[c.i] && w.exercises[c.i].sets[c.s];
   db.live.chrono = null;
   if (!set) return;
+  if (Date.now() < c.start) return; // arrêté pendant la préparation : rien n'est noté
   set.sec = String(Math.round((Date.now() - c.start) / 1000)); set.done = true;
   afterSet(w, c.i, c.s);
   put("workout", w);
@@ -791,25 +827,25 @@ function startRest(sec) {
 }
 
 /* ================= Écran : programmes ================= */
+const GRIP = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>';
 function viewPrograms() {
   const ts = templates();
   return '<div class="page-head"><h1>Programmes</h1><div class="row" style="flex-wrap:wrap"><button class="btn" data-act="importvar">Importer une séance</button><button class="btn primary" data-act="newtpl">+ Nouveau programme</button></div></div>' +
     '<p class="muted small">Tes programmes et leurs séances. Les modifications servent pour les prochaines fois.</p>' +
-    '<div class="list">' + (ts.length ? ts.map((t, k) => '<div class="prow"><a class="prow-main" href="#/program/' + t.id + '"><div><b>' + esc(t.name) + '</b><div class="muted small">' +
-      t.variants.map(v => esc(vLabel(v.name)) + " : " + v.exercises.length + " exo").join(" · ") + '</div></div></a><div class="row">' +
-      (k > 0 ? '<button class="btn sm" data-act="tplmove" data-t="' + t.id + '" data-d="-1" aria-label="Monter « ' + esc(t.name) + ' »">↑</button>' : "") +
-      (k < ts.length - 1 ? '<button class="btn sm" data-act="tplmove" data-t="' + t.id + '" data-d="1" aria-label="Descendre « ' + esc(t.name) + ' »">↓</button>' : "") +
-      "</div></div>").join("") : '<div class="empty">Aucun programme.</div>') + "</div>" +
-    (ts.length > 1 ? '<p class="muted small">Les flèches ↑ ↓ changent l\'ordre des programmes, aussi sur l\'accueil.</p>' : "");
+    '<div class="list" data-sortable="tpl">' + (ts.length ? ts.map(t => '<div class="prow" data-sort-id="' + t.id + '"><a class="prow-main" href="#/program/' + t.id + '"><div><b>' + esc(t.name) + '</b><div class="muted small">' +
+      t.variants.map(v => esc(vLabel(v.name)) + " : " + v.exercises.length + " exo").join(" · ") + '</div></div></a>' +
+      (ts.length > 1 ? '<span class="grip" data-drag title="Maintiens et fais glisser pour changer l\'ordre">' + GRIP + "</span>" : "") + "</div>").join("") : '<div class="empty">Aucun programme.</div>') + "</div>" +
+    (ts.length > 1 ? '<p class="muted small">Maintiens la poignée ⠿ et fais glisser un programme pour changer l\'ordre, aussi sur l\'accueil.</p>' : "");
 }
 function exFields(e, k, letter, inGroup) {
-  const time = e.type === "time", d = num(e.drops) || 0;
+  const time = e.type === "time", d = dropsOf(e);
   return (inGroup ? '<div class="spread"><b><span class="letter">' + letter + '</span><span data-title="' + k + '">' + esc(e.name) + '</span></b><button class="btn sm danger" data-act="delex" data-e="' + k + '">Retirer</button></div>' : "") +
     '<div class="ed-grid"><label class="fl full">Nom<input class="f" data-suggest autocomplete="off" data-p="name" data-e="' + k + '" value="' + esc(e.name) + '"><div class="sugg" hidden></div></label>' +
     '<label class="fl">Type<select class="f" data-p="type" data-e="' + k + '"><option value="reps"' + (!time ? " selected" : "") + '>Poids × reps</option><option value="time"' + (time ? " selected" : "") + ">Temps (gainage)</option></select></label>" +
     (inGroup ? "" : '<label class="fl">Séries<input class="f" type="number" min="1" max="20" inputmode="numeric" data-p="sets" data-e="' + k + '" value="' + esc(e.sets) + '"></label>') +
-    '<label class="fl">' + (time ? "Temps cible (s)" : "Reps cible") + '<input class="f" data-p="target" data-e="' + k + '" value="' + esc(e.target) + '" placeholder="' + (time ? "45" : "8-10") + '"></label>' +
-    (inGroup ? "" : '<label class="fl">Repos (s)<input class="f" type="number" min="0" step="5" inputmode="numeric" data-p="rest" data-e="' + k + '" value="' + esc(e.rest) + '"></label>') +
+    (time ? '<div class="fl"><span>Temps cible</span><button type="button" class="f pick" data-act="picksec" data-sf="target" data-e="' + k + '">' + fmtSecs(num(e.target) || 0) + "</button></div>"
+      : '<label class="fl">Reps cible<input class="f" data-p="target" data-e="' + k + '" value="' + esc(e.target) + '" placeholder="8-10"></label>') +
+    (inGroup ? "" : '<div class="fl"><span>Repos</span><button type="button" class="f pick" data-act="picksec" data-sf="rest" data-e="' + k + '">' + fmtSecs(num(e.rest) || 0) + "</button></div>") +
     (time ? "" : '<label class="fl">Dégressif<select class="f" data-p="drops" data-e="' + k + '">' + [0, 1, 2, 3].map(n => '<option value="' + n + '"' + (d === n ? " selected" : "") + ">" + (n ? "Oui · " + n + " baisse" + (n > 1 ? "s" : "") : "Non") + "</option>").join("") + "</select></label>") +
     (time || !d ? "" : '<label class="fl">Dégressif sur<select class="f" data-p="dscope" data-e="' + k + '"><option value="all"' + (e.dropScope !== "last" ? " selected" : "") + '>Toutes les séries</option><option value="last"' + (e.dropScope === "last" ? " selected" : "") + ">La dernière série</option></select></label>") +
     '<label class="fl full">Notes<textarea class="f" data-p="note" data-e="' + k + '" placeholder="Réglages de la machine, consignes…">' + esc(e.note) + "</textarea></label></div>";
@@ -820,14 +856,14 @@ function viewProgram(tid, vid) {
   const v = t.variants.find(x => x.id === vid) || t.variants[0];
   let h = '<a class="back" href="#/programs">‹ Programmes</a>' +
     '<label class="fl" style="margin-top:8px">Nom du programme<input class="f" data-p="tname" value="' + esc(t.name) + '" style="font-size:20px;font-weight:700"></label>' +
-    '<div class="section-title">Séances</div><div class="tabs">' +
-    t.variants.map(x => '<button class="' + (v && x.id === v.id ? "on" : "") + '" data-act="tab" data-v="' + x.id + '"' + (v && x.id === v.id ? " data-vtab" : "") + ">" + esc(vLabel(x.name)) + "</button>").join("") +
+    '<div class="section-title">Séances</div><div class="tabs" data-sortable="var" data-axis="x">' +
+    t.variants.map(x => '<button class="' + (v && x.id === v.id ? "on" : "") + '" data-act="tab" data-v="' + x.id + '" data-sort-id="' + x.id + '">' +
+      (t.variants.length > 1 ? '<span class="grip" data-drag title="Maintiens et fais glisser pour changer l\'ordre">' + GRIP + "</span>" : "") +
+      "<span" + (v && x.id === v.id ? " data-vtab" : "") + ">" + esc(vLabel(x.name)) + "</span></button>").join("") +
     '<button data-act="addvar">+ Séance</button></div>';
   if (!v) return h;
   h += '<div class="card"><label class="fl">Nom de la séance<input class="f" data-p="vname" value="' + esc(vLabel(v.name)) + '"></label>' +
     '<div class="row" style="margin-top:10px;flex-wrap:wrap">' +
-    (t.variants.indexOf(v) > 0 ? '<button class="btn sm" data-act="varmove" data-d="-1">← Avant</button>' : "") +
-    (t.variants.indexOf(v) < t.variants.length - 1 ? '<button class="btn sm" data-act="varmove" data-d="1">Après →</button>' : "") +
     '<button class="btn sm" data-act="dupvar">Dupliquer cette séance</button><button class="btn sm" data-act="sharevar">Partager cette séance</button>' +
     (t.variants.length > 1 ? '<button class="btn sm danger" data-act="delvar">Supprimer cette séance</button>' : "") + "</div></div>";
   h += '<div class="section-title">Exercices (' + v.exercises.length + ')</div><div class="stack">';
@@ -841,7 +877,7 @@ function viewProgram(tid, vid) {
         '<div class="ed-grid"><label class="fl">Enchaînement<select class="f" data-p="gkind" data-e="' + fi + '">' +
         (blk.items.length >= 3 ? '<option value="triset" selected>Triset</option>' : '<option value="superset"' + (f.groupKind !== "biset" ? " selected" : "") + '>Superset</option><option value="biset"' + (f.groupKind === "biset" ? " selected" : "") + ">Biset</option>") + "</select></label>" +
         '<label class="fl">Tours (séries)<input class="f" type="number" min="1" max="20" inputmode="numeric" data-p="gsets" data-e="' + fi + '" value="' + esc(f.sets) + '"></label>' +
-        '<label class="fl">Repos après le tour (s)<input class="f" type="number" min="0" step="5" inputmode="numeric" data-p="grest" data-e="' + fi + '" value="' + esc(f.rest) + '"></label></div>';
+        '<div class="fl"><span>Repos après le tour</span><button type="button" class="f pick" data-act="picksec" data-sf="grest" data-e="' + fi + '">' + fmtSecs(num(f.rest) || 0) + "</button></div></div>";
       blk.items.forEach((x, n) => { h += '<div class="member">' + exFields(x.e, x.i, LETTERS[n], true) + "</div>"; });
       h += '<div class="row" style="margin-top:12px;flex-wrap:wrap">' + (blk.items.length < 4 ? '<button class="btn sm" data-act="addmember" data-e="' + fi + '">+ Ajouter un exercice au ' + esc(label.toLowerCase()) + "</button>" : "") +
         '<button class="btn sm" data-act="ungroup" data-e="' + fi + '">Séparer</button><button class="btn sm danger" data-act="delgroup" data-e="' + fi + '">Supprimer</button></div></div>';
@@ -1116,7 +1152,7 @@ async function fetchShare(code) {
 }
 async function shareVariant(t, v) {
   const data = { app: "muscuapp-share", v: 1, prog: t.name, name: vLabel(v.name),
-    ex: v.exercises.map(e => ({ n: e.name, t: e.type, s: e.sets, c: e.target, r: e.rest, no: e.note || "", d: num(e.drops) || 0, ds: e.dropScope === "last" ? "last" : undefined, g: e.groupId || null, k: e.groupKind || null })) };
+    ex: v.exercises.map(e => ({ n: e.name, t: e.type, s: e.sets, c: e.target, r: e.rest, no: e.note || "", d: dropsOf(e), ds: dropsOf(e) && e.dropScope === "last" ? "last" : undefined, g: e.groupId || null, k: e.groupKind || null })) };
   // lien court (séance enregistrée dans Supabase avec un code) ; lien long en secours (sans compte, hors ligne…)
   let url = null;
   if (db.auth) {
@@ -1153,7 +1189,7 @@ async function importShared(code) {
   if (!dest) return;
   const gmap = {};
   const exercises = data.ex.map(x => {
-    const e = { id: "e-" + uid(), name: String(x.n || "Exercice").slice(0, 80), type: x.t === "time" ? "time" : "reps", sets: Math.max(1, Math.min(20, num(x.s) || 3)), target: String(x.c == null ? "" : x.c).slice(0, 20), rest: Math.max(0, num(x.r) || 0), note: String(x.no || "").slice(0, 500), drops: Math.max(0, Math.min(3, num(x.d) || 0)), dropScope: x.ds === "last" ? "last" : "all" };
+    const e = { id: "e-" + uid(), name: String(x.n || "Exercice").slice(0, 80), type: x.t === "time" ? "time" : "reps", sets: Math.max(1, Math.min(20, num(x.s) || 3)), target: String(x.c == null ? "" : x.c).slice(0, 20), rest: Math.max(0, num(x.r) || 0), note: String(x.no || "").slice(0, 500), drops: x.t === "time" ? 0 : Math.max(0, Math.min(3, num(x.d) || 0)), dropScope: x.ds === "last" ? "last" : "all" };
     if (x.g && GROUP_LABEL[x.k]) { gmap[x.g] = gmap[x.g] || "g-" + uid(); e.groupId = gmap[x.g]; e.groupKind = x.k; }
     return e;
   });
@@ -1182,6 +1218,78 @@ function syncNativeRest() {
       Native.startRestTimer(String(v), settings().alert);
     } else Native.stopRestTimer();
   } catch (e) { }
+}
+
+/* ================= Glisser-déposer pour l'ordre des programmes et des séances ================= */
+let drag = null, lastDragEnd = 0;
+document.addEventListener("pointerdown", e => {
+  const h = e.target.closest && e.target.closest("[data-drag]"); if (!h) return;
+  const item = h.closest("[data-sort-id]"), box = item && item.closest("[data-sortable]"); if (!box) return;
+  e.preventDefault();
+  drag = { item, box, pid: e.pointerId, moved: false };
+  item.classList.add("dragging");
+  try { h.setPointerCapture(e.pointerId); } catch (err) { }
+});
+document.addEventListener("pointermove", e => {
+  if (!drag || e.pointerId !== drag.pid) return;
+  e.preventDefault();
+  const under = document.elementFromPoint(e.clientX, e.clientY);
+  const over = under && under.closest("[data-sort-id]");
+  if (!over || over === drag.item || over.parentElement !== drag.item.parentElement) return;
+  const r = over.getBoundingClientRect();
+  const after = drag.box.dataset.axis === "x" ? e.clientX > r.left + r.width / 2 : e.clientY > r.top + r.height / 2;
+  over.parentElement.insertBefore(drag.item, after ? over.nextSibling : over);
+  drag.moved = true;
+}, { passive: false });
+function endDrag(e) {
+  if (!drag || (e && e.pointerId !== drag.pid)) return;
+  const d = drag; drag = null; d.item.classList.remove("dragging"); lastDragEnd = Date.now();
+  if (!d.moved) return;
+  const ids = Array.from(d.box.querySelectorAll("[data-sort-id]")).map(x => x.dataset.sortId);
+  if (d.box.dataset.sortable === "tpl") {
+    const ts = templates();
+    ids.forEach((id, n) => { const t = ts.find(x => x.id === id); if (t && t.order !== n) { t.order = n; put("template", t); } });
+  } else if (d.box.dataset.sortable === "var") {
+    const { t } = currentProgram(); if (!t) return;
+    const byId = {}; t.variants.forEach(v => { byId[v.id] = v; });
+    const next = ids.map(id => byId[id]).filter(Boolean);
+    if (next.length === t.variants.length) { t.variants = next; put("template", t); }
+  }
+  render();
+}
+document.addEventListener("pointerup", endDrag);
+document.addEventListener("pointercancel", endDrag);
+
+/* ================= Roue de choix des temps (repos, gainage) ================= */
+const fmtSecs = v => (v === 0 ? "Aucun" : v < 60 ? v + " s" : Math.floor(v / 60) + " min" + (v % 60 ? " " + pad(v % 60) : ""));
+function pickSeconds(title, value, min, max) {
+  const vals = []; for (let x = min; x <= max; x += 5) vals.push(x);
+  value = Math.round(num(value) || 0);
+  if (value >= min && value <= max && !vals.includes(value)) { vals.push(value); vals.sort((a, b) => a - b); }
+  let idx = Math.max(0, vals.indexOf(Math.min(Math.max(value, min), max)));
+  if (vals.indexOf(value) >= 0) idx = vals.indexOf(value);
+  return new Promise(res => {
+    const d = document.createElement("div"); d.className = "modal sheet";
+    d.innerHTML = '<div class="modal-box" role="dialog" aria-modal="true" aria-label="' + esc(title) + '"><h3>' + esc(title) + "</h3>" +
+      '<div class="wheel-wrap"><div class="wheel-band" aria-hidden="true"></div><div class="wheel" tabindex="0" role="listbox" aria-label="' + esc(title) + '">' +
+      vals.map((x, k) => '<div class="wv" role="option" data-k="' + k + '">' + fmtSecs(x) + "</div>").join("") + "</div></div>" +
+      '<div class="modal-btns"><button class="btn" data-r="0">Annuler</button><button class="btn primary" data-r="1">OK</button></div></div>';
+    document.body.appendChild(d);
+    const wheel = d.querySelector(".wheel"), H = 44;
+    const mark = () => { idx = Math.max(0, Math.min(vals.length - 1, Math.round(wheel.scrollTop / H))); wheel.querySelectorAll(".wv").forEach((el, k) => { el.classList.toggle("on", k === idx); el.setAttribute("aria-selected", String(k === idx)); }); };
+    requestAnimationFrame(() => { wheel.scrollTop = idx * H; mark(); wheel.focus(); });
+    wheel.addEventListener("scroll", mark, { passive: true });
+    wheel.addEventListener("keydown", e => {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); wheel.scrollTo({ top: (idx + (e.key === "ArrowDown" ? 1 : -1)) * H, behavior: "smooth" }); }
+      if (e.key === "Enter") done(true);
+    });
+    const done = ok => { d.remove(); res(ok ? vals[idx] : null); };
+    d.addEventListener("click", e => {
+      if (e.target === d) { done(false); return; }
+      const v = e.target.closest(".wv"); if (v) { wheel.scrollTo({ top: +v.dataset.k * H, behavior: "smooth" }); return; }
+      const b = e.target.closest("[data-r]"); if (b) done(b.dataset.r === "1");
+    });
+  });
 }
 
 /* ================= Propositions de noms d'exercices ================= */
@@ -1230,7 +1338,8 @@ function viewSettings() {
     '<button class="btn sm" style="margin-top:10px" data-act="testalert">Tester</button></div>' +
     '<div class="card"><b>Objectif de séances par semaine</b><div style="margin-top:10px">' + seg("goal", [["2", "2"], ["3", "3"], ["4", "4"], ["5", "5"], ["6", "6"], ["7", "7"]]) + "</div></div>" +
     '<div class="card"><b>Compte</b><div style="margin-top:8px">' +
-    (db.auth ? '<div class="small">Connecté : ' + esc(db.auth.user.email) + "</div><div style=\"margin-top:6px\">" + syncBadge() + '</div><div class="small msg err" data-sync-error>' + (syncState.status === "err" ? esc(syncState.error) : "") + "</div>" +
+    (db.auth ? '<label class="fl" style="margin-bottom:8px">Prénom<input class="f" data-setname maxlength="40" autocomplete="given-name" value="' + esc(firstName()) + '" placeholder="Ton prénom"></label>' +
+      '<div class="small">Connecté : ' + esc(db.auth.user.email) + "</div><div style=\"margin-top:6px\">" + syncBadge() + '</div><div class="small msg err" data-sync-error>' + (syncState.status === "err" ? esc(syncState.error) : "") + "</div>" +
       '<div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-act="syncnow">Synchroniser maintenant</button><button class="btn sm" data-act="logout">Se déconnecter</button></div>' +
       '<button class="link" style="margin-top:6px;color:var(--danger)" data-act="delaccount">Supprimer mon compte</button>'
       : '<div class="small muted">Sans compte : tes données restent sur cet appareil.</div><button class="btn sm primary" style="margin-top:8px" data-act="tologin">Se connecter / créer un compte</button>') +
@@ -1273,8 +1382,11 @@ function tick() {
   const cpop = document.querySelector("[data-chronopop]"), cpill = document.querySelector("[data-chronopill]");
   if (c) {
     const el = document.querySelector('[data-tick="chrono"]');
-    const ms = now - c.start;
-    if (el) el.textContent = fmtDur(ms);
+    const ms = now - c.start, prep = ms < 0, left = Math.ceil(-ms / 1000);
+    // décompte de préparation : bip à 3, 2, 1 puis au départ
+    if (prep && left !== c.count) { c.count = left; if (left <= 3) prepBeep(false); }
+    if (!prep && !c.go) { c.go = true; save(); prepBeep(true); }
+    if (el) el.textContent = prep ? "Prêt · " + left : fmtDur(ms);
     if (!c.alerted && c.target && ms >= c.target * 1000) { c.alerted = true; save(); signal(); } // atteint en arrière-plan : la notification Android a prévenu
     const w = currentWorkout(), here = w && w.id === c.wid;
     if (cpop) {
@@ -1282,13 +1394,14 @@ function tick() {
       if (here) {
         const ex = w.exercises[c.i];
         cpop.querySelector("[data-cpname]").textContent = ex && norm(ex.name) !== "gainage" ? ex.name + " · série " + (c.s + 1) : "Série " + (c.s + 1);
-        cpop.querySelector("[data-cptime]").textContent = fmtDur(ms);
-        cpop.querySelector("[data-cpbar]").style.width = (c.target ? Math.min(100, 100 * ms / (c.target * 1000)) : 0) + "%";
-        cpop.querySelector("[data-cpgoal]").textContent = c.target ? (c.alerted ? "Objectif atteint !" : "Objectif " + fmtNum(c.target) + " s") : "";
+        cpop.querySelector("[data-cptime]").textContent = prep ? String(left) : fmtDur(ms);
+        cpop.querySelector("[data-cpbar]").style.width = (c.target && !prep ? Math.min(100, 100 * ms / (c.target * 1000)) : 0) + "%";
+        cpop.querySelector("[data-cpgoal]").textContent = prep ? "Mets-toi en position…" : c.target ? (c.alerted ? "Objectif atteint !" : "Objectif " + fmtNum(c.target) + " s") : "";
+        cpop.querySelector(".gain-box").classList.toggle("prep", prep);
         cpop.querySelector(".gain-box").classList.toggle("reached", !!c.alerted);
       }
     }
-    if (cpill) { cpill.hidden = !here || !c.min; cpill.textContent = "Gainage " + fmtDur(ms) + " · Agrandir"; }
+    if (cpill) { cpill.hidden = !here || !c.min; cpill.textContent = (prep ? "Départ dans " + left : "Gainage " + fmtDur(ms)) + " · Agrandir"; }
   } else {
     if (cpop) cpop.hidden = true;
     if (cpill) cpill.hidden = true;
@@ -1322,12 +1435,13 @@ $app.addEventListener("submit", e => {
 
 $app.addEventListener("click", async e => {
   const b = e.target.closest("[data-act]"); if (!b) return;
+  if (Date.now() - lastDragEnd < 400 || e.target.closest("[data-drag]")) return;
   const a = b.dataset.act, i = +b.dataset.i, s = +b.dataset.s;
   const w = currentWorkout();
   switch (a) {
     /* connexion */
     case "local": db.mode = "local"; saveNow(); render(); break;
-    case "loginmode": { const em = $app.querySelector('input[name="email"]'); if (em) loginEmail = em.value; loginMode = b.dataset.m === "up" ? "up" : "in"; render(); const f = $app.querySelector(loginEmail ? 'input[name="password"]' : 'input[name="email"]'); if (f) f.focus(); } break;
+    case "loginmode": { const em = $app.querySelector('input[name="email"]'); if (em) loginEmail = em.value; const fn = $app.querySelector('input[name="firstname"]'); if (fn) loginName = fn.value; loginMode = b.dataset.m === "up" ? "up" : "in"; render(); const f = $app.querySelector(loginEmail ? 'input[name="password"]' : 'input[name="email"]'); if (f) f.focus(); } break;
     case "tologin": db.mode = null; saveNow(); render(); break;
     case "changemail": db.verify = null; saveNow(); render(); break;
     case "resend": {
@@ -1363,12 +1477,12 @@ $app.addEventListener("click", async e => {
     case "addset": if (w) {
       b.dataset.g.split(",").map(Number).forEach(k => {
         const ex = w.exercises[k];
-        if (ex.dropScope === "last" && num(ex.drops)) {
+        if (ex.dropScope === "last" && dropsOf(ex)) {
           // la nouvelle série devient la dernière : elle reçoit les baisses, l'ancienne les perd si elles sont vides
           const prev = ex.sets[ex.sets.length - 1];
           if (prev && !prev.done && !(prev.drops || []).some(d => setHasData(d, ex.type))) prev.drops = [];
         }
-        ex.sets.push(blankSet(ex.drops));
+        ex.sets.push(blankSet(dropsOf(ex)));
       });
       put("workout", w); render();
     } break;
@@ -1377,7 +1491,7 @@ $app.addEventListener("click", async e => {
         const ex = w.exercises[k]; if (ex.sets.length <= 1) return;
         ex.sets.pop();
         const last = ex.sets[ex.sets.length - 1];
-        if (ex.dropScope === "last" && num(ex.drops) && !(last.drops || []).length) last.drops = blankSet(ex.drops).drops;
+        if (ex.dropScope === "last" && dropsOf(ex) && !(last.drops || []).length) last.drops = blankSet(dropsOf(ex)).drops;
       });
       put("workout", w); render();
     } break;
@@ -1410,7 +1524,8 @@ $app.addEventListener("click", async e => {
       if (c && c.wid === w.id && c.i === i && c.s === s) {
         stopChrono(w);
       } else {
-        db.live.chrono = { wid: w.id, i, s, start: Date.now(), target: num(w.exercises[i].target), alerted: false };
+        // 5 s de préparation avant que le chrono de gainage ne démarre (pas pour le repos)
+        db.live.chrono = { wid: w.id, i, s, start: Date.now() + CHRONO_PREP * 1000, target: num(w.exercises[i].target), alerted: false, count: CHRONO_PREP + 1, go: false };
         db.live.restEnd = null;
       }
       save(); render();
@@ -1438,7 +1553,7 @@ $app.addEventListener("click", async e => {
     case "newtpl": {
       const n = await ask({ title: "Nouveau programme", input: "", ok: "Créer" });
       if (!n) return;
-      const t = { id: "tpl-" + uid(), name: n, order: templates().length, variants: [1, 2, 3].map(k => ({ id: "v" + k, name: "Séance " + k, exercises: [] })) };
+      const t = { id: "tpl-" + uid(), name: n, order: templates().length, variants: [{ id: "v1", name: "Séance 1", exercises: [] }] };
       put("template", t); go("program/" + t.id);
     } break;
     case "tplmove": {
@@ -1455,9 +1570,32 @@ $app.addEventListener("click", async e => {
       t.variants[k] = t.variants[j]; t.variants[j] = v;
       put("template", t); render();
     } break;
+    case "picksec": {
+      const { t, v } = currentProgram(); if (!v) return;
+      const ex = v.exercises[+b.dataset.e]; if (!ex) return;
+      const sf = b.dataset.sf, isTarget = sf === "target";
+      const val = await pickSeconds(isTarget ? "Temps cible" : sf === "grest" ? "Repos après le tour" : "Temps de repos", isTarget ? ex.target : ex.rest, isTarget ? 5 : 0, 600);
+      if (val == null) return;
+      if (isTarget) ex.target = String(val);
+      else if (sf === "rest") ex.rest = val;
+      else v.exercises.forEach(x => { if (x.groupId && x.groupId === ex.groupId) x.rest = val; });
+      put("template", t); render();
+    } break;
     case "tab": { const { t } = currentProgram(); if (t) go("program/" + t.id + "/" + b.dataset.v); } break;
     case "addvar": { const { t } = currentProgram(); if (!t) return; const v = { id: "v" + uid(), name: "Séance " + (t.variants.length + 1), exercises: [] }; t.variants.push(v); put("template", t); go("program/" + t.id + "/" + v.id); } break;
-    case "dupvar": { const { t, v } = currentProgram(); if (!v) return; const c = { id: "v" + uid(), name: v.name + " (copie)", exercises: v.exercises.map(e => Object.assign({}, e, { id: "e-" + uid() })) }; t.variants.push(c); put("template", t); go("program/" + t.id + "/" + c.id); } break;
+    case "dupvar": {
+      const { t, v } = currentProgram(); if (!v) return;
+      const dest = await choose("Dupliquer « " + vLabel(v.name) + " » dans…", templates().map(x => [x.id, x.name + (x.id === t.id ? " (ce programme)" : ""), x.variants.length + " séance" + (x.variants.length > 1 ? "s" : "")]));
+      if (!dest) return;
+      const to = getItem(dest); if (!to) return;
+      const gmap = {};
+      const copy = v.exercises.map(e => { const c = Object.assign({}, e, { id: "e-" + uid() }); if (e.groupId) c.groupId = gmap[e.groupId] = gmap[e.groupId] || "g-" + uid(); return c; });
+      let name = vLabel(v.name);
+      if (to.variants.some(x => vLabel(x.name) === name)) name += " (copie)";
+      const c = { id: "v" + uid(), name, exercises: copy };
+      to.variants.push(c); put("template", to);
+      toast("Séance dupliquée dans « " + to.name + " »"); go("program/" + to.id + "/" + c.id);
+    } break;
     case "delvar": { const { t, v } = currentProgram(); if (!v || t.variants.length < 2) return; if (!await ask({ title: "Supprimer « " + vLabel(v.name) + " » ?", text: "L'historique des séances déjà faites est conservé.", ok: "Supprimer", danger: true })) return; t.variants = t.variants.filter(x => x !== v); put("template", t); go("program/" + t.id); } break;
     case "addtplex": {
       const { t, v } = currentProgram(); if (!v) return;
@@ -1511,7 +1649,14 @@ $app.addEventListener("click", async e => {
 
     /* réglages */
     case "set": setSetting(b.dataset.k, b.dataset.val); break;
-    case "testalert": audio(); if (settings().alert === "aucune") toast("Alerte désactivée"); else signal(); break;
+    case "testalert": {
+      b.classList.remove("lit"); void b.offsetWidth; b.classList.add("lit"); setTimeout(() => b.classList.remove("lit"), 1300);
+      audio();
+      const a = settings().alert;
+      if (a === "aucune") { toast("Alerte désactivée"); break; }
+      signal();
+      if ((a === "vibration" || a === "les deux") && !Native && !navigator.vibrate) toast("Sur ce téléphone, un site web ne peut pas faire vibrer (c'est le cas sur iPhone) : seul le son fonctionne.");
+    } break;
     case "export": {
       flushPending();
       const data = JSON.stringify({ app: "muscuapp", v: 1, at: Date.now(), items: Object.values(db.items).filter(x => !x.deleted).map(x => ({ id: x.id, kind: x.kind, data: x.data, updated_at: x.updated_at })) });
@@ -1569,6 +1714,7 @@ $app.addEventListener("input", e => {
 });
 $app.addEventListener("change", e => {
   const el = e.target;
+  if (el.matches && el.matches("input[data-setname]")) { const st = settings(); st.firstName = el.value.trim().slice(0, 40); put("settings", st); toast("Prénom enregistré"); return; }
   if (el.dataset.p === "type") {
     const { t, v } = currentProgram(); if (!t) return;
     const ex = v.exercises[+el.dataset.e]; ex.type = el.value;

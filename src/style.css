@@ -316,3 +316,34 @@ h1, .page-head h1, .ex-name, .tpl h2, .rp-time, .rp-end, .stat .v, .nav .brand, 
 .list > .prow { padding: 0 12px 0 0; gap: 8px; }
 .prow .prow-main { flex: 1; min-width: 0; display: flex; align-items: center; padding: 14px 16px; min-height: 56px; text-decoration: none; }
 .prow .row { flex: none; }
+/* bouton « Tester » qui s'illumine */
+.btn.lit { animation: lit 1.2s ease-out; }
+@keyframes lit { 0% { background: var(--grad); color: var(--on-grad); box-shadow: 0 0 0 0 rgba(255, 61, 127, .7), var(--glow); } 60% { background: var(--grad); color: var(--on-grad); box-shadow: 0 0 0 14px rgba(255, 61, 127, 0), var(--glow); } 100% { box-shadow: none; } }
+@media (prefers-reduced-motion: reduce) { .btn.lit { animation: none; background: var(--grad); color: var(--on-grad); } }
+.gain-box.prep .rp-time { color: #0B7A52; }
+
+/* ---------- Glisser-déposer (programmes, séances) */
+.grip { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 44px; color: var(--muted); cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+.grip svg { width: 20px; height: 20px; }
+.tabs .grip { width: 22px; height: 28px; margin: 0 2px 0 -6px; }
+.tabs .grip svg { width: 16px; height: 16px; }
+.tabs button { display: inline-flex; align-items: center; }
+.tabs button.on .grip { color: inherit; opacity: .7; }
+.dragging { opacity: .85; box-shadow: var(--glow); position: relative; z-index: 2; }
+.list > .dragging { background: var(--soft); }
+.list > .prow { padding-right: 4px; }
+
+/* ---------- Choix d'un temps */
+div.fl { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+.f.pick { text-align: left; color: var(--ink); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
+.f.pick::after { content: "▾"; color: var(--muted); font-size: 13px; margin-left: 8px; }
+.modal.sheet { align-items: flex-end; padding: 0; }
+.modal.sheet .modal-box { max-width: 520px; border-radius: 20px 20px 0 0; padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+@media (min-width: 600px) { .modal.sheet { align-items: center; padding: 20px; } .modal.sheet .modal-box { border-radius: 20px; } }
+.wheel-wrap { position: relative; height: 220px; }
+.wheel { position: relative; z-index: 1; height: 220px; overflow-y: auto; scroll-snap-type: y mandatory; padding-block: 88px; scrollbar-width: none; outline: none; }
+.wheel::-webkit-scrollbar { display: none; }
+.wheel .wv { height: 44px; line-height: 44px; text-align: center; scroll-snap-align: center; font-family: var(--display); font-size: 19px; color: var(--muted); font-variant-numeric: tabular-nums; cursor: pointer; }
+.wheel .wv.on { color: var(--ink); font-size: 24px; font-weight: 700; }
+.wheel-band { position: absolute; z-index: 0; left: 0; right: 0; top: 88px; height: 44px; border-radius: 12px; background: var(--soft); border: 1px solid var(--line); pointer-events: none; }
+.wheel:focus-visible + .wheel-band, .wheel-wrap:focus-within .wheel-band { border-color: var(--accent); }
