@@ -40,7 +40,7 @@ Application personnelle pour noter mes performances pendant mes séances de musc
 En cas d'échec de compilation, le journal est poussé sur la branche `ci-logs`.
 
 ### 3. Version web (ordinateur)
-Publiée automatiquement sur GitHub Pages à chaque modification : **https://yohanluzi00-ui.github.io/muscuapp/**
+Publiée automatiquement sur GitHub Pages à chaque modification : **https://fiitday.com**
 
 ## Développement
 

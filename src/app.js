@@ -1127,7 +1127,7 @@ function saveBody(form) {
 /* ================= Partager une séance ================= */
 const b64url = str => btoa(unescape(encodeURIComponent(str))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 const unb64url = s => decodeURIComponent(escape(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4))));
-const SHARE_BASE = "https://yohanluzi00-ui.github.io/muscuapp/#/import/";
+const SHARE_BASE = "https://fiitday.com/#/import/";
 async function shareVariant(t, v) {
   const data = { app: "muscuapp-share", v: 1, prog: t.name, name: vLabel(v.name),
     ex: v.exercises.map(e => ({ n: e.name, t: e.type, s: e.sets, c: e.target, r: e.rest, no: e.note || "", d: num(e.drops) || 0, ds: e.dropScope === "last" ? "last" : undefined, g: e.groupId || null, k: e.groupKind || null })) };
