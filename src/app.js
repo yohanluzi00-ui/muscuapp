@@ -126,13 +126,25 @@ const finished = () => workouts().filter(w => w.endedAt);
 const activeWorkout = () => workouts().find(w => !w.endedAt) || null;
 function settings() { return Object.assign({ id: "settings", theme: "auto", alert: "vibration", goal: "5" }, getItem("settings") || {}); }
 function setSetting(k, v) { const s = settings(); s[k] = v; put("settings", s); applyTheme(); render(); }
-const libDefaults = lib => ({ target: (String(lib.reps || "").match(/^\d+(-\d+)?/) || ["8-10"])[0], rest: lib.rest || 90 });
+// réglages de départ d'un exercice de la bibliothèque (type, cible, repos, charge)
+const libDefaults = lib => lib.kind === "time" ? { type: "time", target: "45", rest: lib.rest || 60 }
+  : lib.kind === "dist" ? { type: "dist", target: String(lib.dist || 1000), rest: lib.rest || 120, load: !!lib.load }
+  : { type: "reps", target: (String(lib.reps || "").match(/^\d+(-\d+)?/) || ["8-10"])[0], rest: lib.rest || 90 };
 const newExercise = () => ({ id: "e-" + uid(), name: "Nouvel exercice", type: "reps", sets: 3, target: "8-10", rest: 90, note: "" });
 const blankSet = drops => ({ kg: "", reps: "", sec: "", done: false, drops: Array.from({ length: Math.max(0, num(drops) || 0) }, () => ({ kg: "", reps: "" })) });
 // baisses d'une série en dégressif : toutes les séries, ou seulement la dernière (dropScope "last")
 // nombre de baisses en dégressif ; jamais pour un exercice en temps (d'anciennes valeurs pouvaient rester cachées)
 const restNextOf = (e, v) => (e && e.restNext != null ? num(e.restNext) || 0 : num(v && v.restBetween) || 0);
-const dropsOf = e => (e && e.type !== "time" && num(e.drops)) || 0;
+const dropsOf = e => (e && (e.type === "reps" || !e.type) ? num(e.drops) : 0) || 0;
+// type « dist » (course, rameur, Hyrox) : distance cible en m, temps mesuré, charge facultative
+const fmtClock = sec => { sec = Math.round(num(sec) || 0); const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60; return (h ? h + ":" + pad(m) : m) + ":" + pad(s); };
+// « 4:05 », « 405 » (= 4 min 05) ou « 45 » (= 45 s) → secondes
+function parseClock(t) {
+  t = String(t || "").trim(); if (!t) return null;
+  if (t.includes(":")) { const p = t.split(":").map(x => num(x)); if (p.some(x => x == null)) return null; return p.reduce((a, x) => a * 60 + x, 0); }
+  const d = t.replace(/\D/g, ""); if (!d) return null;
+  return d.length <= 2 ? +d : +d.slice(0, -2) * 60 + Math.min(59, +d.slice(-2));
+}
 const dropsFor = (e, k, n) => (dropsOf(e) && (e.dropScope !== "last" || k === n - 1)) ? dropsOf(e) : 0;
 const GROUP_LABEL = { superset: "Superset", biset: "Biset", triset: "Triset" };
 const GROUP_SIZE = { superset: 2, biset: 2, triset: 3 };
@@ -170,11 +182,12 @@ function tplExercise(w, exId) {
   const v = t.variants.find(x => x.id === w.variantId); if (!v) return null;
   return v.exercises.find(e => e.id === exId) || null;
 }
-const setHasData = (s, type) => type === "time" ? num(s.sec) != null : (num(s.kg) != null || num(s.reps) != null);
+const setHasData = (s, type) => type === "time" || type === "dist" ? num(s.sec) != null : (num(s.kg) != null || num(s.reps) != null);
 const exHasData = e => e.sets.some(s => setHasData(s, e.type));
 
 function oneLabel(s, type) {
   if (type === "time") return num(s.sec) != null ? fmtNum(num(s.sec)) + " s" : "—";
+  if (type === "dist") return num(s.sec) != null ? fmtClock(s.sec) + (num(s.kg) != null ? " · " + fmtNum(num(s.kg)) + " kg" : "") : "—";
   const kg = num(s.kg), r = num(s.reps);
   if (kg != null && r != null) return fmtNum(kg) + " kg × " + fmtNum(r);
   if (r != null) return fmtNum(r) + " reps";
@@ -490,7 +503,7 @@ async function addLibraryExercise(x) {
   const c = await choose("Ajouter « " + x.name + " » à…", opts); if (!c) return;
   const [, tid, vid] = c.split(":"); const t = getItem(tid); const v = t && t.variants.find(y => y.id === vid); if (!v) return;
   const reps = (String(x.reps || "").match(/^\d+(-\d+)?/) || [""])[0];
-  const e = Object.assign(newExercise(), { name: String(x.name).slice(0, 80) }, x.time ? { type: "time", target: "45", rest: 60 } : { target: reps || "8-10", rest: Math.max(0, Math.min(600, num(x.rest) || 90)) });
+  const e = Object.assign(newExercise(), { name: String(x.name).slice(0, 80) }, x.time ? { type: "time", target: "45", rest: 60 } : x.dist ? { type: "dist", target: String(x.dist), rest: Math.max(0, Math.min(600, num(x.rest) || 120)), load: !!x.load } : { target: reps || "8-10", rest: Math.max(0, Math.min(600, num(x.rest) || 90)) });
   v.exercises.push(e); put("template", t);
   toast("Ajouté à « " + t.name + " · " + vLabel(v.name) + " »");
 }
@@ -684,7 +697,7 @@ async function startWorkout(tid, vid) {
   }
   const w = {
     id: "w-" + uid(), templateId: t.id, variantId: v.id, templateName: t.name, variantName: v.name, startedAt: Date.now(), endedAt: null,
-    exercises: v.exercises.map(e => ({ exId: e.id, name: e.name, type: e.type, target: e.target, rest: e.rest, restNext: restNextOf(e, v), drops: dropsOf(e), groupId: e.groupId || null, groupKind: e.groupKind || null,
+    exercises: v.exercises.map(e => ({ exId: e.id, name: e.name, type: e.type, target: e.target, rest: e.rest, load: !!e.load, restNext: restNextOf(e, v), drops: dropsOf(e), groupId: e.groupId || null, groupKind: e.groupKind || null,
       dropScope: e.dropScope === "last" ? "last" : "all",
       sets: (n => Array.from({ length: n }, (_, k) => blankSet(dropsFor(e, k, n))))(Math.max(1, num(e.sets) || 1)) })),
   };
@@ -701,19 +714,21 @@ function phOf(w, e, s, d) {
   if (src && d != null) src = src.drops && src.drops[d];
   const has = src && setHasData(src, e.type);
   const f = k => (has && num(src[k]) != null ? fmtNum(num(src[k])) : null);
-  return { kg: f("kg") || "kg", reps: f("reps") || "reps", sec: f("sec") || "s" };
+  return { kg: f("kg") || "kg", reps: f("reps") || "reps", sec: f("sec") || "s", clock: has && num(src.sec) != null ? fmtClock(src.sec) : "m:ss" };
 }
 function inputsHtml(w, e, i, k, d, label) {
   const s = e.sets[k], v = d == null ? s : ((s.drops || [])[d] || {}), ph = phOf(w, e, k, d);
   const a = ' data-i="' + i + '" data-s="' + k + '"' + (d == null ? "" : ' data-d="' + d + '"');
   if (e.type === "time") return '<input inputmode="numeric" aria-label="Temps ' + label + '" data-f="sec"' + a + ' value="' + esc(v.sec) + '" placeholder="' + esc(ph.sec) + '">';
+  if (e.type === "dist") return (e.load ? '<input inputmode="decimal" aria-label="Kilos ' + label + '" data-f="kg"' + a + ' value="' + esc(v.kg) + '" placeholder="' + esc(ph.kg) + '">' : "") +
+    '<input inputmode="numeric" aria-label="Temps ' + label + ' (minutes:secondes)" data-f="clock"' + a + ' value="' + (num(v.sec) != null ? fmtClock(v.sec) : "") + '" placeholder="' + esc(ph.clock) + '">';
   return '<input inputmode="decimal" aria-label="Kilos ' + label + '" data-f="kg"' + a + ' value="' + esc(v.kg) + '" placeholder="' + esc(ph.kg) + '">' +
     '<input inputmode="numeric" aria-label="Répétitions ' + label + '" data-f="reps"' + a + ' value="' + esc(v.reps) + '" placeholder="' + esc(ph.reps) + '">';
 }
 function chronoBtn(w, i, s) {
   const c = db.live.chrono, run = c && c.wid === w.id && c.i === i && c.s === s;
   return '<button class="chrono' + (run ? " run" : "") + '" data-act="chrono" data-i="' + i + '" data-s="' + s + '" aria-label="' + (run ? "Arrêter le chrono" : "Lancer le chrono") + '">' +
-    (run ? ICON.stop + '<span class="num" data-tick="chrono">0:00</span>' : ICON.play + "<span>Démarrer chrono</span>") + "</button>";
+    (run ? ICON.stop + '<span class="num" data-tick="chrono">0:00</span>' : ICON.play + (w.exercises[i] && w.exercises[i].type === "dist" ? (w.exercises[i].load ? "" : "<span>Chrono</span>") : "<span>Démarrer chrono</span>")) + "</button>";
 }
 function okBtn(s, i, k) {
   return '<button class="ok' + (s.done ? " on" : "") + '" data-act="done" data-i="' + i + '" data-s="' + k + '" aria-label="Valider la série ' + (k + 1) + '" aria-pressed="' + !!s.done + '">✓</button>';
@@ -721,7 +736,7 @@ function okBtn(s, i, k) {
 // une série (et ses baisses) dans la grille des cartes
 function setRows(w, e, i, k, label) {
   const s = e.sets[k], d = s.done ? " done-row" : "";
-  let h = '<div class="n">' + label + '</div><div class="set' + d + '">' + inputsHtml(w, e, i, k, null, "série " + (k + 1)) + (e.type === "time" ? chronoBtn(w, i, k) : "") + "</div>" + okBtn(s, i, k);
+  let h = '<div class="n">' + label + '</div><div class="set' + d + '">' + inputsHtml(w, e, i, k, null, "série " + (k + 1)) + (e.type === "time" || e.type === "dist" ? chronoBtn(w, i, k) : "") + "</div>" + okBtn(s, i, k);
   (s.drops || []).forEach((x, n) => {
     h += '<div class="n drop" title="Baisse ' + (n + 1) + '">↘</div><div class="set' + d + '">' + inputsHtml(w, e, i, k, n, "série " + (k + 1) + " baisse " + (n + 1)) + "</div><div></div>";
   });
@@ -729,7 +744,8 @@ function setRows(w, e, i, k, label) {
 }
 function metaText(e, inGroup, live) {
   const time = e.type === "time";
-  let t = inGroup ? "Cible " + esc(e.target || "—") + (time ? " s" : " reps") : e.sets.length + " × " + esc(e.target || "—") + (time ? " s" : "") + (live ? "" : " · repos " + esc(fmtRest(e.rest)));
+  const tg = e.type === "dist" ? esc(fmtNum(num(e.target) || 0)) + " m" : esc(e.target || "—") + (time ? " s" : "");
+  let t = inGroup ? "Cible " + tg + (time || e.type === "dist" ? "" : " reps") : e.sets.length + " × " + tg + (live ? "" : " · repos " + esc(fmtRest(e.rest)));
   const d = dropsOf(e);
   if (d) t += " · dégressif (" + d + " baisse" + (d > 1 ? "s" : "") + (e.dropScope === "last" ? ", dernière série" : "") + ")";
   if (!inGroup && num(e.restNext)) t += " · puis " + esc(fmtRest(e.restNext)) + " avant le suivant";
@@ -753,7 +769,7 @@ function noteBox(w, e, i, letter) {
   return '<textarea class="f" data-f="note" data-i="' + i + '" placeholder="Notes' + (letter ? " " + letter + " · " + esc(e.name) : " (réglages, sensations…)") + '" aria-label="Notes ' + esc(e.name) + '">' + esc(note) + "</textarea>";
 }
 function exCard(w, e, i) {
-  let rows = '<div class="h">Série</div><div class="h hdr">' + (e.type === "time" ? "<span>Temps (s)</span>" : "<span>Kg</span><span>Reps</span>") + '</div><div class="h"></div>';
+  let rows = '<div class="h">Série</div><div class="h hdr">' + (e.type === "time" ? "<span>Temps (s)</span>" : e.type === "dist" ? (e.load ? "<span>Kg</span>" : "") + "<span>Temps</span>" : "<span>Kg</span><span>Reps</span>") + '</div><div class="h"></div>';
   e.sets.forEach((s, k) => { rows += setRows(w, e, i, k, k + 1); });
   return '<section class="card ex">' + exHead(w, e, i, "") + '<div class="sets">' + rows + "</div>" + setActions([i], e.sets.length, "Série") + noteBox(w, e, i, "") + "</section>";
 }
@@ -810,20 +826,20 @@ function sessionTable(w) {
   blocks(w.exercises).forEach(b => {
     const idx = b.items.map(x => x.i);
     b.items.forEach((x, n) => {
-      const e = x.e, i = x.i, time = e.type === "time", grouped = !!b.groupId, lastOfGroup = n === b.items.length - 1;
+      const e = x.e, i = x.i, time = e.type === "time", isDist = e.type === "dist", grouped = !!b.groupId, lastOfGroup = n === b.items.length - 1;
       h += '<tr class="' + (grouped && !lastOfGroup ? "chained" : "") + '"><td>' +
         (grouped ? '<div class="gtag">' + esc(GROUP_LABEL[e.groupKind] || "Enchaînement") + " · " + LETTERS[n] + "</div>" : "") +
         '<div class="spread" style="align-items:flex-start"><b style="font-size:15px">' + esc(e.name) + '</b><button class="link" data-act="rename" data-i="' + i + '">Renommer</button></div>' +
         (libFor(e.name) ? '<button class="chip-mini" data-act="exoview" data-id="' + libFor(e.name).id + '">' + ICON.play + "Voir le mouvement</button>" : "") +
         (dropsOf(e) ? '<div class="muted small">Dégressif · ' + dropsOf(e) + " baisse" + (dropsOf(e) > 1 ? "s" : "") + "</div>" : "") +
         (!grouped || lastOfGroup ? setActions(grouped ? idx : [i], e.sets.length, grouped ? "Tour" : "Série") : "") + "</td>" +
-        "<td>" + e.sets.length + "</td><td>" + (time && !w.endedAt ? '<button class="chip-mini" data-act="sesspick" data-sf="target" data-i="' + i + '">' + esc(fmtSecs(num(e.target) || 0)) + " ✎</button>" : esc(e.target || "—") + (time ? " s" : "")) + "</td><td>" +
+        "<td>" + e.sets.length + "</td><td>" + (isDist ? esc(fmtNum(num(e.target) || 0)) + " m" : time && !w.endedAt ? '<button class="chip-mini" data-act="sesspick" data-sf="target" data-i="' + i + '">' + esc(fmtSecs(num(e.target) || 0)) + " ✎</button>" : esc(e.target || "—") + (time ? " s" : "")) + "</td><td>" +
         (grouped && !lastOfGroup ? "enchaîné" : !w.endedAt ? '<button class="chip-mini" data-act="sesspick" data-sf="' + (grouped ? "grest" : "rest") + '" data-i="' + (grouped ? idx[0] : i) + '">' + esc(fmtSecs(num(e.rest) || 0)) + " ✎</button>" : esc(fmtRest(e.rest))) + "</td>";
       for (let k = 0; k < max; k++) {
         const s = e.sets[k];
         if (!s) { h += "<td></td>"; continue; }
         const d = s.done ? " done-row" : "";
-        h += '<td><div class="cellwrap"><div class="cell' + d + '">' + inputsHtml(w, e, i, k, null, "série " + (k + 1)) + (time ? chronoBtn(w, i, k) : "") + okBtn(s, i, k) + "</div>" +
+        h += '<td><div class="cellwrap"><div class="cell' + d + '">' + inputsHtml(w, e, i, k, null, "série " + (k + 1)) + (time || isDist ? chronoBtn(w, i, k) : "") + okBtn(s, i, k) + "</div>" +
           (s.drops || []).map((y, m) => '<div class="cell drop' + d + '"><span class="dl" aria-hidden="true">↘</span>' + inputsHtml(w, e, i, k, m, "série " + (k + 1) + " baisse " + (m + 1)) + "</div>").join("") + "</div></td>";
       }
       h += "<td>" + noteBox(w, e, i, grouped ? LETTERS[n] : "") + "</td></tr>";
@@ -834,7 +850,7 @@ function sessionTable(w) {
 function currentWorkout() { const r = route(); return r.name === "session" ? getItem(r.args[0]) : null; }
 function fillFrom(set, src, type) {
   if (!src) return;
-  for (const f of type === "time" ? ["sec"] : ["kg", "reps"]) if ((set[f] === "" || set[f] == null) && src[f] !== "" && src[f] != null) set[f] = src[f];
+  for (const f of type === "time" ? ["sec"] : type === "dist" ? ["sec", "kg"] : ["kg", "reps"]) if ((set[f] === "" || set[f] == null) && src[f] !== "" && src[f] != null) set[f] = src[f];
 }
 function markDone(w, i, s) {
   const e = w.exercises[i], set = e.sets[s];
@@ -924,17 +940,19 @@ function viewPrograms() {
     '<p class="muted small">Tes propres programmes se créent et se modifient depuis l\'<a href="#/home">Accueil</a> : touche une séance, puis «&nbsp;Modifier&nbsp;».</p>';
 }
 function exFields(e, k, letter, inGroup) {
-  const time = e.type === "time", d = dropsOf(e);
+  const time = e.type === "time", dist = e.type === "dist", d = dropsOf(e);
   return (inGroup ? '<div class="spread"><b><span class="letter">' + letter + '</span><span data-title="' + k + '">' + esc(e.name) + '</span></b><button class="btn sm danger" data-act="delex" data-e="' + k + '">Retirer</button></div>' : "") +
     '<div class="ed-grid"><label class="fl full">Nom<input class="f" data-suggest autocomplete="off" maxlength="80" data-p="name" data-e="' + k + '" value="' + esc(e.name) + '"><div class="sugg" hidden></div></label>' +
     (libFor(e.name) ? '<div class="full" data-exolink="' + k + '"><button type="button" class="chip-mini" data-act="exoview" data-id="' + libFor(e.name).id + '">' + ICON.play + "Voir le mouvement</button></div>" : '<div class="full" data-exolink="' + k + '" hidden></div>') +
-    '<label class="fl">Type<select class="f" data-p="type" data-e="' + k + '"><option value="reps"' + (!time ? " selected" : "") + '>Poids × reps</option><option value="time"' + (time ? " selected" : "") + ">Temps (gainage)</option></select></label>" +
+    '<label class="fl">Type<select class="f" data-p="type" data-e="' + k + '"><option value="reps"' + (!time && !dist ? " selected" : "") + '>Poids × reps</option><option value="time"' + (time ? " selected" : "") + '>Temps (gainage)</option><option value="dist"' + (dist ? " selected" : "") + ">Distance (course, Hyrox)</option></select></label>" +
     (inGroup ? "" : '<label class="fl">Séries<input class="f" type="number" min="1" max="20" inputmode="numeric" data-p="sets" data-e="' + k + '" value="' + esc(e.sets) + '"></label>') +
-    (time ? '<div class="fl"><span>Temps cible</span><button type="button" class="f pick" data-act="picksec" data-sf="target" data-e="' + k + '">' + fmtSecs(num(e.target) || 0) + "</button></div>"
+    (dist ? '<label class="fl">Distance (m)<input class="f" type="number" min="1" max="100000" inputmode="numeric" data-p="target" data-e="' + k + '" value="' + esc(e.target) + '" placeholder="1000"></label>' +
+      '<label class="fl">Charge<select class="f" data-p="load" data-e="' + k + '"><option value="0"' + (!e.load ? " selected" : "") + '>Sans charge</option><option value="1"' + (e.load ? " selected" : "") + ">Avec charge (kg)</option></select></label>"
+    : time ? '<div class="fl"><span>Temps cible</span><button type="button" class="f pick" data-act="picksec" data-sf="target" data-e="' + k + '">' + fmtSecs(num(e.target) || 0) + "</button></div>"
       : '<label class="fl">Reps cible<input class="f" data-p="target" data-e="' + k + '" value="' + esc(e.target) + '" placeholder="8-10"></label>') +
     (inGroup ? "" : '<div class="fl"><span>Repos</span><button type="button" class="f pick" data-act="picksec" data-sf="rest" data-e="' + k + '">' + fmtSecs(num(e.rest) || 0) + "</button></div>") +
-    (time ? "" : '<label class="fl">Dégressif<select class="f" data-p="drops" data-e="' + k + '">' + [0, 1, 2, 3].map(n => '<option value="' + n + '"' + (d === n ? " selected" : "") + ">" + (n ? "Oui · " + n + " baisse" + (n > 1 ? "s" : "") : "Non") + "</option>").join("") + "</select></label>") +
-    (time || !d ? "" : '<label class="fl">Dégressif sur<select class="f" data-p="dscope" data-e="' + k + '"><option value="all"' + (e.dropScope !== "last" ? " selected" : "") + '>Toutes les séries</option><option value="last"' + (e.dropScope === "last" ? " selected" : "") + ">La dernière série</option></select></label>") +
+    (time || dist ? "" : '<label class="fl">Dégressif<select class="f" data-p="drops" data-e="' + k + '">' + [0, 1, 2, 3].map(n => '<option value="' + n + '"' + (d === n ? " selected" : "") + ">" + (n ? "Oui · " + n + " baisse" + (n > 1 ? "s" : "") : "Non") + "</option>").join("") + "</select></label>") +
+    (time || dist || !d ? "" : '<label class="fl">Dégressif sur<select class="f" data-p="dscope" data-e="' + k + '"><option value="all"' + (e.dropScope !== "last" ? " selected" : "") + '>Toutes les séries</option><option value="last"' + (e.dropScope === "last" ? " selected" : "") + ">La dernière série</option></select></label>") +
     '<label class="fl full">Notes<textarea class="f" data-p="note" data-e="' + k + '" placeholder="Réglages de la machine, consignes…">' + esc(e.note) + "</textarea></label></div>";
 }
 function viewProgram(tid, vid) {
@@ -1069,16 +1087,20 @@ function progressData() {
     for (const e of w.exercises) {
       if (!exHasData(e)) continue;
       const key = norm(e.name) + "|" + e.type;
-      const best = Math.max(...e.sets.map(s => num(e.type === "time" ? s.sec : s.kg)).filter(x => x != null), -Infinity);
-      const reps = e.type === "time" ? null : Math.max(...e.sets.map(s => num(s.reps)).filter(x => x != null), -Infinity);
-      const orm = e.type === "time" ? null : Math.max(...e.sets.map(s => e1rm(num(s.kg), num(s.reps))).filter(x => x != null), -Infinity);
+      const D = e.type === "dist", T = e.type === "time" || D, vs = e.sets.map(s => num(T ? s.sec : s.kg)).filter(x => x != null && (!D || x > 0));
+      const best = vs.length ? (D ? Math.min(...vs) : Math.max(...vs)) : -Infinity;
+      const reps = T ? null : Math.max(...e.sets.map(s => num(s.reps)).filter(x => x != null), -Infinity);
+      const orm = T ? null : Math.max(...e.sets.map(s => e1rm(num(s.kg), num(s.reps))).filter(x => x != null), -Infinity);
       (map[key] = map[key] || { key, name: e.name, type: e.type, entries: [] }).entries.push({ w, e, best: best === -Infinity ? null : best, reps: reps === -Infinity ? null : reps, orm: orm === -Infinity ? null : orm });
       map[key].name = e.name;
     }
   }
   return Object.values(map).sort((a, b) => a.name.localeCompare(b.name, "fr"));
 }
-const unitOf = p => p.type === "time" ? " s" : " kg";
+const unitOf = p => p.type === "time" ? " s" : p.type === "dist" ? "" : " kg";
+const bestOf = (p, vs) => (vs.length ? (p.type === "dist" ? Math.min(...vs) : Math.max(...vs)) : null);
+const fmtVal = (p, v) => (p.type === "dist" ? fmtClock(v) : fmtNum(v) + unitOf(p));
+const noRM = p => p.type === "time" || p.type === "dist";
 function weekStart(t) { const d = new Date(t); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); }
 function prevWeek(t) { const d = new Date(t); d.setDate(d.getDate() - 7); return d.getTime(); }
 function viewProgress() {
@@ -1124,10 +1146,10 @@ function viewProgress() {
   const ps = progressData();
   if (ps.length) h += '<div class="section-title">Progression par exercice</div><div class="list">' + ps.map(p => {
     const vs = p.entries.map(x => x.best).filter(x => x != null);
-    const rec = vs.length ? Math.max(...vs) : null;
+    const rec = bestOf(p, vs);
     return '<a href="#/progress/' + encodeURIComponent(p.key) + '"><div><b>' + esc(p.name) + '</b><div class="muted small">' + p.entries.length + " séance" + (p.entries.length > 1 ? "s" : "") +
       " · dernière " + esc(fmtDate(p.entries[p.entries.length - 1].w.startedAt)) + "</div></div>" +
-      '<span class="small"><b>' + (rec != null ? fmtNum(rec) + unitOf(p) : "—") + '</b> <span class="muted">record</span></span></a>';
+      '<span class="small"><b>' + (rec != null ? fmtVal(p, rec) : "—") + '</b> <span class="muted">record</span></span></a>';
   }).join("") + "</div>";
   return h;
 }
@@ -1135,16 +1157,16 @@ function viewProgressDetail(key) {
   const p = progressData().find(x => x.key === key);
   if (!p) return '<a class="back" href="#/progress">‹ Stats</a><div class="card empty">Pas de données.</div>';
   const vals = p.entries.map(x => x.best).filter(x => x != null);
-  const rec = vals.length ? Math.max(...vals) : null;
+  const rec = bestOf(p, vals);
   const last = p.entries[p.entries.length - 1];
   const pts = p.entries.slice(-16);
   const max = Math.max(1, ...pts.map(x => x.best || 0));
   const W = 360, H = 170, bw = Math.min(W / pts.length, 44), x0 = (W - bw * pts.length) / 2;
-  let svg = '<svg class="chart" viewBox="0 0 ' + W + " " + (H + 24) + '" role="img" aria-label="' + esc((p.type === "time" ? "Meilleur temps" : "Charge maximale") + " par séance pour " + p.name) + '">';
+  let svg = '<svg class="chart" viewBox="0 0 ' + W + " " + (H + 24) + '" role="img" aria-label="' + esc((noRM(p) ? "Meilleur temps" : "Charge maximale") + " par séance pour " + p.name) + '">';
   pts.forEach((x, k) => {
     const v = x.best || 0, bh = Math.max(2, (v / max) * (H - 24));
-    svg += '<rect class="b' + (v === rec ? " top" : "") + '" x="' + (x0 + k * bw + bw * 0.15) + '" y="' + (H - bh) + '" width="' + (bw * 0.7) + '" height="' + bh + '" rx="4"><title>' + esc(fmtDate(x.w.startedAt) + " : " + (x.best != null ? fmtNum(x.best) + unitOf(p) : "—")) + "</title></rect>";
-    if (v === rec || k === pts.length - 1) svg += '<text x="' + (x0 + k * bw + bw / 2) + '" y="' + (H - bh - 6) + '" text-anchor="middle">' + (x.best != null ? fmtNum(x.best) : "") + "</text>";
+    svg += '<rect class="b' + (v === rec ? " top" : "") + '" x="' + (x0 + k * bw + bw * 0.15) + '" y="' + (H - bh) + '" width="' + (bw * 0.7) + '" height="' + bh + '" rx="4"><title>' + esc(fmtDate(x.w.startedAt) + " : " + (x.best != null ? fmtVal(p, x.best) : "—")) + "</title></rect>";
+    if (v === rec || k === pts.length - 1) svg += '<text x="' + (x0 + k * bw + bw / 2) + '" y="' + (H - bh - 6) + '" text-anchor="middle">' + (x.best != null ? (p.type === "dist" ? fmtClock(x.best) : fmtNum(x.best)) : "") + "</text>";
     if (pts.length <= 12 || k % 2 === 0) {
       const d = new Date(x.w.startedAt);
       svg += '<text x="' + (x0 + k * bw + bw / 2) + '" y="' + (H + 16) + '" text-anchor="middle">' + pad(d.getDate()) + "/" + pad(d.getMonth() + 1) + "</text>";
@@ -1152,13 +1174,13 @@ function viewProgressDetail(key) {
   });
   svg += "</svg>";
   return '<a class="back" href="#/progress">‹ Stats</a><div class="page-head"><h1>' + esc(p.name) + "</h1></div>" +
-    '<div class="stats"><div class="card stat"><div class="muted small">Record</div><div class="v">' + (rec != null ? fmtNum(rec) + unitOf(p) : "—") + "</div></div>" +
-    '<div class="card stat"><div class="muted small">Dernière séance</div><div class="v">' + (last.best != null ? fmtNum(last.best) + unitOf(p) : "—") + "</div></div>" +
-    (p.type === "time" ? "" : (() => { const os = p.entries.map(x => x.orm).filter(x => x != null); const best = os.length ? Math.max(...os) : null;
+    '<div class="stats"><div class="card stat"><div class="muted small">Record</div><div class="v">' + (rec != null ? fmtVal(p, rec) : "—") + "</div></div>" +
+    '<div class="card stat"><div class="muted small">Dernière séance</div><div class="v">' + (last.best != null ? fmtVal(p, last.best) : "—") + "</div></div>" +
+    (noRM(p) ? "" : (() => { const os = p.entries.map(x => x.orm).filter(x => x != null); const best = os.length ? Math.max(...os) : null;
       return '<div class="card stat"><div class="muted small">1RM estimé (record)</div><div class="v">' + (best != null ? fmtNum(Math.round(best * 2) / 2) + " kg" : "—") + "</div></div>" +
         '<div class="card stat"><div class="muted small">1RM estimé (dernière)</div><div class="v">' + (last.orm != null ? fmtNum(Math.round(last.orm * 2) / 2) + " kg" : "—") + "</div></div>"; })()) + "</div>" +
-    (p.type === "time" ? "" : '<p class="muted small">1RM estimé : la charge que tu pourrais soulever une seule fois, calculée à partir de tes séries (formule d\'Epley).</p>') +
-    '<div class="card" style="margin-top:12px"><div class="muted small" style="font-weight:600;margin-bottom:8px">' + (p.type === "time" ? "Meilleur temps par séance (s)" : "Charge maximale par séance (kg)") + "</div>" + svg + "</div>" +
+    (noRM(p) ? "" : '<p class="muted small">1RM estimé : la charge que tu pourrais soulever une seule fois, calculée à partir de tes séries (formule d\'Epley).</p>') +
+    '<div class="card" style="margin-top:12px"><div class="muted small" style="font-weight:600;margin-bottom:8px">' + (p.type === "time" ? "Meilleur temps par séance (s)" : p.type === "dist" ? "Meilleur temps par séance (le plus court)" : "Charge maximale par séance (kg)") + "</div>" + svg + "</div>" +
     '<div class="section-title">Historique</div><div class="list">' + p.entries.slice().reverse().map(x =>
       '<a href="#/session/' + x.w.id + '"><div><b>' + esc(fmtDate(x.w.startedAt)) + '</b><div class="muted small">' + esc(x.w.templateName) + " · " + esc(vLabel(x.w.variantName)) + '</div></div><span class="small" style="text-align:right">' + esc(exSummary(x.e)) + (x.orm != null ? '<br><span class="muted">1RM ≈ ' + fmtNum(Math.round(x.orm * 2) / 2) + " kg</span>" : "") + "</span></a>").join("") + "</div>";
 }
@@ -1170,7 +1192,7 @@ const TROPHY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strok
 // record = la série qu'on vient de valider donne le meilleur 1RM estimé jamais atteint sur cet exercice
 function checkRecord(w, i, s) {
   const e = w.exercises[i], set = e.sets[s], n = norm(e.name);
-  if (e.type === "time") return null;
+  if (e.type === "time" || e.type === "dist") return null;
   const cur = e1rm(num(set.kg), num(set.reps));
   if (cur == null) return null;
   let best = null;
@@ -1245,7 +1267,7 @@ async function fetchShare(code) {
 }
 async function shareVariant(t, v) {
   const data = { app: "muscuapp-share", v: 1, prog: t.name, name: vLabel(v.name),
-    ex: v.exercises.map(e => ({ n: e.name, t: e.type, s: e.sets, c: e.target, r: e.rest, rn: restNextOf(e, v), no: e.note || "", d: dropsOf(e), ds: dropsOf(e) && e.dropScope === "last" ? "last" : undefined, g: e.groupId || null, k: e.groupKind || null })) };
+    ex: v.exercises.map(e => ({ n: e.name, t: e.type, l: e.load ? 1 : undefined, s: e.sets, c: e.target, r: e.rest, rn: restNextOf(e, v), no: e.note || "", d: dropsOf(e), ds: dropsOf(e) && e.dropScope === "last" ? "last" : undefined, g: e.groupId || null, k: e.groupKind || null })) };
   // lien court (séance enregistrée dans Supabase avec un code) ; lien long en secours (sans compte, hors ligne…)
   let url = null;
   if (db.auth) {
@@ -1282,7 +1304,7 @@ async function importShared(code) {
   if (!dest) return;
   const gmap = {};
   const exercises = data.ex.map(x => {
-    const e = { id: "e-" + uid(), name: String(x.n || "Exercice").slice(0, 80), type: x.t === "time" ? "time" : "reps", sets: Math.max(1, Math.min(20, num(x.s) || 3)), target: String(x.c == null ? "" : x.c).slice(0, 20), rest: Math.max(0, num(x.r) || 0), restNext: Math.max(0, Math.min(600, num(x.rn) || num(data.rb) || 0)), note: String(x.no || "").slice(0, 500), drops: x.t === "time" ? 0 : Math.max(0, Math.min(3, num(x.d) || 0)), dropScope: x.ds === "last" ? "last" : "all" };
+    const e = { id: "e-" + uid(), name: String(x.n || "Exercice").slice(0, 80), type: x.t === "time" ? "time" : x.t === "dist" ? "dist" : "reps", load: x.t === "dist" && !!x.l, sets: Math.max(1, Math.min(20, num(x.s) || 3)), target: String(x.c == null ? "" : x.c).slice(0, 20), rest: Math.max(0, num(x.r) || 0), restNext: Math.max(0, Math.min(600, num(x.rn) || num(data.rb) || 0)), note: String(x.no || "").slice(0, 500), drops: x.t === "time" || x.t === "dist" ? 0 : Math.max(0, Math.min(3, num(x.d) || 0)), dropScope: x.ds === "last" ? "last" : "all" };
     if (x.g && GROUP_LABEL[x.k]) { gmap[x.g] = gmap[x.g] || "g-" + uid(); e.groupId = gmap[x.g]; e.groupKind = x.k; }
     return e;
   });
@@ -1387,10 +1409,10 @@ function pickSeconds(title, value, min, max) {
 
 /* ================= Propositions de noms d'exercices (recherche intelligente) ================= */
 // bibliothèque de l'onglet Exercices (index léger inclus dans la page) : [id, nom, muscles, matériel, temps ?, reps, repos]
-const EXO_LIB = (window.EXO_INDEX || []).map(([id, n, mus, gear, time, reps, rest], k) => ({ id, n, mus, gear, time: !!time, reps, rest, nn: norm(n), k }));
+const EXO_LIB = (window.EXO_INDEX || []).map(([id, n, mus, gear, kind, reps, rest, dist, load, cat, al], k) => ({ id, n, mus, gear, kind: ["reps", "time", "dist"][kind] || "reps", reps, rest, dist, load: !!load, cat: cat || "", al: al || [], nn: norm(n), k }));
 const words = t => norm(t).split(/[^a-z0-9]+/).filter(Boolean);
-EXO_LIB.forEach(x => { x.w = words(x.n); x.o = words(x.mus + " " + x.gear); });
-const libByName = {}; EXO_LIB.forEach(x => { libByName[x.nn] = x; });
+EXO_LIB.forEach(x => { x.w = words(x.n); x.o = words(x.mus + " " + x.gear + " " + x.cat); });
+const libByName = {}; EXO_LIB.forEach(x => { libByName[x.nn] = x; x.al.forEach(a => { libByName[norm(a)] = x; }); }); // anciens noms reconnus aussi
 const libFor = name => (name ? libByName[norm(name)] || null : null);
 // mots courants (anglais, abréviations, pluriels) → mots de la bibliothèque ; « | » sépare des choix possibles
 const SYN = { bench: "developpe couche", dc: "developpe couche", di: "developpe incline", ohp: "developpe militaire", military: "militaire", sdt: "souleve terre", deadlift: "souleve terre",
@@ -1548,12 +1570,13 @@ function tick() {
         cpop.querySelector("[data-cpname]").textContent = ex && norm(ex.name) !== "gainage" ? ex.name + " · série " + (c.s + 1) : "Série " + (c.s + 1);
         cpop.querySelector("[data-cptime]").textContent = prep ? String(left) : fmtDur(ms);
         cpop.querySelector("[data-cpbar]").style.width = (c.target && !prep ? Math.min(100, 100 * ms / (c.target * 1000)) : 0) + "%";
-        cpop.querySelector("[data-cpgoal]").textContent = prep ? "Mets-toi en position…" : c.target ? (c.alerted ? "Objectif atteint !" : "Objectif " + fmtNum(c.target) + " s") : "";
+        cpop.querySelector("[data-cpgoal]").textContent = prep ? "Mets-toi en position…" : c.target ? (c.alerted ? "Objectif atteint !" : "Objectif " + fmtNum(c.target) + " s") : c.dist ? "Distance : " + fmtNum(c.dist) + " m · touche Terminer à l'arrivée" : "";
+        cpop.querySelector(".rp-label").textContent = c.dist ? "Chrono" : "Gainage";
         cpop.querySelector(".gain-box").classList.toggle("prep", prep);
         cpop.querySelector(".gain-box").classList.toggle("reached", !!c.alerted);
       }
     }
-    if (cpill) { cpill.hidden = !here || !c.min; cpill.textContent = (prep ? "Départ dans " + left : "Gainage " + fmtDur(ms)) + " · Agrandir"; }
+    if (cpill) { cpill.hidden = !here || !c.min; cpill.textContent = (prep ? "Départ dans " + left : (c.dist ? "Chrono " : "Gainage ") + fmtDur(ms)) + " · Agrandir"; }
   } else {
     if (cpop) cpop.hidden = true;
     if (cpill) cpill.hidden = true;
@@ -1678,12 +1701,12 @@ $app.addEventListener("click", async e => {
       const n = await ask({ title: "Nouvel exercice", input: "", ok: "Suivant", suggest: true });
       if (!n) return;
       const lib = libFor(n);
-      const type = lib ? (lib.time ? "time" : "reps") : await choose("Type d'exercice", [["reps", "Poids × reps", "Charge et nombre de répétitions"], ["time", "Temps", "Gainage, chaise… avec chrono"]]);
+      const type = lib ? lib.kind : await choose("Type d'exercice", [["reps", "Poids × reps", "Charge et nombre de répétitions"], ["time", "Temps", "Gainage, chaise… avec chrono"], ["dist", "Distance", "Course, rameur, Hyrox… avec chrono"]]);
       if (!type) return;
-      const te = Object.assign(newExercise(), { name: n.slice(0, 80), type }, type === "time" ? { target: "45", rest: 60 } : lib ? libDefaults(lib) : {});
+      const te = Object.assign(newExercise(), { name: n.slice(0, 80), type }, lib ? libDefaults(lib) : type === "time" ? { target: "45", rest: 60 } : type === "dist" ? { target: "1000", rest: 120 } : {});
       const add = await ask({ title: "L'ajouter au programme ?", text: "L'ajouter aussi à « " + w.templateName + " · " + vLabel(w.variantName) + " » pour les prochaines fois ?", ok: "Oui", cancel: "Juste aujourd'hui" });
       if (add) { const t = getItem(w.templateId); const v = t && t.variants.find(x => x.id === w.variantId); if (v) { v.exercises.push(te); put("template", t); } }
-      w.exercises.push({ exId: te.id, name: te.name, type: te.type, target: te.target, rest: te.rest, drops: 0, groupId: null, groupKind: null, sets: Array.from({ length: te.sets }, () => blankSet(0)) });
+      w.exercises.push({ exId: te.id, name: te.name, type: te.type, target: te.target, rest: te.rest, load: !!te.load, drops: 0, groupId: null, groupKind: null, sets: Array.from({ length: te.sets }, () => blankSet(0)) });
       put("workout", w); render();
     } break;
     case "chronostop": if (w) { stopChrono(w); save(); render(); } break;
@@ -1696,7 +1719,8 @@ $app.addEventListener("click", async e => {
         stopChrono(w);
       } else {
         // 5 s de préparation avant que le chrono de gainage ne démarre (pas pour le repos)
-        db.live.chrono = { wid: w.id, i, s, start: Date.now() + CHRONO_PREP * 1000, target: num(w.exercises[i].target), alerted: false, count: CHRONO_PREP + 1, go: false };
+        const cx = w.exercises[i], isD = cx.type === "dist";
+        db.live.chrono = { wid: w.id, i, s, start: Date.now() + CHRONO_PREP * 1000, target: isD ? 0 : num(cx.target), dist: isD ? num(cx.target) : 0, alerted: false, count: CHRONO_PREP + 1, go: false };
         db.live.restEnd = null;
       }
       save(); render();
@@ -1768,7 +1792,7 @@ $app.addEventListener("click", async e => {
       const gid = n > 1 ? "g-" + uid() : null;
       names.forEach(name => {
         const lib = libFor(name);
-        const e = Object.assign(newExercise(), { name }, lib ? (lib.time ? { type: "time", target: "45", rest: 60 } : libDefaults(lib)) : {});
+        const e = Object.assign(newExercise(), { name }, lib ? libDefaults(lib) : {});
         if (kind === "degressif") e.drops = 2;
         if (gid) { e.groupId = gid; e.groupKind = kind; }
         v.exercises.push(e);
@@ -1853,6 +1877,7 @@ $app.addEventListener("input", e => {
     const set = ex.sets[+el.dataset.s]; if (!set) return;
     let tgt = set;
     if ("d" in el.dataset) { set.drops = set.drops || []; tgt = set.drops[+el.dataset.d] = set.drops[+el.dataset.d] || { kg: "", reps: "" }; }
+    if (el.dataset.f === "clock") { const clean = el.value.replace(/[^\d:]/g, ""); if (clean !== el.value) el.value = clean; const sec = parseClock(clean); tgt.sec = sec == null ? "" : String(sec); putLater("workout", w); return; }
     tgt[el.dataset.f] = el.value.replace(/[^\d.,]/g, "");
     if (el.value !== tgt[el.dataset.f]) el.value = tgt[el.dataset.f];
     putLater("workout", w);
@@ -1886,8 +1911,14 @@ $app.addEventListener("change", e => {
     const { t, v } = currentProgram(); if (!t) return;
     const ex = v.exercises[+el.dataset.e]; ex.type = el.value;
     if (ex.type === "time" && !/^\d+$/.test(String(ex.target))) ex.target = "45";
-    if (ex.type === "time") ex.drops = 0;
+    if (ex.type === "dist" && !(num(ex.target) >= 10)) ex.target = "1000";
+    if (ex.type === "reps" && !/^\d+(-\d+)?$/.test(String(ex.target))) ex.target = "8-10";
+    if (ex.type !== "reps") ex.drops = 0;
     put("template", t); render();
+  } else if (el.dataset.p === "load") {
+    const { t, v } = currentProgram(); if (!t) return;
+    const ex = v.exercises[+el.dataset.e]; if (!ex) return;
+    ex.load = el.value === "1"; put("template", t); render();
   } else if (el.dataset.p === "drops" || el.dataset.p === "gkind" || el.dataset.p === "dscope") {
     const { t, v } = currentProgram(); if (!t) return;
     const ex = v.exercises[+el.dataset.e]; if (!ex) return;
@@ -1896,6 +1927,7 @@ $app.addEventListener("change", e => {
     else v.exercises.forEach(e => { if (e.groupId && e.groupId === ex.groupId) e.groupKind = el.value; });
     put("template", t); render();
   } else if (el.dataset.p || el.dataset.f) {
+    if (el.dataset.f === "clock") { const sec = parseClock(el.value); if (sec != null) el.value = fmtClock(sec); } // « 405 » s'affiche « 4:05 »
     flushPending(); // enregistre tout de suite quand on quitte un champ (sans redessiner l'écran)
   }
 });

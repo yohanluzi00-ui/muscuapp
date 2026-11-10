@@ -17,10 +17,13 @@ const exoSrc = src("exercices.js");
 const MUS = {}, musBlock = exoSrc.slice(exoSrc.indexOf("export const MUSCLES"), exoSrc.indexOf("const GROUPS"));
 for (const m of musBlock.matchAll(/(\w+): \["([^"]+)", "\w+"\]/g)) MUS[m[1]] = m[2];
 const EXO_INDEX = [];
-for (const m of exoSrc.matchAll(/\{ id: "([a-z0-9-]+)", n: "([^"]+)", gear: "([^"]+)", lvl: "[^"]*",(?: g: "\w+",)? p: \[([^\]]*)\], s: \[[^\]]*\],([^\n]*)/g)) {
-  const prim = m[4].match(/\w+/g) || [], rest = m[5];
+for (const m0 of exoSrc.matchAll(/\{ id: "([a-z0-9-]+)", n: "([^"]+)",(.*?) p: \[([^\]]*)\], s: \[[^\]]*\],([^\n]*)/g)) {
+  const head = m0[3], gear = (head.match(/gear: "([^"]+)"/) || [])[1] || "", m = [m0[0], m0[1], m0[2], gear, m0[4]];
+  const prim = m[4].match(/\w+/g) || [], rest = m0[5] + " " + head;
   const reps = (rest.match(/reps: "([^"]+)"/) || [])[1] || "", rst = +((rest.match(/rest: (\d+)/) || [])[1] || 90);
-  EXO_INDEX.push([m[1], m[2], prim.map(k => MUS[k] || k).join(", "), m[3], /time: true/.test(rest) ? 1 : 0, reps, rst]);
+  const dist = +((rest.match(/dist: (\d+)/) || [])[1] || 0), cat = (rest.match(/cat: "(\w+)"/) || [])[1] || "";
+  const al = ((rest.match(/al: \[([^\]]*)\]/) || [])[1] || "").match(/"[^"]+"/g) || [];
+  EXO_INDEX.push([m[1], m[2], prim.map(k => MUS[k] || k).join(", "), m[3], /time: true/.test(rest) ? 1 : dist ? 2 : 0, reps, rst, dist, /load: true/.test(rest) ? 1 : 0, cat, al.map(x => x.slice(1, -1))]);
 }
 if (EXO_INDEX.length < 50) throw new Error("Index des exercices incomplet (" + EXO_INDEX.length + ") : vérifier le format de src/exercices.js");
 const bootJs = `window.APP_BUILD = ${JSON.stringify(VERSION)}; window.APP_VERSION = ${JSON.stringify(process.env.VERSION_NAME || "")}; window.EXO_INDEX = ${JSON.stringify(EXO_INDEX)};`;

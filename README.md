@@ -6,12 +6,12 @@ Application personnelle pour noter mes performances pendant mes séances de musc
 
 - Des **programmes** (Push, Haut du corps…) que chacun crée depuis l'accueil (« + Nouveau programme », « Importer »), chacun avec ses **séances** et leurs propres exercices. Toucher une séance propose « Modifier » ou « C'est parti ». Un nouveau compte démarre sur une page vierge.
 - La page **Programmes** est réservée au futur mode premium (programmes prêts à l'emploi, cardio) : elle affiche « Bientôt ».
-- Pour chaque exercice : nombre de séries, reps cible (ou temps cible pour le gainage), temps de repos et **notes**.
+- Pour chaque exercice : nombre de séries, reps cible (ou temps cible pour le gainage, ou **distance** pour la course et l'Hyrox, avec ou sans charge), temps de repos et **notes**.
 - Modes d'enchaînement, au choix en ajoutant un exercice :
   - **Dégressif** : chaque série a 1 à 3 « baisses » (charge réduite, sans repos) ;
   - **Superset / Biset** : 2 exercices enchaînés, **Triset** : 3 exercices enchaînés. La séance se fait par tours (A puis B puis C) et le repos ne démarre qu'à la fin du tour.
 - **Pendant la séance** :
-  - tu notes les kg et reps de chaque série (ou le temps, avec un chrono, pour le gainage) ;
+  - tu notes les kg et reps de chaque série (ou le temps, avec un chrono, pour le gainage ; pour un exercice à distance, ton temps en m:ss, et les kg s'il y a une charge — le meilleur temps devient ton record) ;
   - un encadré discret rappelle ta **dernière performance avec la même variante** ;
   - les valeurs de la dernière fois apparaissent en grisé : appuie sur ✓ pour les reprendre telles quelles ;
   - le minuteur de repos démarre seul, puis vibre et/ou sonne à la fin (au choix dans Réglages) ;
@@ -19,7 +19,7 @@ Application personnelle pour noter mes performances pendant mes séances de musc
 - Tu peux **renommer** un exercice à tout moment ; son historique est conservé.
 - Sur ordinateur, la séance s'affiche en **tableau** (Exercice, Séries, Reps cible, Repos, Série 1, Série 2…).
 - **Historique** de toutes les séances (modifiables) et **progression** par exercice.
-- Onglet **Exercices** : une soixantaine d'exercices connus, chacun avec un mannequin 3D animé (mouvement complet, muscles principaux en rose et secondaires en orange), les conseils d'exécution, les erreurs fréquentes, les variantes et un bouton « Ajouter à une séance ».
+- Onglet **Exercices** : près d'une centaine d'exercices connus (filtres par muscle, « Sans matériel » pour le circuit training à la maison, Cardio et Hyrox), chacun avec un mannequin 3D animé (mouvement complet, muscles principaux en rose et secondaires en orange), les conseils d'exécution, les erreurs fréquentes, les variantes et un bouton « Ajouter à une séance ».
 - **Mode clair / sombre / auto**.
 - Données synchronisées entre le téléphone et l'ordinateur avec un compte (Supabase). Elles restent utilisables sans réseau et sont envoyées au retour de la connexion.
 
