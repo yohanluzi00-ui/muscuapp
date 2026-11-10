@@ -890,16 +890,28 @@ function initScene() {
   return G;
 }
 // rotation autour du mannequin au doigt ou à la souris
+// un doigt (ou la souris) : tourner autour ; deux doigts : pincer pour zoomer ; double appui : revenir au cadrage de départ
+const ZMIN = 0.9, ZMAX = 9;
 function setupOrbit(el) {
-  let drag = null;
-  el.addEventListener("pointerdown", e => { drag = { x: e.clientX, y: e.clientY, id: e.pointerId }; try { el.setPointerCapture(e.pointerId); } catch (_) { } });
-  el.addEventListener("pointermove", e => {
-    if (!drag || e.pointerId !== drag.id) return;
-    const o = G.orbit; o.az -= (e.clientX - drag.x) * 0.008; o.pol = Math.min(1.45, Math.max(0.08, o.pol - (e.clientY - drag.y) * 0.006)); o.goal = null;
-    drag.x = e.clientX; drag.y = e.clientY;
+  const pts = new Map(); let pinch = null, lastTap = 0;
+  const zoomTo = d => { G.orbit.dist = Math.min(ZMAX, Math.max(ZMIN, d)); G.orbit.goal = null; };
+  const spread = () => { const [a, b] = Array.from(pts.values()); return Math.hypot(a.x - b.x, a.y - b.y) || 1; };
+  el.addEventListener("pointerdown", e => {
+    if (e.isPrimary) { pts.clear(); pinch = null; } // nouveau geste : on oublie les doigts d'un geste précédent
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); try { el.setPointerCapture(e.pointerId); } catch (_) { }
+    if (pts.size === 2) pinch = { d: spread(), dist: G.orbit.dist };
+    if (pts.size === 1) { const now = Date.now(); if (now - lastTap < 400 && view.home) { G.orbit.goal = Object.assign({}, view.home, { target: view.home.target.clone() }); } lastTap = now; }
   });
-  const end = () => { drag = null; }; el.addEventListener("pointerup", end); el.addEventListener("pointercancel", end);
-  el.addEventListener("wheel", e => { e.preventDefault(); G.orbit.dist = Math.min(9, Math.max(1.6, G.orbit.dist * (1 + Math.sign(e.deltaY) * 0.08))); G.orbit.goal = null; }, { passive: false });
+  el.addEventListener("pointermove", e => {
+    const p = pts.get(e.pointerId); if (!p) return;
+    if (pts.size >= 2 && pinch) { p.x = e.clientX; p.y = e.clientY; zoomTo(pinch.dist * pinch.d / spread()); return; }
+    const dx = e.clientX - p.x, dy = e.clientY - p.y; if (!dx && !dy) return;
+    const o = G.orbit; o.az -= dx * 0.008; o.pol = Math.min(1.45, Math.max(0.08, o.pol - dy * 0.006)); o.goal = null;
+    p.x = e.clientX; p.y = e.clientY;
+  });
+  const end = e => { pts.delete(e.pointerId); if (pts.size < 2) pinch = null; };
+  el.addEventListener("pointerup", end); el.addEventListener("pointercancel", end); el.addEventListener("lostpointercapture", end);
+  el.addEventListener("wheel", e => { e.preventDefault(); zoomTo(G.orbit.dist * (1 + Math.sign(e.deltaY) * 0.08)); }, { passive: false });
 }
 function placeCamera(dt) {
   const o = G.orbit;
@@ -956,6 +968,7 @@ function showExercise(ex) {
   const dist = r / Math.sin(Math.min(fov, Math.atan(Math.tan(fov) * aspect))) * 0.97;
   const goal = { az: Math.atan2(d.z, d.x), pol: Math.asin(d.y), dist, target };
   if (!view.ex) Object.assign(G.orbit, goal, { target: target.clone(), goal: null }); else G.orbit.goal = goal;
+  view.home = goal; // cadrage de départ (double appui pour y revenir)
   view.ex = ex; view.time = 0; view.phase = "";
   frame(true);
 }
@@ -1020,7 +1033,7 @@ function detailHtml(ex) {
   return back +
     '<div class="exo-main"><div class="exo-stage-col"><div class="exo-stage" id="exo-stage"><div class="exo-ctrl"><button class="btn sm" id="exo-slow" aria-pressed="' + (view.speed !== 1) + '">Ralenti</button><button class="btn sm" id="exo-play" aria-pressed="' + (!view.playing) + '">' + (view.playing ? "Pause" : "Lecture") + '</button></div>' +
     '<div class="exo-phase"><span class="exo-pill" id="exo-pill"></span></div></div>' +
-    '<div class="exo-legend"><span class="p">Muscles principaux</span><span class="s">Muscles secondaires</span><em>Fais glisser l\'image pour tourner autour</em></div></div>' +
+    '<div class="exo-legend"><span class="p">Muscles principaux</span><span class="s">Muscles secondaires</span><em>Glisse pour tourner, pince pour zoomer, double appui pour recentrer</em></div></div>' +
     '<article class="card exo-fiche"><div><h1 class="exo-title">' + esc(ex.n) + '</h1><div class="exo-tags"><span>' + esc(ex.gear) + "</span><span>" + esc(ex.lvl) + "</span><span>" + (ex.time ? "Temps" : esc(ex.reps) + " reps") + "</span></div></div>" +
     '<div><h3>Muscles travaillés</h3><div class="exo-mus">' + ex.p.map(mm => chip(mm, "p")).join("") + ex.s.map(mm => chip(mm, "s")).join("") + "</div></div>" +
     '<div><h3>Bien l\'exécuter</h3><ul class="exo-tips">' + ex.tips.map(t => "<li>" + esc(t) + "</li>").join("") + "</ul></div>" +
@@ -1155,7 +1168,7 @@ function handShot(id, s, viewDir, dist) {
   Object.assign(G.orbit, { az: Math.atan2(d.z, d.x), pol: Math.asin(d.y), dist: dist || 0.55, target: o.hand[1].clone(), goal: null });
   placeCamera(0); G.renderer.render(G.scene, G.camera); return G.renderer.domElement.toDataURL("image/png");
 }
-export const __debug = { solve, EXOS, handShot, metrics: id => metrics(EXOS.find(e => e.id === id)), check: id => check(EXOS.find(e => e.id === id)), shot(id, s, w = 360, h = 300, viewDir) {
+export const __debug = { orbit: () => (G && G.orbit ? { dist: G.orbit.dist, az: G.orbit.az } : null), solve, EXOS, handShot, metrics: id => metrics(EXOS.find(e => e.id === id)), check: id => check(EXOS.find(e => e.id === id)), shot(id, s, w = 360, h = 300, viewDir) {
   const ex = EXOS.find(e => e.id === id); initScene(); G.renderer.setSize(w, h, false); G.camera.aspect = w / h; G.camera.updateProjectionMatrix();
   view.stage = null; view.ex = null; showExercise(ex); view.playing = false; view.time = 0;
   if (viewDir) { const d = V(...viewDir).normalize(); G.orbit.az = Math.atan2(d.z, d.x); G.orbit.pol = Math.asin(d.y); }
