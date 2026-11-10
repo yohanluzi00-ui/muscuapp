@@ -41,6 +41,7 @@ const ICON = {
   clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
   chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
   gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>',
+  dumbbell: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6.5 7v10M3.5 9.5v5M17.5 7v10M20.5 9.5v5M6.5 12h11"/></svg>',
   play: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4l13 8-13 8z"/></svg>',
   stop: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>',
 };
@@ -419,7 +420,7 @@ async function askConsentIfNeeded() {
   if (!ok) return;
   const st = settings(); st.consentAt = new Date().toISOString(); st.consentVersion = LEGAL.version; put("settings", st);
 }
-const NAV = [["home", "Accueil", "home"], ["programs", "Programmes", "list"], ["history", "Historique", "clock"], ["progress", "Stats", "chart"], ["settings", "Réglages", "gear"]];
+const NAV = [["home", "Accueil", "home"], ["programs", "Programmes", "list"], ["exercices", "Exercices", "dumbbell"], ["history", "Historique", "clock"], ["progress", "Stats", "chart"], ["settings", "Réglages", "gear"]];
 // Remplacer l'écran retire le champ actif : son « blur »/« change » peut redemander un rendu pendant celui-ci.
 let rendering = false;
 function render() {
@@ -457,6 +458,7 @@ function renderNow() {
       break;
     }
     case "settings": body = viewSettings(); break;
+    case "exercices": body = '<div id="exo-root"><div class="page-head"><h1>Exercices</h1></div><div class="card empty">Chargement des exercices…</div></div>'; break;
     default: body = viewHome();
   }
   const tab = { session: "home", program: "home", import: "home", s: "home", calendar: "progress", body: "progress" }[r.name] || (NAV.some(n => n[0] === r.name) ? r.name : "home");
@@ -464,8 +466,30 @@ function renderNow() {
     NAV.map(n => '<a href="#/' + n[0] + '" class="' + (n[0] === tab ? "on" : "") + '"' + (n[0] === tab ? ' aria-current="page"' : "") + ">" + ICON[n[2]] + "<span>" + n[1] + "</span></a>").join("") +
     '</nav><main class="main' + (wide ? " wide" : "") + '">' + body + "</main></div>";
   keepScreen(immersive);
+  if (r.name === "exercices") mountExercises(r.args[0]);
   tick();
   setTimeout(() => askConsentIfNeeded().then(askNameIfNeeded), 800);
+}
+
+/* ================= Écran : exercices (bibliothèque 3D, chargée à la demande) ================= */
+let exoMod = null;
+function mountExercises(id) {
+  const root = document.getElementById("exo-root"); if (!root) return;
+  const ready = exoMod ? Promise.resolve(exoMod) : import("./exercices.js?v=" + encodeURIComponent(window.APP_BUILD || "")).then(m => (exoMod = m));
+  ready.then(m => { if (root.isConnected) m.mount(root, id && /^[a-z0-9-]{1,60}$/.test(id) ? id : null, { add: addLibraryExercise }); })
+    .catch(err => { console.error(err); if (root.isConnected) root.innerHTML = '<div class="page-head"><h1>Exercices</h1></div><div class="card empty">Impossible de charger les exercices' + (navigator.onLine === false ? " sans connexion la première fois" : "") + '. Réessaie dans un instant.</div>'; });
+}
+// « Ajouter à une séance » depuis la fiche d'un exercice
+async function addLibraryExercise(x) {
+  const opts = [];
+  templates().forEach(t => t.variants.forEach(v => opts.push(["t:" + t.id + ":" + v.id, t.name + " · " + vLabel(v.name), v.exercises.length + " exercice" + (v.exercises.length > 1 ? "s" : "")])));
+  if (!opts.length) { toast("Crée d'abord un programme depuis l'accueil"); return; }
+  const c = await choose("Ajouter « " + x.name + " » à…", opts); if (!c) return;
+  const [, tid, vid] = c.split(":"); const t = getItem(tid); const v = t && t.variants.find(y => y.id === vid); if (!v) return;
+  const reps = (String(x.reps || "").match(/^\d+(-\d+)?/) || [""])[0];
+  const e = Object.assign(newExercise(), { name: String(x.name).slice(0, 80) }, x.time ? { type: "time", target: "45", rest: 60 } : { target: reps || "8-10", rest: Math.max(0, Math.min(600, num(x.rest) || 90)) });
+  v.exercises.push(e); put("template", t);
+  toast("Ajouté à « " + t.name + " · " + vLabel(v.name) + " »");
 }
 
 /* ================= Écran : connexion ================= */

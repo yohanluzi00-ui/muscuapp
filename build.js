@@ -16,7 +16,7 @@ const appJs = "\n" + src("app.js") + "\n";
 if (!src("app.js").includes(SUPABASE)) throw new Error("Adresse Supabase différente dans app.js : mettre à jour SUPABASE dans build.js");
 const CSP = [
   "default-src 'self'",
-  "script-src " + sha(bootJs) + " " + sha(appJs),
+  "script-src 'self' " + sha(bootJs) + " " + sha(appJs), // 'self' : onglet Exercices (exercices.js + three.js, chargés à la demande)
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data:",
   "font-src 'self' data:",
@@ -59,6 +59,8 @@ const dist = path.join(__dirname, "dist");
 fs.mkdirSync(dist, { recursive: true });
 fs.writeFileSync(path.join(dist, "index.html"), html);
 for (const f of ["icon-192.png", "icon-512.png"]) fs.copyFileSync(path.join(__dirname, "src", "icons", f), path.join(dist, f));
+// onglet Exercices : module chargé à la demande + three.js (affichage 3D, licence MIT)
+for (const f of ["exercices.js", "three.module.min.js"]) fs.copyFileSync(path.join(__dirname, "src", f), path.join(dist, f));
 fs.writeFileSync(path.join(dist, "manifest.webmanifest"), JSON.stringify({
   name: "Fiitday", short_name: "Fiitday", description: "Suivi de mes séances de musculation",
   start_url: "./", scope: "./", display: "standalone", lang: "fr",
@@ -71,7 +73,7 @@ fs.writeFileSync(path.join(dist, "manifest.webmanifest"), JSON.stringify({
 }, null, 2));
 fs.writeFileSync(path.join(dist, "sw.js"), `// Cache hors ligne de la version web
 const CACHE = "muscu-${CACHE}";
-const FILES = ["./", "index.html", "manifest.webmanifest", "icon-192.png", "icon-512.png"];
+const FILES = ["./", "index.html", "manifest.webmanifest", "icon-192.png", "icon-512.png", "exercices.js", "three.module.min.js"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k))))); self.clients.claim(); });
 self.addEventListener("fetch", e => {
@@ -79,7 +81,7 @@ self.addEventListener("fetch", e => {
   if (e.request.method !== "GET" || u.origin !== location.origin) return;
   // réseau d'abord (pour recevoir les mises à jour), cache si hors ligne
   e.respondWith(fetch(e.request).then(r => { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); return r; })
-    .catch(() => caches.match(e.request).then(r => r || caches.match("index.html"))));
+    .catch(() => caches.match(e.request, { ignoreSearch: true }).then(r => r || caches.match("index.html"))));
 });
 `);
 fs.writeFileSync(path.join(dist, ".nojekyll"), "");
@@ -127,5 +129,5 @@ ${body}
 const www = path.join(__dirname, "android", "app", "src", "main", "assets", "www");
 fs.mkdirSync(www, { recursive: true });
 fs.copyFileSync(path.join(dist, "index.html"), path.join(www, "index.html"));
-for (const f of ["icon-192.png", "icon-512.png"]) fs.copyFileSync(path.join(dist, f), path.join(www, f));
+for (const f of ["icon-192.png", "icon-512.png", "exercices.js", "three.module.min.js"]) fs.copyFileSync(path.join(dist, f), path.join(www, f));
 console.log("Construit :", VERSION, "—", (html.length / 1024).toFixed(0), "Ko");

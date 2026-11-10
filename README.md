@@ -19,6 +19,7 @@ Application personnelle pour noter mes performances pendant mes séances de musc
 - Tu peux **renommer** un exercice à tout moment ; son historique est conservé.
 - Sur ordinateur, la séance s'affiche en **tableau** (Exercice, Séries, Reps cible, Repos, Série 1, Série 2…).
 - **Historique** de toutes les séances (modifiables) et **progression** par exercice.
+- Onglet **Exercices** : une soixantaine d'exercices connus, chacun avec un mannequin 3D animé (mouvement complet, muscles principaux en rose et secondaires en orange), les conseils d'exécution, les erreurs fréquentes, les variantes et un bouton « Ajouter à une séance ».
 - **Mode clair / sombre / auto**.
 - Données synchronisées entre le téléphone et l'ordinateur avec un compte (Supabase). Elles restent utilisables sans réseau et sont envoyées au retour de la connexion.
 
@@ -49,6 +50,7 @@ Publiée automatiquement sur GitHub Pages à chaque modification : **https://fii
 ## Développement
 
 - `src/app.js` : toute la logique (écrans, minuteurs, synchronisation). `src/style.css` : le style.
+- `src/exercices.js` : l'onglet Exercices (bibliothèque, mannequin 3D, matériel, animations), chargé seulement à l'ouverture de l'onglet. `src/three.module.min.js` : la bibliothèque 3D three.js (licence MIT), à mettre à jour à la main si besoin.
 - `android/` : la coque Android (WebView) qui affiche la même page et donne accès à la vibration et au maintien de l'écran allumé.
 - `supabase/schema.sql` : la table `items` et ses règles de sécurité (chacun ne voit que ses données).
 - La page web déclare une politique de sécurité (CSP, calculée par `build.js`) : seuls les scripts de l'appli peuvent s'exécuter et elle ne peut contacter que Supabase. Si l'adresse Supabase change, la modifier aussi dans `build.js`.
