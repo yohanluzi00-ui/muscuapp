@@ -24,6 +24,7 @@ function fmtDur(ms) {
 const DF = o => new Intl.DateTimeFormat("fr-FR", o);
 const dfShort = DF({ weekday: "short", day: "numeric", month: "short" }), dfLong = DF({ weekday: "long", day: "numeric", month: "long" }),
   dfTime = DF({ hour: "2-digit", minute: "2-digit" }), dfMonth = DF({ month: "long", year: "numeric" });
+const dfDay = DF({ day: "numeric", month: "short" });
 const fmtDate = t => dfShort.format(t);
 const fmtDateLong = t => dfLong.format(t);
 const fmtTime = t => dfTime.format(t);
@@ -460,7 +461,8 @@ function renderNow() {
     case "programs": body = viewPrograms(); break;
     case "program": body = viewProgram(r.args[0], r.args[1]); break;
     case "history": body = viewHistory(); break;
-    case "progress": body = r.args[0] ? viewProgressDetail(r.args[0]) : viewProgress(); wide = false; break;
+    case "progress": if (r.args[0]) { history.replaceState(null, "", "#/evolution/" + encodeURIComponent(r.args[0])); body = viewEvolutionDetail(r.args[0]); } else body = viewProgress(); break; // ancien lien d'un exercice
+    case "evolution": body = r.args[0] ? viewEvolutionDetail(r.args[0]) : viewEvolution(); break;
     case "calendar": body = viewCalendar(r.args[0], r.args[1]); break;
     case "body": history.replaceState(null, "", "#/progress"); body = viewProgress(); break; // ancienne page Corps
     case "s":
@@ -475,7 +477,7 @@ function renderNow() {
     case "exercices": body = '<div id="exo-root"><div class="page-head"><h1>Exercices</h1></div><div class="card empty">Chargement des exercices…</div></div>'; break;
     default: body = viewHome();
   }
-  const tab = { session: "home", program: "home", import: "home", s: "home", calendar: "progress", body: "progress" }[r.name] || (NAV.some(n => n[0] === r.name) ? r.name : "home");
+  const tab = { session: "home", program: "home", import: "home", s: "home", calendar: "progress", evolution: "progress", body: "progress" }[r.name] || (NAV.some(n => n[0] === r.name) ? r.name : "home");
   $app.innerHTML = '<div class="shell' + (immersive ? " hide-nav" : "") + '"><nav class="nav" aria-label="Navigation"><div class="brand">Fiitday</div>' +
     NAV.map(n => '<a href="#/' + n[0] + '" class="' + (n[0] === tab ? "on" : "") + '"' + (n[0] === tab ? ' aria-current="page"' : "") + ">" + ICON[n[2]] + "<span>" + n[1] + "</span></a>").join("") +
     '</nav><main class="main' + (wide ? " wide" : "") + '">' + body + "</main></div>";
@@ -1091,7 +1093,9 @@ function progressData() {
       const best = vs.length ? (D ? Math.min(...vs) : Math.max(...vs)) : -Infinity;
       const reps = T ? null : Math.max(...e.sets.map(s => num(s.reps)).filter(x => x != null), -Infinity);
       const orm = T ? null : Math.max(...e.sets.map(s => e1rm(num(s.kg), num(s.reps))).filter(x => x != null), -Infinity);
-      (map[key] = map[key] || { key, name: e.name, type: e.type, entries: [] }).entries.push({ w, e, best: best === -Infinity ? null : best, reps: reps === -Infinity ? null : reps, orm: orm === -Infinity ? null : orm });
+      const kgs = e.sets.map(s => num(s.kg)).filter(x => x != null && x > 0), kg = kgs.length ? Math.max(...kgs) : null;
+      const sec = T && vs.length ? (D ? Math.min(...vs) : Math.max(...vs)) : null;
+      (map[key] = map[key] || { key, name: e.name, type: e.type, entries: [] }).entries.push({ w, e, best: best === -Infinity ? null : best, reps: reps === -Infinity ? null : reps, orm: orm === -Infinity ? null : orm, kg, sec });
       map[key].name = e.name;
     }
   }
@@ -1142,47 +1146,194 @@ function viewProgress() {
   ws.forEach(w => { const k = w.templateId; (byTpl[k] = byTpl[k] || { name: w.templateName, n: 0, last: 0 }); byTpl[k].n++; byTpl[k].last = Math.max(byTpl[k].last, w.startedAt); const t = getItem(k); if (t) byTpl[k].name = t.name; });
   h += '<div class="section-title">Par programme</div><div class="list">' + Object.values(byTpl).sort((a, b) => b.n - a.n).map(x =>
     '<div><div><b>' + esc(x.name) + '</b><div class="muted small">Dernière : ' + esc(fmtDate(x.last)) + '</div></div><span class="num"><b>' + x.n + '</b> <span class="muted small">séance' + (x.n > 1 ? "s" : "") + "</span></span></div>").join("") + "</div>";
-  // progression par exercice
-  const ps = progressData();
-  if (ps.length) h += '<div class="section-title">Progression par exercice</div><div class="list">' + ps.map(p => {
-    const vs = p.entries.map(x => x.best).filter(x => x != null);
-    const rec = bestOf(p, vs);
-    return '<a href="#/progress/' + encodeURIComponent(p.key) + '"><div><b>' + esc(p.name) + '</b><div class="muted small">' + p.entries.length + " séance" + (p.entries.length > 1 ? "s" : "") +
-      " · dernière " + esc(fmtDate(p.entries[p.entries.length - 1].w.startedAt)) + "</div></div>" +
-      '<span class="small"><b>' + (rec != null ? fmtVal(p, rec) : "—") + '</b> <span class="muted">record</span></span></a>';
-  }).join("") + "</div>";
   return h;
 }
-function viewProgressDetail(key) {
-  const p = progressData().find(x => x.key === key);
-  if (!p) return '<a class="back" href="#/progress">‹ Stats</a><div class="card empty">Pas de données.</div>';
-  const vals = p.entries.map(x => x.best).filter(x => x != null);
-  const rec = bestOf(p, vals);
-  const last = p.entries[p.entries.length - 1];
-  const pts = p.entries.slice(-16);
-  const max = Math.max(1, ...pts.map(x => x.best || 0));
-  const W = 360, H = 170, bw = Math.min(W / pts.length, 44), x0 = (W - bw * pts.length) / 2;
-  let svg = '<svg class="chart" viewBox="0 0 ' + W + " " + (H + 24) + '" role="img" aria-label="' + esc((noRM(p) ? "Meilleur temps" : "Charge maximale") + " par séance pour " + p.name) + '">';
-  pts.forEach((x, k) => {
-    const v = x.best || 0, bh = Math.max(2, (v / max) * (H - 24));
-    svg += '<rect class="b' + (v === rec ? " top" : "") + '" x="' + (x0 + k * bw + bw * 0.15) + '" y="' + (H - bh) + '" width="' + (bw * 0.7) + '" height="' + bh + '" rx="4"><title>' + esc(fmtDate(x.w.startedAt) + " : " + (x.best != null ? fmtVal(p, x.best) : "—")) + "</title></rect>";
-    if (v === rec || k === pts.length - 1) svg += '<text x="' + (x0 + k * bw + bw / 2) + '" y="' + (H - bh - 6) + '" text-anchor="middle">' + (x.best != null ? (p.type === "dist" ? fmtClock(x.best) : fmtNum(x.best)) : "") + "</text>";
-    if (pts.length <= 12 || k % 2 === 0) {
-      const d = new Date(x.w.startedAt);
-      svg += '<text x="' + (x0 + k * bw + bw / 2) + '" y="' + (H + 16) + '" text-anchor="middle">' + pad(d.getDate()) + "/" + pad(d.getMonth() + 1) + "</text>";
-    }
+/* ================= Stats : évolution d'un exercice ================= */
+// courbes possibles selon le type d'exercice ; « low » : plus bas = mieux (temps d'un exercice à distance)
+const EVO_M = {
+  kg: { label: "Charge max", short: "Charge", unit: " kg" },
+  orm: { label: "1RM estimé", short: "1RM estimé", unit: " kg" },
+  reps: { label: "Répétitions max", short: "Répétitions", unit: " reps" },
+  sec: { label: "Temps max", short: "Temps", unit: " s" },
+  run: { label: "Meilleur temps", short: "Temps", unit: "", low: true, clock: true }
+};
+const EVO_P = [["1m", "1 mois", 31], ["3m", "3 mois", 92], ["6m", "6 mois", 183], ["1a", "1 an", 366], ["all", "Tout", 0]];
+const evo = { q: "", m: {}, per: "all" };
+const evoVal = (x, m) => (m === "run" ? x.sec : x[m]);
+function evoMetrics(p) {
+  const has = f => p.entries.some(x => evoVal(x, f) != null);
+  if (p.type === "time") return ["sec"];
+  if (p.type === "dist") return ["run"].concat(has("kg") ? ["kg"] : []);
+  const out = []; if (has("kg")) out.push("kg", "orm"); if (has("reps")) out.push("reps");
+  return out.length ? out : ["reps"];
+}
+const evoFmt = (m, v) => (v == null ? "—" : EVO_M[m].clock ? fmtClock(v) : fmtNum(m === "orm" ? Math.round(v * 2) / 2 : v) + EVO_M[m].unit);
+function evoDiff(m, d) {
+  if (d == null) return "—";
+  const r = Math.round(Math.abs(d) * (m === "orm" ? 2 : 100)) / (m === "orm" ? 2 : 100);
+  if (!r) return "Stable";
+  return (d > 0 ? "+" : "−") + (EVO_M[m].clock ? fmtClock(r) : fmtNum(r) + EVO_M[m].unit);
+}
+// recherche parmi les exercices déjà faits (mêmes règles que la recherche d'exercices : fautes, synonymes, muscles)
+function evoCands() {
+  const ps = progressData(), seen = {};
+  ps.forEach(p => { seen[p.name] = (seen[p.name] || 0) + 1; });
+  return ps.map(p => {
+    const lib = libFor(p.name), last = p.entries[p.entries.length - 1].w.startedAt;
+    return { p, n: p.name, nn: norm(p.name), w: words(p.name), a: lib ? words(lib.n + " " + lib.al.join(" ")) : [], o: lib ? lib.o : [], last,
+      dup: seen[p.name] > 1 ? ({ time: "temps", dist: "distance" }[p.type] || "poids × reps") : "" };
   });
-  svg += "</svg>";
-  return '<a class="back" href="#/progress">‹ Stats</a><div class="page-head"><h1>' + esc(p.name) + "</h1></div>" +
-    '<div class="stats"><div class="card stat"><div class="muted small">Record</div><div class="v">' + (rec != null ? fmtVal(p, rec) : "—") + "</div></div>" +
-    '<div class="card stat"><div class="muted small">Dernière séance</div><div class="v">' + (last.best != null ? fmtVal(p, last.best) : "—") + "</div></div>" +
-    (noRM(p) ? "" : (() => { const os = p.entries.map(x => x.orm).filter(x => x != null); const best = os.length ? Math.max(...os) : null;
-      return '<div class="card stat"><div class="muted small">1RM estimé (record)</div><div class="v">' + (best != null ? fmtNum(Math.round(best * 2) / 2) + " kg" : "—") + "</div></div>" +
-        '<div class="card stat"><div class="muted small">1RM estimé (dernière)</div><div class="v">' + (last.orm != null ? fmtNum(Math.round(last.orm * 2) / 2) + " kg" : "—") + "</div></div>"; })()) + "</div>" +
-    (noRM(p) ? "" : '<p class="muted small">1RM estimé : la charge que tu pourrais soulever une seule fois, calculée à partir de tes séries (formule d\'Epley).</p>') +
-    '<div class="card" style="margin-top:12px"><div class="muted small" style="font-weight:600;margin-bottom:8px">' + (p.type === "time" ? "Meilleur temps par séance (s)" : p.type === "dist" ? "Meilleur temps par séance (le plus court)" : "Charge maximale par séance (kg)") + "</div>" + svg + "</div>" +
-    '<div class="section-title">Historique</div><div class="list">' + p.entries.slice().reverse().map(x =>
-      '<a href="#/session/' + x.w.id + '"><div><b>' + esc(fmtDate(x.w.startedAt)) + '</b><div class="muted small">' + esc(x.w.templateName) + " · " + esc(vLabel(x.w.variantName)) + '</div></div><span class="small" style="text-align:right">' + esc(exSummary(x.e)) + (x.orm != null ? '<br><span class="muted">1RM ≈ ' + fmtNum(Math.round(x.orm * 2) / 2) + " kg</span>" : "") + "</span></a>").join("") + "</div>";
+}
+function evoSearch(q) {
+  const toks = words(q), cs = evoCands();
+  if (!toks.length) return cs.sort((a, b) => b.last - a.last);
+  return cs.map(c => { let sc = 0; for (const t of toks) { const v = tokScore(t, c); if (!v) return null; sc += v; } return { c, sc: sc + (c.nn.startsWith(norm(q)) ? 2 : 0) }; })
+    .filter(Boolean).sort((a, b) => b.sc - a.sc || b.c.last - a.c.last).map(x => x.c);
+}
+function sparkline(vals, low) {
+  if (vals.length < 2) return "";
+  const W = 64, H = 22, mn = Math.min(...vals), mx = Math.max(...vals), r = mx - mn || 1;
+  const pt = (v, k) => (k * (W - 4) / (vals.length - 1) + 2).toFixed(1) + "," + (H - 3 - ((low ? mx - v : v - mn) / r) * (H - 6)).toFixed(1);
+  return '<svg class="spark" viewBox="0 0 ' + W + " " + H + '" aria-hidden="true"><polyline points="' + vals.map(pt).join(" ") + '"></polyline></svg>';
+}
+function evoListHtml() {
+  const hits = evoSearch(evo.q);
+  if (!hits.length) {
+    const lib = evo.q.trim() ? searchExercises(evo.q).filter(c => !c.own)[0] : null;
+    return '<div class="card empty">' + (lib
+      ? "Tu n'as pas encore fait « " + esc(lib.n) + " » pendant une séance. Sa courbe apparaîtra dès que tu auras terminé une séance avec cet exercice."
+      : "Aucun exercice fait en séance ne correspond à « " + esc(evo.q.trim()) + " ».") + "</div>";
+  }
+  return '<div class="list">' + hits.map(c => {
+    const p = c.p, m = evoMetrics(p)[0], vs = p.entries.map(x => evoVal(x, m)).filter(v => v != null);
+    const rec = vs.length ? (EVO_M[m].low ? Math.min(...vs) : Math.max(...vs)) : null;
+    return '<a href="#/evolution/' + encodeURIComponent(p.key) + '"><div><b>' + esc(p.name) + "</b>" + (c.dup ? ' <span class="muted small">· ' + c.dup + "</span>" : "") +
+      '<div class="muted small">' + p.entries.length + " séance" + (p.entries.length > 1 ? "s" : "") + " · " + esc(dfDay.format(c.last)) + "</div></div>" +
+      '<span class="evo-r">' + sparkline(vs.slice(-12), EVO_M[m].low) + '<span class="small"><b>' + evoFmt(m, rec) + '</b> <span class="muted">record</span></span></span></a>';
+  }).join("") + "</div>";
+}
+function viewEvolution() {
+  let h = '<div class="page-head"><h1>Stats</h1></div>' + statsTabs("evolution");
+  if (!progressData().length) return h + '<div class="card empty">Termine une séance pour voir l\'évolution de tes exercices. Seuls les exercices faits pendant une séance terminée apparaissent ici.</div>';
+  return h + '<label class="evo-search"><span class="sr">Rechercher un exercice</span><input type="search" class="f" data-evo-q placeholder="Rechercher un exercice" autocomplete="off" value="' + esc(evo.q) + '"></label>' +
+    '<p class="muted small" style="margin:6px 2px 10px">Choisis un exercice pour voir sa courbe dans le temps. Seuls ceux que tu as faits en séance apparaissent.</p><div id="evo-list">' + evoListHtml() + "</div>";
+}
+document.addEventListener("input", e => {
+  if (!e.target.matches || !e.target.matches("input[data-evo-q]")) return;
+  evo.q = e.target.value; const box = document.getElementById("evo-list"); if (box) box.innerHTML = evoListHtml();
+});
+// courbe : axe du temps à l'échelle, une seule série, info-bulle qui suit le doigt
+let evoCur = null;
+function niceStep(raw, clock) {
+  const steps = clock ? [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600] : null;
+  if (steps) return steps.find(x => x >= raw) || 3600;
+  const p10 = Math.pow(10, Math.floor(Math.log10(raw || 1))), f = raw / p10;
+  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p10;
+}
+function evoChart(p, m, pts, W) {
+  W = W || 360; const H = W > 520 ? 250 : 210, L = 44, R = 16, T = 26, B = 28, pw = W - L - R, ph = H - T - B, M = EVO_M[m];
+  const vs = pts.map(x => x.v), mn = Math.min(...vs), mx = Math.max(...vs);
+  let step = niceStep(((mx - mn) || Math.max(1, mx * 0.1)) / 3, M.clock);
+  if (!M.clock && m !== "orm" && step < 1 && (m === "reps" || m === "sec")) step = 1;
+  let y0 = Math.floor(mn / step) * step, y1 = Math.ceil(mx / step) * step;
+  if (y1 === y0) { y0 = Math.max(0, y0 - step); y1 += step; }
+  const t0 = pts[0].t, t1 = pts[pts.length - 1].t, span = t1 - t0;
+  const X = t => L + (span ? ((t - t0) / span) * pw : pw / 2), Y = v => T + (1 - (v - y0) / (y1 - y0)) * ph;
+  const recV = M.low ? mn : mx, recK = pts.map(x => x.v).lastIndexOf(recV), lastK = pts.length - 1;
+  pts.forEach(x => { x.x = X(x.t); x.y = Y(x.v); });
+  let svg = '<svg class="chart evo-svg" viewBox="0 0 ' + W + " " + H + '" tabindex="0" role="img" aria-label="' + esc(M.label + " de " + p.name + " : " + pts.length + " séances, record " + evoFmt(m, recV) + ", dernière " + evoFmt(m, pts[lastK].v)) + '">' +
+    '<defs><linearGradient id="evoG" x1="0" x2="0" y1="0" y2="1"><stop offset="0"></stop><stop offset="1"></stop></linearGradient></defs>';
+  for (let v = y0; v <= y1 + step / 1000; v += step) {
+    const y = Y(v).toFixed(1);
+    svg += '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + y + '" y2="' + y + '"></line><text x="' + (L - 8) + '" y="' + (+y + 4) + '" text-anchor="end">' + (M.clock ? fmtClock(v) : fmtNum(v)) + "</text>";
+  }
+  const dfx = span > 300 * 86400000 ? DF({ month: "short", year: "2-digit" }) : DF({ day: "numeric", month: "short" });
+  const xl = pts.length > 1 ? [0, lastK] : [0];
+  if (pts.length > 2 && span > 0) { const mid = (t0 + t1) / 2; let k = 0; pts.forEach((x, n) => { if (Math.abs(x.t - mid) < Math.abs(pts[k].t - mid)) k = n; }); if (k !== 0 && k !== lastK && Math.abs(pts[k].x - pts[0].x) > 70 && Math.abs(pts[lastK].x - pts[k].x) > 70) xl.splice(1, 0, k); }
+  xl.forEach(k => { const x = pts[k].x, anchor = pts.length === 1 ? "middle" : k === 0 ? "start" : k === lastK ? "end" : "middle";
+    svg += '<text x="' + (anchor === "start" ? x - 4 : anchor === "end" ? x + 4 : x).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="' + anchor + '">' + esc(dfx.format(pts[k].t)) + "</text>"; });
+  if (pts.length > 1) {
+    const line = pts.map((x, k) => (k ? "L" : "M") + x.x.toFixed(1) + "," + x.y.toFixed(1)).join("");
+    svg += '<path class="area" d="' + line + "L" + pts[lastK].x.toFixed(1) + "," + (T + ph) + "L" + pts[0].x.toFixed(1) + "," + (T + ph) + 'Z"></path><path class="line" d="' + line + '"></path>';
+  }
+  const dots = pts.length <= 40;
+  pts.forEach((x, k) => { if (dots || k === recK || k === lastK) svg += '<circle class="dot' + (k === recK ? " rec" : "") + '" cx="' + x.x.toFixed(1) + '" cy="' + x.y.toFixed(1) + '" r="' + (k === recK ? 5.5 : 4) + '"></circle>'; });
+  // étiquettes choisies : le record et la dernière séance seulement
+  const lab = (k, txt) => { const x = Math.min(W - R - 2, Math.max(L + 2, pts[k].x)), y = pts[k].y - 11 < T - 14 ? pts[k].y + 20 : pts[k].y - 11;
+    const anchor = pts[k].x > W - R - 40 ? "end" : pts[k].x < L + 40 ? "start" : "middle";
+    return '<text class="lab" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="' + anchor + '">' + esc(txt) + "</text>"; };
+  if (pts.length > 1) { svg += lab(recK, "Record " + evoFmt(m, recV)); if (lastK !== recK && Math.abs(pts[lastK].x - pts[recK].x) > 90) svg += lab(lastK, evoFmt(m, pts[lastK].v)); }
+  svg += '<line class="xhair" x1="0" x2="0" y1="' + T + '" y2="' + (T + ph) + '" visibility="hidden"></line><circle class="focus" r="6" cx="0" cy="0" visibility="hidden"></circle></svg>';
+  return svg;
+}
+function evoPick(k) {
+  if (!evoCur || !evoCur.pts[k]) return;
+  evoCur.k = k; const x = evoCur.pts[k], svg = document.querySelector(".evo-svg"), out = document.querySelector(".evo-read"); if (!svg || !out) return;
+  const xh = svg.querySelector(".xhair"), f = svg.querySelector(".focus");
+  xh.setAttribute("x1", x.x); xh.setAttribute("x2", x.x); xh.setAttribute("visibility", "visible");
+  f.setAttribute("cx", x.x); f.setAttribute("cy", x.y); f.setAttribute("visibility", "visible");
+  out.querySelector("b").textContent = evoFmt(evoCur.m, x.v);
+  out.querySelector(".d").textContent = fmtDateLong(x.t) + " · " + x.ses;
+  out.querySelector(".s").textContent = x.sum;
+}
+function evoNearest(ev) {
+  const svg = ev.target.closest && ev.target.closest(".evo-svg"); if (!svg || !evoCur) return;
+  const r = svg.getBoundingClientRect(), vx = ((ev.clientX - r.left) / r.width) * (evoCur.W || 360);
+  let k = 0; evoCur.pts.forEach((x, n) => { if (Math.abs(x.x - vx) < Math.abs(evoCur.pts[k].x - vx)) k = n; });
+  if (k !== evoCur.k) evoPick(k);
+}
+$app.addEventListener("pointerdown", evoNearest);
+$app.addEventListener("pointermove", evoNearest);
+$app.addEventListener("keydown", e => {
+  if (!evoCur || !e.target.classList || !e.target.classList.contains("evo-svg")) return;
+  const d = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : e.key === "Home" ? -1e9 : e.key === "End" ? 1e9 : 0; if (!d) return;
+  e.preventDefault(); evoPick(Math.max(0, Math.min(evoCur.pts.length - 1, (evoCur.k == null ? evoCur.pts.length - 1 : evoCur.k) + d)));
+});
+// la courbe est redessinée à la largeur réelle de l'écran (textes à la bonne taille sur PC)
+function evoFit() {
+  if (!evoCur) return;
+  const card = document.querySelector(".evo-card"), old = card && card.querySelector(".evo-svg"); if (!old) return;
+  const W = Math.max(300, Math.min(1000, Math.round(old.getBoundingClientRect().width)));
+  if (Math.abs(W - evoCur.W) > 24) { evoCur.W = W; old.outerHTML = evoChart(evoCur.p, evoCur.m, evoCur.pts, W); }
+  evoPick(evoCur.k);
+}
+window.addEventListener("resize", () => { if (document.querySelector(".evo-svg")) evoFit(); });
+function viewEvolutionDetail(key) {
+  evoCur = null;
+  const p = progressData().find(x => x.key === key);
+  const back = '<a class="back" href="#/evolution">‹ Évolution</a>';
+  if (!p) return back + '<div class="card empty">Pas encore de données pour cet exercice.</div>';
+  const ms = evoMetrics(p), m = ms.includes(evo.m[key]) ? evo.m[key] : ms[0], M = EVO_M[m];
+  const allT = p.entries.map(x => x.w.startedAt), fullSpan = allT[allT.length - 1] - allT[0];
+  const pers = EVO_P.filter(x => !x[2] || fullSpan > x[2] * 86400000 * 0.9);
+  const per = pers.some(x => x[0] === evo.per) ? evo.per : "all", days = (EVO_P.find(x => x[0] === per) || [0, 0, 0])[2];
+  const from = days ? Date.now() - days * 86400000 : -Infinity;
+  const ent = p.entries.filter(x => x.w.startedAt >= from);
+  const pts = ent.filter(x => evoVal(x, m) != null).map(x => ({ t: x.w.startedAt, v: evoVal(x, m), ses: x.w.templateName + " · " + vLabel(x.w.variantName), sum: exSummary(x.e) }));
+  const lib = libFor(p.name);
+  let h = back + '<div class="page-head"><h1>' + esc(p.name) + "</h1></div>" +
+    (lib ? '<div class="ex-chips" style="margin:-4px 0 12px"><button type="button" class="chip-mini" data-act="exoview" data-id="' + esc(lib.id) + '">' + ICON.play + "Voir le mouvement</button></div>" : "");
+  const seg = (list, on, act) => '<div class="seg evo-seg" role="group">' + list.map(x => '<button type="button" data-act="' + act + '" data-k="' + esc(key) + '" data-v="' + x[0] + '"' + (x[0] === on ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + ">" + esc(x[1]) + "</button>").join("") + "</div>";
+  if (ms.length > 1 || pers.length > 1) h += '<div class="evo-filters">' + (ms.length > 1 ? seg(ms.map(x => [x, EVO_M[x].short]), m, "evometric") : "") + (pers.length > 1 ? seg(pers, per, "evoper") : "") + "</div>";
+  if (!pts.length) return h + '<div class="card empty">Aucune séance avec cet exercice sur cette période.</div>';
+  const vs = pts.map(x => x.v), best = M.low ? Math.min(...vs) : Math.max(...vs), first = pts[0].v, last = pts[pts.length - 1].v;
+  const dlt = pts.length > 1 ? last - first : null, good = dlt == null || !dlt ? "" : (M.low ? dlt < 0 : dlt > 0) ? " up" : " down";
+  h += '<div class="stats k3">' +
+    '<div class="card stat"><div class="muted small">' + (per === "all" ? "Record" : "Meilleur") + '</div><div class="v">' + evoFmt(m, best) + "</div></div>" +
+    '<div class="card stat"><div class="muted small">Dernière séance</div><div class="v">' + evoFmt(m, last) + "</div></div>" +
+    '<div class="card stat"><div class="muted small">Évolution</div><div class="v' + good + '">' + evoDiff(m, dlt) + '</div><div class="muted small">' + (pts.length > 1 ? "depuis le " + esc(fmtDate(pts[0].t)) : "une seule séance") + "</div></div>" +
+    '<div class="card stat"><div class="muted small">Séances</div><div class="v">' + ent.length + "</div></div></div>";
+  evoCur = { pts, m, k: pts.length - 1, W: 360, p };
+  const lx = pts[pts.length - 1];
+  h += '<div class="card evo-card"><div class="spread" style="align-items:baseline"><div class="muted small" style="font-weight:600">' + esc(M.label) + (M.low ? " · plus bas = plus rapide" : "") + "</div></div>" +
+    '<div class="evo-read" aria-live="polite"><b>' + evoFmt(m, lx.v) + '</b><span class="d">' + esc(fmtDateLong(lx.t) + " · " + lx.ses) + '</span><span class="s">' + esc(lx.sum) + "</span></div>" +
+    evoChart(p, m, pts) +
+    (pts.length === 1 ? '<p class="muted small" style="margin:8px 0 0">Une seule séance pour l\'instant : la courbe se dessinera dès la prochaine.</p>' : '<p class="muted small" style="margin:8px 0 0">Fais glisser le doigt sur la courbe pour voir chaque séance.</p>') + "</div>";
+  if (m === "orm") h += '<p class="muted small">1RM estimé : la charge que tu pourrais soulever une seule fois, calculée à partir de tes séries (formule d\'Epley).</p>';
+  h += '<div class="section-title">Historique</div><div class="list">' + ent.slice().reverse().map(x =>
+    '<a href="#/session/' + x.w.id + '"><div><b>' + esc(fmtDate(x.w.startedAt)) + '</b><div class="muted small">' + esc(x.w.templateName) + " · " + esc(vLabel(x.w.variantName)) + '</div></div><span class="small" style="text-align:right">' + esc(exSummary(x.e)) + (x.orm != null ? '<br><span class="muted">1RM ≈ ' + fmtNum(Math.round(x.orm * 2) / 2) + " kg</span>" : "") + "</span></a>").join("") + "</div>";
+  setTimeout(evoFit, 0);
+  return h;
 }
 
 /* ================= Records et 1RM estimé ================= */
@@ -1215,7 +1366,7 @@ function celebrate(rec) {
 
 /* ================= Stats : onglets ================= */
 function statsTabs(on) {
-  return '<div class="tabs" role="tablist">' + [["progress", "Séances"], ["calendar", "Calendrier"]].map(t =>
+  return '<div class="tabs" role="tablist">' + [["progress", "Séances"], ["evolution", "Évolution"], ["calendar", "Calendrier"]].map(t =>
     '<a href="#/' + t[0] + '" class="tab' + (t[0] === on ? " on" : "") + '"' + (t[0] === on ? ' aria-current="page"' : "") + ">" + t[1] + "</a>").join("") + "</div>";
 }
 
@@ -1617,6 +1768,8 @@ $app.addEventListener("click", async e => {
   switch (a) {
     case "reload": location.hash = "#/home"; location.reload(); break;
     case "histmore": histLimit += 100; render(); break;
+    case "evometric": evo.m[b.dataset.k] = b.dataset.v; render(); break;
+    case "evoper": evo.per = b.dataset.v; render(); break;
     case "exoview": exoReturn = location.hash; go("exercices/" + b.dataset.id); break;
     case "sesspick": if (w) {
       const e = w.exercises[i]; if (!e) return;

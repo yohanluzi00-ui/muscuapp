@@ -18,7 +18,8 @@ Application personnelle pour noter mes performances pendant mes séances de musc
   - l'écran reste allumé pendant la séance (appli Android).
 - Tu peux **renommer** un exercice à tout moment ; son historique est conservé.
 - Sur ordinateur, la séance s'affiche en **tableau** (Exercice, Séries, Reps cible, Repos, Série 1, Série 2…).
-- **Historique** de toutes les séances (modifiables) et **progression** par exercice.
+- **Historique** de toutes les séances (modifiables).
+- **Stats** : séances par semaine et par programme, calendrier, et **Évolution** : on recherche un exercice déjà fait en séance et on voit sa courbe dans le temps (charge, 1RM estimé ou répétitions ; temps pour le gainage ; meilleur temps pour la course et l'Hyrox), sur 1 mois, 3 mois, 6 mois, 1 an ou tout.
 - Onglet **Exercices** : près d'une centaine d'exercices connus (filtres par muscle, « Sans matériel » pour le circuit training à la maison, Cardio et Hyrox), chacun avec un mannequin 3D animé (mouvement complet, muscles principaux en rose et secondaires en orange), les conseils d'exécution, les erreurs fréquentes, les variantes et un bouton « Ajouter à une séance ».
 - **Mode clair / sombre / auto**.
 - Données synchronisées entre le téléphone et l'ordinateur avec un compte (Supabase). Elles restent utilisables sans réseau et sont envoyées au retour de la connexion.
