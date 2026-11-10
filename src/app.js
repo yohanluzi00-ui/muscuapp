@@ -1352,6 +1352,24 @@ document.addEventListener("pointerdown", e => {
   input.dispatchEvent(new Event("change", { bubbles: true }));
 });
 
+/* ================= Sauvegarde compressée ================= */
+// « FIITDAY1: » + données compressées en base64 : bien plus court que le texte brut
+async function packBackup(str) {
+  if (!window.CompressionStream) return str;
+  try {
+    const out = new Uint8Array(await new Response(new Blob([str]).stream().pipeThrough(new CompressionStream("deflate-raw"))).arrayBuffer());
+    let bin = ""; for (let k = 0; k < out.length; k += 0x8000) bin += String.fromCharCode.apply(null, out.subarray(k, k + 0x8000));
+    return "FIITDAY1:" + btoa(bin);
+  } catch (e) { return str; }
+}
+async function unpackBackup(txt) {
+  txt = String(txt || "").trim();
+  if (!txt.startsWith("FIITDAY1:")) return txt; // ancienne sauvegarde en texte brut
+  const bin = atob(txt.slice(9).replace(/\s+/g, ""));
+  const u = Uint8Array.from(bin, ch => ch.charCodeAt(0));
+  return new Response(new Blob([u]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).text();
+}
+
 /* ================= Écran : réglages ================= */
 function viewSettings() {
   const s = settings();
@@ -1364,15 +1382,14 @@ function viewSettings() {
     '<div class="card"><b>Alerte de fin de repos</b><div style="margin-top:10px">' + seg("alert", [["vibration", "Vibration"], ["son", "Son"], ["les deux", "Les deux"], ["aucune", "Aucune"]]) + "</div>" +
     '<button class="btn sm" style="margin-top:10px" data-act="testalert">Tester</button></div>' +
     '<div class="card"><b>Objectif de séances par semaine</b><div style="margin-top:10px">' + seg("goal", [["2", "2"], ["3", "3"], ["4", "4"], ["5", "5"], ["6", "6"], ["7", "7"]]) + "</div></div>" +
+    '<div class="card"><b>Sauvegarde</b><div class="small muted" style="margin-top:4px">Copie de secours de toutes tes données (texte à garder dans une note).</div>' +
+    '<div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-act="export">Copier la sauvegarde</button><button class="btn sm" data-act="import">Restaurer…</button></div></div>' +
     '<div class="card"><b>Compte</b><div style="margin-top:8px">' +
     (db.auth ? '<label class="fl" style="margin-bottom:8px">Prénom<input class="f" data-setname maxlength="40" autocomplete="given-name" value="' + esc(firstName()) + '" placeholder="Ton prénom"></label>' +
       '<div class="small">Connecté : ' + esc(db.auth.user.email) + "</div><div style=\"margin-top:6px\">" + syncBadge() + '</div><div class="small msg err" data-sync-error>' + (syncState.status === "err" ? esc(syncState.error) : "") + "</div>" +
-      '<div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-act="syncnow">Synchroniser maintenant</button><button class="btn sm" data-act="logout">Se déconnecter</button></div>' +
-      '<button class="link" style="margin-top:6px;color:var(--danger)" data-act="delaccount">Supprimer mon compte</button>'
+      '<div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-act="syncnow">Synchroniser maintenant</button><button class="btn sm" data-act="logout">Se déconnecter</button><button class="btn sm danger" data-act="delaccount">Supprimer mon compte</button></div>'
       : '<div class="small muted">Sans compte : tes données restent sur cet appareil.</div><button class="btn sm primary" style="margin-top:8px" data-act="tologin">Se connecter / créer un compte</button>') +
     "</div></div>" +
-    '<div class="card"><b>Sauvegarde</b><div class="small muted" style="margin-top:4px">Copie de secours de toutes tes données (texte à garder dans une note).</div>' +
-    '<div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-act="export">Copier la sauvegarde</button><button class="btn sm" data-act="import">Restaurer…</button></div></div>' +
     '<div class="card"><b>Informations légales</b><div class="row" style="margin-top:8px;flex-wrap:wrap">' +
     '<a class="btn sm" href="' + LEGAL.privacy + '" target="_blank" rel="noopener">Politique de confidentialité</a>' +
     '<a class="btn sm" href="' + LEGAL.legal + '" target="_blank" rel="noopener">Mentions légales</a></div></div>' +
@@ -1692,7 +1709,7 @@ $app.addEventListener("click", async e => {
     } break;
     case "export": {
       flushPending();
-      const data = JSON.stringify({ app: "muscuapp", v: 1, at: Date.now(), items: Object.values(db.items).filter(x => !x.deleted).map(x => ({ id: x.id, kind: x.kind, data: x.data, updated_at: x.updated_at })) });
+      const data = await packBackup(JSON.stringify({ app: "muscuapp", v: 1, at: Date.now(), items: Object.values(db.items).filter(x => !x.deleted).map(x => ({ id: x.id, kind: x.kind, data: x.data, updated_at: x.updated_at })) }));
       try { await navigator.clipboard.writeText(data); toast("Sauvegarde copiée : colle-la dans une note"); }
       catch (err) { await ask({ title: "Sauvegarde", text: "Copie ce texte :", input: data, multiline: true, cancel: false, ok: "Fermer" }); }
     } break;
@@ -1700,7 +1717,7 @@ $app.addEventListener("click", async e => {
       const txt = await ask({ title: "Restaurer une sauvegarde", text: "Colle le texte de la sauvegarde. Les éléments plus récents de la sauvegarde remplacent ceux de l'appli.", input: "", multiline: true, ok: "Restaurer" });
       if (!txt) return;
       try {
-        const j = JSON.parse(txt); if (!j || j.app !== "muscuapp" || !Array.isArray(j.items)) throw new Error();
+        const j = JSON.parse(await unpackBackup(txt)); if (!j || j.app !== "muscuapp" || !Array.isArray(j.items)) throw new Error();
         let n = 0;
         for (const it of j.items) { const cur = db.items[it.id]; if (!cur || it.updated_at > cur.updated_at) { db.items[it.id] = { id: it.id, kind: it.kind, data: it.data, updated_at: Math.max(it.updated_at, (cur && cur.updated_at + 1) || 0), deleted: false, dirty: true }; n++; } }
         saveNow(); scheduleSync(); render(); toast(n + " élément" + (n > 1 ? "s" : "") + " restauré" + (n > 1 ? "s" : ""));
