@@ -4,7 +4,8 @@ Application personnelle pour noter mes performances pendant mes séances de musc
 
 ## Ce que fait l'appli
 
-- Des **programmes** (Push, Haut du corps…) que chacun crée, chacun avec ses **séances** et leurs propres exercices. Un nouveau compte démarre sur une page vierge.
+- Des **programmes** (Push, Haut du corps…) que chacun crée depuis l'accueil (« + Nouveau programme », « Importer »), chacun avec ses **séances** et leurs propres exercices. Toucher une séance propose « Modifier » ou « C'est parti ». Un nouveau compte démarre sur une page vierge.
+- La page **Programmes** est réservée au futur mode premium (programmes prêts à l'emploi, cardio) : elle affiche « Bientôt ».
 - Pour chaque exercice : nombre de séries, reps cible (ou temps cible pour le gainage), temps de repos et **notes**.
 - Modes d'enchaînement, au choix en ajoutant un exercice :
   - **Dégressif** : chaque série a 1 à 3 « baisses » (charge réduite, sans repos) ;

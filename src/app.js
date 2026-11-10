@@ -451,15 +451,15 @@ function renderNow() {
     case "s":
     case "import": {
       const code = r.name === "s" ? SHARE_SHORT + r.args[0] : r.args[0];
-      history.replaceState(null, "", "#/programs");
-      body = viewPrograms();
+      history.replaceState(null, "", "#/home");
+      body = viewHome();
       setTimeout(() => importShared(code), 0);
       break;
     }
     case "settings": body = viewSettings(); break;
     default: body = viewHome();
   }
-  const tab = { session: "home", program: "programs", import: "programs", s: "programs", calendar: "progress", body: "progress" }[r.name] || (NAV.some(n => n[0] === r.name) ? r.name : "home");
+  const tab = { session: "home", program: "home", import: "home", s: "home", calendar: "progress", body: "progress" }[r.name] || (NAV.some(n => n[0] === r.name) ? r.name : "home");
   $app.innerHTML = '<div class="shell' + (immersive ? " hide-nav" : "") + '"><nav class="nav" aria-label="Navigation"><div class="brand">Fiitday</div>' +
     NAV.map(n => '<a href="#/' + n[0] + '" class="' + (n[0] === tab ? "on" : "") + '"' + (n[0] === tab ? ' aria-current="page"' : "") + ">" + ICON[n[2]] + "<span>" + n[1] + "</span></a>").join("") +
     '</nav><main class="main' + (wide ? " wide" : "") + '">' + body + "</main></div>";
@@ -591,16 +591,16 @@ function variantStats(t) {
 }
 function viewHome() {
   const act = activeWorkout();
-  let h = '<div class="page-head"><div><div class="muted small">' + esc(fmtDateLong(Date.now())) + '</div><h1>Bonjour' + (firstName() ? " " + esc(firstName()) : "") + '</h1></div>' + syncBadge() + "</div>";
+  let h = '<div class="page-head"><div><div class="muted small">' + esc(fmtDateLong(Date.now())) + '</div><h1>Bonjour' + (firstName() ? " " + esc(firstName()) : "") + '</h1></div>' + syncBadge() + "</div>" +
+    '<div class="home-actions"><button class="btn primary" data-act="newtpl">+ Nouveau programme</button><button class="btn" data-act="importvar">Importer</button></div>';
   if (act) {
     h += '<div class="hero"><div class="small" style="opacity:.75">Séance en cours</div><div style="font-size:21px;font-weight:800;margin-top:2px">' + esc(act.templateName) + " · " + esc(vLabel(act.variantName)) + "</div>" +
       '<div class="small" style="opacity:.8;margin-top:4px">Commencée à ' + fmtTime(act.startedAt) + ' · <span class="num" data-tick="elapsed" data-id="' + act.id + '"></span></div>' +
       '<a class="btn primary block big" href="#/session/' + act.id + '">Reprendre la séance</a></div>';
   }
   const ts = templates();
-  h += '<div class="section-title">Mes programmes</div><div class="stack">';
-  if (!ts.length) h += '<div class="card welcome"><h2>Bienvenue sur Fiitday</h2><p class="muted">Commence par créer ton premier programme (par exemple « Push » ou « Haut du corps »), puis ajoute ses séances et ses exercices.</p>' +
-    '<div class="row" style="flex-wrap:wrap"><button class="btn primary" data-act="newtpl">+ Créer mon premier programme</button><button class="btn" data-act="importvar">Importer une séance partagée</button></div></div>';
+  h += '<div class="section-title">Mes programmes</div><div class="stack" data-sortable="tpl">';
+  if (!ts.length) h += '<div class="card welcome"><h2>Bienvenue sur Fiitday</h2><p class="muted">Commence par créer ton premier programme avec « + Nouveau programme » (par exemple « Push » ou « Haut du corps »), puis ajoute ses séances et ses exercices. Une séance reçue d\'un ami ? Appuie sur « Importer ».</p></div>';
   for (const t of ts) {
     const st = variantStats(t);
     const lastAny = st.filter(x => x.last).sort((a, b) => b.last.startedAt - a.last.startedAt)[0];
@@ -610,8 +610,9 @@ function viewHome() {
       const never = st.find(x => !x.last);
       sugg = never ? never.v.id : st.slice().sort((a, b) => a.last.startedAt - b.last.startedAt)[0].v.id;
     }
-    h += '<div class="card tpl"><div class="spread"><h2>' + esc(t.name) + "</h2>" +
-      '<span class="muted small">' + (lastAny ? "Dernière : " + esc(fmtDate(lastAny.last.startedAt)) + " (" + esc(vLabel(lastAny.v.name)) + ")" : "Jamais faite") + "</span></div>" +
+    h += '<div class="card tpl" data-sort-id="' + t.id + '"><div class="spread"><h2>' + esc(t.name) + "</h2>" +
+      '<span class="tpl-side"><span class="muted small">' + (lastAny ? "Dernière : " + esc(fmtDate(lastAny.last.startedAt)) + " (" + esc(vLabel(lastAny.v.name)) + ")" : "Jamais faite") + "</span>" +
+      (ts.length > 1 ? '<span class="grip" data-drag title="Maintiens et fais glisser pour changer l\'ordre">' + GRIP + "</span>" : "") + "</span></div>" +
       '<div class="variants">' + st.map(x => {
         const n = x.v.exercises.length;
         return '<button class="variant' + (x.v.id === sugg ? " sugg" : "") + '" data-act="start" data-t="' + t.id + '" data-v="' + x.v.id + '"><b>' + esc(vLabel(x.v.name)) + "</b>" +
@@ -626,15 +627,29 @@ function viewHome() {
   }
   return h;
 }
+// fenêtre affichée en touchant une séance sur l'accueil : « Modifier » | « C'est parti », et « Retour » en dessous
+function startChoice(t, v) {
+  return new Promise(res => {
+    const n = v.exercises.length, title = t.name + " · " + vLabel(v.name);
+    const d = document.createElement("div"); d.className = "modal";
+    d.innerHTML = '<div class="modal-box" role="dialog" aria-modal="true" aria-label="' + esc(title) + '"><h3>' + esc(title) + "</h3><p>" + n + " exercice" + (n > 1 ? "s" : "") + "</p>" +
+      '<div class="modal-btns"><button class="btn" data-c="edit">Modifier</button><button class="btn primary" data-c="go">C\'est parti</button></div>' +
+      '<button class="linkbtn" data-c="">Retour</button></div>';
+    document.body.appendChild(d);
+    d.addEventListener("click", e => {
+      if (e.target === d) { d.remove(); res(null); return; }
+      const b = e.target.closest("[data-c]"); if (b) { d.remove(); res(b.dataset.c || null); }
+    });
+  });
+}
 async function startWorkout(tid, vid) {
   const t = getItem(tid); if (!t) return;
   const v = t.variants.find(x => x.id === vid); if (!v) return;
   if (!v.exercises.length) { toast("Ajoute d'abord des exercices à cette séance"); go("program/" + tid + "/" + vid); return; }
+  const choice = await startChoice(t, v);
+  if (choice === "edit") { go("program/" + tid + "/" + vid); return; }
+  if (choice !== "go") return;
   const act = activeWorkout();
-  if (!act) {
-    const n = v.exercises.length;
-    if (!await ask({ title: "Commencer la séance ?", text: t.name + " · " + vLabel(v.name) + "\n" + n + " exercice" + (n > 1 ? "s" : ""), ok: "C'est parti", cancel: "Pas maintenant" })) return;
-  }
   if (act) {
     const ok = await ask({ title: "Une séance est déjà en cours", text: act.templateName + " · " + vLabel(act.variantName) + "\nLa terminer et commencer celle-ci ?", ok: "Oui, la terminer" });
     if (!ok) return;
@@ -868,13 +883,10 @@ function startRest(sec, label) {
 /* ================= Écran : programmes ================= */
 const GRIP = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>';
 function viewPrograms() {
-  const ts = templates();
-  return '<div class="page-head"><h1>Programmes</h1><div class="row" style="flex-wrap:wrap"><button class="btn" data-act="importvar">Importer une séance</button><button class="btn primary" data-act="newtpl">+ Nouveau programme</button></div></div>' +
-    '<p class="muted small">Tes programmes et leurs séances. Les modifications servent pour les prochaines fois.</p>' +
-    '<div class="list" data-sortable="tpl">' + (ts.length ? ts.map(t => '<div class="prow" data-sort-id="' + t.id + '"><a class="prow-main" href="#/program/' + t.id + '"><div><b>' + esc(t.name) + '</b><div class="muted small">' +
-      t.variants.map(v => esc(vLabel(v.name)) + " : " + v.exercises.length + " exo").join(" · ") + '</div></div></a>' +
-      (ts.length > 1 ? '<span class="grip" data-drag title="Maintiens et fais glisser pour changer l\'ordre">' + GRIP + "</span>" : "") + "</div>").join("") : '<div class="empty">Aucun programme.</div>') + "</div>" +
-    (ts.length > 1 ? '<p class="muted small">Maintiens la poignée ⠿ et fais glisser un programme pour changer l\'ordre, aussi sur l\'accueil.</p>' : "");
+  // page réservée au futur mode premium (programmes prêts à l'emploi, cardio) ; tes programmes se gèrent depuis l'accueil
+  return '<div class="page-head"><h1>Programmes</h1></div>' +
+    '<div class="card soon"><h2>Bientôt sur Fiitday</h2><p class="muted">Des programmes prêts à l\'emploi et le suivi cardio.</p></div>' +
+    '<p class="muted small">Tes propres programmes se créent et se modifient depuis l\'<a href="#/home">Accueil</a> : touche une séance, puis «&nbsp;Modifier&nbsp;».</p>';
 }
 function exFields(e, k, letter, inGroup) {
   const time = e.type === "time", d = dropsOf(e);
@@ -891,9 +903,9 @@ function exFields(e, k, letter, inGroup) {
 }
 function viewProgram(tid, vid) {
   const t = getItem(tid);
-  if (!t) return '<a class="back" href="#/programs">‹ Programmes</a><div class="card empty">Programme introuvable.</div>';
+  if (!t) return '<a class="back" href="#/home">‹ Accueil</a><div class="card empty">Programme introuvable.</div>';
   const v = t.variants.find(x => x.id === vid) || t.variants[0];
-  let h = '<a class="back" href="#/programs">‹ Programmes</a>' +
+  let h = '<a class="back" href="#/home">‹ Accueil</a>' +
     '<label class="fl" style="margin-top:8px">Nom du programme<input class="f" data-p="tname" maxlength="60" value="' + esc(t.name) + '" style="font-size:20px;font-weight:700"></label>' +
     '<div class="section-title">Séances</div><div class="tabs" data-sortable="var" data-axis="x">' +
     t.variants.map(x => '<button class="' + (v && x.id === v.id ? "on" : "") + '" data-act="tab" data-v="' + x.id + '" data-sort-id="' + x.id + '">' +
@@ -1206,7 +1218,7 @@ async function shareVariant(t, v) {
     catch (e) { console.warn("partage court indisponible", e); }
   }
   if (!url) url = SHARE_BASE + b64url(JSON.stringify(data));
-  const text = "Je te partage ma séance « " + t.name + " · " + vLabel(v.name) + " » sur Fiitday :\n" + url + "\n\nDans l'appli : Programmes › Importer une séance, puis colle ce lien.";
+  const text = "Je te partage ma séance « " + t.name + " · " + vLabel(v.name) + " » sur Fiitday :\n" + url + "\n\nDans l'appli : Accueil › Importer, puis colle ce lien.";
   try {
     if (Native && Native.share) { Native.share(text); return; }
     if (navigator.share) { await navigator.share({ title: "Séance Fiitday", text }); return; }
@@ -1701,7 +1713,7 @@ $app.addEventListener("click", async e => {
     case "up": case "down": { const { t, v } = currentProgram(); if (!v) return; if (moveBlock(v, +b.dataset.b, a === "up" ? -1 : 1)) { put("template", t); render(); } } break;
     case "sharevar": { const { t, v } = currentProgram(); if (v) shareVariant(t, v); } break;
     case "importvar": { const code = await ask({ title: "Importer une séance", text: "Colle le lien de la séance qu'on t'a envoyé.", input: "", ok: "Continuer" }); if (code) importShared(code); } break;
-    case "deltpl": { const { t } = currentProgram(); if (!t) return; if (!await ask({ title: "Supprimer « " + t.name + " » ?", text: "Ses séances et exercices seront supprimés. L'historique des séances déjà faites est conservé.", ok: "Supprimer", danger: true })) return; remove(t.id); go("programs"); } break;
+    case "deltpl": { const { t } = currentProgram(); if (!t) return; if (!await ask({ title: "Supprimer « " + t.name + " » ?", text: "Ses séances et exercices seront supprimés. L'historique des séances déjà faites est conservé.", ok: "Supprimer", danger: true })) return; remove(t.id); go("home"); } break;
 
     /* réglages */
     case "set": setSetting(b.dataset.k, b.dataset.val); break;

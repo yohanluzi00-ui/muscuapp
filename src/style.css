@@ -342,3 +342,15 @@ div.fl { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color
 .rp-end2 { display: block; font-size: 22px; font-weight: 600; margin-top: 6px; }
 .next-rest { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
 .next-rest .small { color: var(--muted); }
+
+/* Accueil : « + Nouveau programme » et « Importer » sur une ligne, poignée pour ranger les programmes */
+.home-actions { display: flex; gap: 8px; margin: -4px 0 18px; }
+.home-actions .btn { flex: 1 1 auto; white-space: nowrap; }
+.home-actions .btn.primary { flex-grow: 2; }
+.tpl-side { display: inline-flex; align-items: center; gap: 2px; min-width: 0; }
+.tpl .grip { width: 32px; height: 36px; margin-right: -8px; }
+/* fenêtre de lancement : petit lien « Retour » sous les deux boutons */
+.linkbtn { display: block; margin: 12px auto 0; background: none; border: 0; padding: 8px 12px; min-height: 0; color: var(--muted); font: inherit; font-size: 14px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.linkbtn:hover { color: var(--ink); }
+.soon h2 { font-family: var(--display); font-size: 20px; }
+.soon p { margin: 6px 0 0; }
