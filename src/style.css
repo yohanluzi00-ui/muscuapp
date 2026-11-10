@@ -36,6 +36,8 @@ h1, h2, h3 { margin: 0; line-height: 1.2; }
 .shell { min-height: 100vh; }
 .main { max-width: 760px; margin: 0 auto; padding: calc(16px + env(safe-area-inset-top)) 16px calc(var(--nav-h) + 32px + env(safe-area-inset-bottom)); }
 .main.wide { max-width: 1400px; }
+/* rien ne doit dépasser sur les côtés (ex. la fiche qui arrive en glissant) : sinon le téléphone élargit et décale tout l'écran */
+.main { overflow-x: clip; }
 .nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; display: flex; background: var(--card); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
 .nav a { flex: 1; min-height: var(--nav-h); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; text-decoration: none; font-size: 11px; color: var(--muted); }
 .nav a svg { width: 22px; height: 22px; }
@@ -67,6 +69,8 @@ h1, h2, h3 { margin: 0; line-height: 1.2; }
 .list > * { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--line2); text-decoration: none; min-height: 56px; }
 .list > *:last-child { border-bottom: 0; }
 .empty { padding: 24px 16px; text-align: center; color: var(--muted); }
+.empty-prog { display: flex; flex-direction: column; gap: 12px; }
+.empty-prog p { margin: 0; }
 
 .btn { min-height: 44px; padding: 0 16px; border-radius: 12px; border: 1px solid var(--in-line); background: var(--card); font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 6px; text-decoration: none; }
 .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
@@ -381,7 +385,7 @@ div.fl { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color
 .exo-legend .p::before { background: #FF3D7F; }
 .exo-legend .s::before { background: #FF8A32; }
 .exo-legend em { font-style: normal; margin-left: auto; }
-.exo-fiche { display: flex; flex-direction: column; gap: 16px; min-width: 0; padding: 18px; }
+.exo-fiche { display: flex; flex-direction: column; gap: 16px; min-width: 0; padding: 18px; touch-action: pan-y pinch-zoom; }
 .exo-fiche h3 { font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
 .exo-title { font-family: var(--display); font-size: 26px; font-weight: 700; margin: 0; text-wrap: balance; }
 .exo-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }

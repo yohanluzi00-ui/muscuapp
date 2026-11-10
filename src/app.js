@@ -140,6 +140,8 @@ const restNextOf = (e, v) => (e && e.restNext != null ? num(e.restNext) || 0 : n
 const dropsOf = e => (e && (e.type === "reps" || !e.type) ? num(e.drops) : 0) || 0;
 // type « dist » (course, rameur, Hyrox) : distance cible en m, temps mesuré, charge facultative
 const fmtClock = sec => { sec = Math.round(num(sec) || 0); const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60; return (h ? h + ":" + pad(m) : m) + ":" + pad(s); };
+// temps tenu (gainage, étirement) : « 45 s », puis « 1:15 » dès 60 s
+const fmtHold = v => { const n = num(v); return n == null ? "" : n >= 60 ? fmtClock(n) : fmtNum(n) + " s"; };
 // « 4:05 », « 405 » (= 4 min 05) ou « 45 » (= 45 s) → secondes
 function parseClock(t) {
   t = String(t || "").trim(); if (!t) return null;
@@ -188,7 +190,7 @@ const setHasData = (s, type) => type === "time" || type === "dist" ? num(s.sec) 
 const exHasData = e => e.sets.some(s => setHasData(s, e.type));
 
 function oneLabel(s, type) {
-  if (type === "time") return num(s.sec) != null ? fmtNum(num(s.sec)) + " s" : "—";
+  if (type === "time") return num(s.sec) != null ? fmtHold(s.sec) : "—";
   if (type === "dist") return num(s.sec) != null ? fmtClock(s.sec) + (num(s.kg) != null ? " · " + fmtNum(num(s.kg)) + " kg" : "") : "—";
   const kg = num(s.kg), r = num(s.reps);
   if (kg != null && r != null) return fmtNum(kg) + " kg × " + fmtNum(r);
@@ -503,7 +505,7 @@ function mountExercises(id, arg) {
 async function addLibraryExercise(x) {
   const opts = [];
   templates().forEach(t => t.variants.forEach(v => opts.push(["t:" + t.id + ":" + v.id, t.name + " · " + vLabel(v.name), v.exercises.length + " exercice" + (v.exercises.length > 1 ? "s" : "")])));
-  if (!opts.length) { toast("Crée d'abord un programme depuis l'accueil"); return; }
+  if (!opts.length) { toast(templates().length ? "Crée d'abord une séance dans un de tes programmes (Accueil › + Nouvelle séance)" : "Crée d'abord un programme depuis l'accueil"); return; }
   const c = await choose("Ajouter « " + x.name + " » à…", opts); if (!c) return;
   const [, tid, vid] = c.split(":"); const t = getItem(tid); const v = t && t.variants.find(y => y.id === vid); if (!v) return;
   const reps = (String(x.reps || "").match(/^\d+(-\d+)?/) || [""])[0];
@@ -656,7 +658,7 @@ function viewHome() {
       sugg = never ? never.v.id : st.slice().sort((a, b) => a.last.startedAt - b.last.startedAt)[0].v.id;
     }
     h += '<div class="card tpl" data-sort-id="' + t.id + '"><div class="spread"><h2>' + esc(t.name) + "</h2>" +
-      '<span class="tpl-side"><span class="muted small">' + (lastAny ? "Dernière : " + esc(fmtDate(lastAny.last.startedAt)) + " (" + esc(vLabel(lastAny.v.name)) + ")" : "Jamais faite") + "</span>" +
+      '<span class="tpl-side"><span class="muted small">' + (lastAny ? "Dernière : " + esc(fmtDate(lastAny.last.startedAt)) + " (" + esc(vLabel(lastAny.v.name)) + ")" : t.variants.length ? "Jamais faite" : "Aucune séance") + "</span>" +
       (ts.length > 1 ? '<span class="grip" data-drag title="Maintiens et fais glisser pour changer l\'ordre">' + GRIP + "</span>" : "") + "</span></div>" +
       '<div class="variants">' + st.map(x => {
         const n = x.v.exercises.length;
@@ -723,12 +725,12 @@ function phOf(w, e, s, d) {
   if (src && d != null) src = src.drops && src.drops[d];
   const has = src && setHasData(src, e.type);
   const f = k => (has && num(src[k]) != null ? fmtNum(num(src[k])) : null);
-  return { kg: f("kg") || "kg", reps: f("reps") || "reps", sec: f("sec") || "s", clock: has && num(src.sec) != null ? fmtClock(src.sec) : "m:ss" };
+  return { kg: f("kg") || "kg", reps: f("reps") || "reps", sec: has && num(src.sec) != null ? fmtHold(src.sec) : "—", clock: has && num(src.sec) != null ? fmtClock(src.sec) : "m:ss" };
 }
 function inputsHtml(w, e, i, k, d, label) {
   const s = e.sets[k], v = d == null ? s : ((s.drops || [])[d] || {}), ph = phOf(w, e, k, d);
   const a = ' data-i="' + i + '" data-s="' + k + '"' + (d == null ? "" : ' data-d="' + d + '"');
-  if (e.type === "time") return '<input class="ro" readonly tabindex="-1" aria-readonly="true" aria-label="Temps ' + label + ' (rempli par le chrono)" data-f="sec"' + a + ' value="' + esc(v.sec) + '" placeholder="' + esc(ph.sec) + '">';
+  if (e.type === "time") return '<input class="ro" readonly tabindex="-1" aria-readonly="true" aria-label="Temps ' + label + ' (rempli par le chrono)" data-f="sec"' + a + ' value="' + esc(fmtHold(v.sec)) + '" placeholder="' + esc(ph.sec) + '">';
   if (e.type === "rep") return '<input inputmode="numeric" aria-label="Répétitions ' + label + '" data-f="reps"' + a + ' value="' + esc(v.reps) + '" placeholder="' + esc(ph.reps) + '">';
   if (e.type === "dist") return (e.load ? '<input inputmode="decimal" aria-label="Kilos ' + label + '" data-f="kg"' + a + ' value="' + esc(v.kg) + '" placeholder="' + esc(ph.kg) + '">' : "") +
     '<input inputmode="numeric" aria-label="Temps ' + label + ' (minutes:secondes)" data-f="clock"' + a + ' value="' + (num(v.sec) != null ? fmtClock(v.sec) : "") + '" placeholder="' + esc(ph.clock) + '">';
@@ -754,7 +756,7 @@ function setRows(w, e, i, k, label) {
 }
 function metaText(e, inGroup, live) {
   const time = e.type === "time";
-  const tg = e.type === "dist" ? esc(fmtNum(num(e.target) || 0)) + " m" : esc(e.target || "—") + (time ? " s" : "");
+  const tg = e.type === "dist" ? esc(fmtNum(num(e.target) || 0)) + " m" : time ? esc(fmtHold(e.target) || "—") : esc(e.target || "—");
   let t = inGroup ? "Cible " + tg + (time || e.type === "dist" ? "" : " reps") : e.sets.length + " × " + tg + (live ? "" : " · repos " + esc(fmtRest(e.rest)));
   const d = dropsOf(e);
   if (d) t += " · dégressif (" + d + " baisse" + (d > 1 ? "s" : "") + (e.dropScope === "last" ? ", dernière série" : "") + ")";
@@ -779,7 +781,7 @@ function noteBox(w, e, i, letter) {
   return '<textarea class="f" data-f="note" data-i="' + i + '" placeholder="Notes' + (letter ? " " + letter + " · " + esc(e.name) : " (réglages, sensations…)") + '" aria-label="Notes ' + esc(e.name) + '">' + esc(note) + "</textarea>";
 }
 function exCard(w, e, i) {
-  let rows = '<div class="h">Série</div><div class="h hdr">' + (e.type === "time" ? "<span>Temps (s)</span>" : e.type === "rep" ? "<span>Reps</span>" : e.type === "dist" ? (e.load ? "<span>Kg</span>" : "") + "<span>Temps</span>" : "<span>Kg</span><span>Reps</span>") + '</div><div class="h"></div>';
+  let rows = '<div class="h">Série</div><div class="h hdr">' + (e.type === "time" ? "<span>Temps</span>" : e.type === "rep" ? "<span>Reps</span>" : e.type === "dist" ? (e.load ? "<span>Kg</span>" : "") + "<span>Temps</span>" : "<span>Kg</span><span>Reps</span>") + '</div><div class="h"></div>';
   e.sets.forEach((s, k) => { rows += setRows(w, e, i, k, k + 1); });
   return '<section class="card ex">' + exHead(w, e, i, "") + '<div class="sets">' + rows + "</div>" + setActions([i], e.sets.length, "Série") + noteBox(w, e, i, "") + "</section>";
 }
@@ -843,7 +845,7 @@ function sessionTable(w) {
         (libFor(e.name) ? '<button class="chip-mini" data-act="exoview" data-id="' + libFor(e.name).id + '">' + ICON.play + "Voir le mouvement</button>" : "") +
         (dropsOf(e) ? '<div class="muted small">Dégressif · ' + dropsOf(e) + " baisse" + (dropsOf(e) > 1 ? "s" : "") + "</div>" : "") +
         (!grouped || lastOfGroup ? setActions(grouped ? idx : [i], e.sets.length, grouped ? "Tour" : "Série") : "") + "</td>" +
-        "<td>" + e.sets.length + "</td><td>" + (isDist ? esc(fmtNum(num(e.target) || 0)) + " m" : time && !w.endedAt ? '<button class="chip-mini" data-act="sesspick" data-sf="target" data-i="' + i + '">' + esc(fmtSecs(num(e.target) || 0)) + " ✎</button>" : esc(e.target || "—") + (time ? " s" : "")) + "</td><td>" +
+        "<td>" + e.sets.length + "</td><td>" + (isDist ? esc(fmtNum(num(e.target) || 0)) + " m" : time && !w.endedAt ? '<button class="chip-mini" data-act="sesspick" data-sf="target" data-i="' + i + '">' + esc(fmtSecs(num(e.target) || 0)) + " ✎</button>" : time ? esc(fmtHold(e.target) || "—") : esc(e.target || "—")) + "</td><td>" +
         (grouped && !lastOfGroup ? "enchaîné" : !w.endedAt ? '<button class="chip-mini" data-act="sesspick" data-sf="' + (grouped ? "grest" : "rest") + '" data-i="' + (grouped ? idx[0] : i) + '">' + esc(fmtSecs(num(e.rest) || 0)) + " ✎</button>" : esc(fmtRest(e.rest))) + "</td>";
       for (let k = 0; k < max; k++) {
         const s = e.sets[k];
@@ -972,7 +974,11 @@ function viewProgram(tid, vid) {
   const launch = v ? '<button class="btn sm primary" data-act="launchvar" data-t="' + t.id + '" data-v="' + v.id + '">Lancer ' + esc(launchLabel(v)) + "</button>" : "";
   let h = '<div class="spread"><a class="back" href="#/home">‹ Accueil</a>' + launch + "</div>" +
     '<label class="fl" style="margin-top:8px">Nom du programme<input class="f" data-p="tname" maxlength="60" value="' + esc(t.name) + '" style="font-size:20px;font-weight:700"></label>' +
-    '<div class="section-title">Séances</div><div class="tabs" data-sortable="var" data-axis="x">' +
+    '<div class="section-title">Séances</div>';
+  const delTpl = '<div style="margin-top:32px"><button class="btn danger" data-act="deltpl">Supprimer le programme « ' + esc(t.name) + " »</button></div>";
+  if (!t.variants.length) return h + '<div class="card empty-prog"><p class="muted">Ce programme n\'a pas encore de séance. Ajoute la première, puis ses exercices.</p>' +
+    '<button class="btn primary block" data-act="addvar">+ Nouvelle séance</button></div>' + delTpl;
+  h += '<div class="tabs" data-sortable="var" data-axis="x">' +
     t.variants.map(x => '<button class="' + (v && x.id === v.id ? "on" : "") + '" data-act="tab" data-v="' + x.id + '" data-sort-id="' + x.id + '">' +
       (t.variants.length > 1 ? '<span class="grip" data-drag title="Maintiens et fais glisser pour changer l\'ordre">' + GRIP + "</span>" : "") +
       "<span" + (v && x.id === v.id ? " data-vtab" : "") + ">" + esc(vLabel(x.name)) + "</span></button>").join("") +
@@ -981,7 +987,7 @@ function viewProgram(tid, vid) {
   h += '<div class="card"><label class="fl">Nom de la séance<input class="f" data-p="vname" maxlength="60" value="' + esc(vLabel(v.name)) + '"></label>' +
     '<div class="row" style="margin-top:10px;flex-wrap:wrap">' +
     '<button class="btn sm" data-act="dupvar">Dupliquer cette séance</button><button class="btn sm" data-act="sharevar">Partager cette séance</button>' +
-    (t.variants.length > 1 ? '<button class="btn sm danger" data-act="delvar">Supprimer cette séance</button>' : "") + "</div></div>";
+    '<button class="btn sm danger" data-act="delvar">Supprimer cette séance</button>' + "</div></div>";
   h += '<div class="section-title">Exercices (' + v.exercises.length + ')</div><div class="stack">';
   const bl = blocks(v.exercises);
   bl.forEach((blk, bi) => {
@@ -1007,8 +1013,7 @@ function viewProgram(tid, vid) {
         (bi < bl.length - 1 && !bl[bi + 1].groupId ? '<button class="link" style="margin-top:6px" data-act="link" data-b="' + bi + '">Enchaîner avec l\'exercice suivant (superset / biset)</button>' : "") + "</div>";
     }
   });
-  h += '<div class="add-row"><button class="btn" data-act="addtplex">+ Ajouter un exercice</button><button class="btn" data-act="addstretch">+ Ajouter un étirement</button></div></div>' +
-    '<div style="margin-top:32px"><button class="btn danger" data-act="deltpl">Supprimer le programme « ' + esc(t.name) + " »</button></div>";
+  h += '<div class="add-row"><button class="btn" data-act="addtplex">+ Ajouter un exercice</button><button class="btn" data-act="addstretch">+ Ajouter un étirement</button></div></div>' + delTpl;
   return h;
 }
 function moveBlock(v, bi, dir) {
@@ -1244,7 +1249,7 @@ function progressData() {
 }
 const unitOf = p => p.type === "time" ? " s" : p.type === "dist" ? "" : p.type === "rep" ? " reps" : " kg";
 const bestOf = (p, vs) => (vs.length ? (p.type === "dist" ? Math.min(...vs) : Math.max(...vs)) : null);
-const fmtVal = (p, v) => (p.type === "dist" ? fmtClock(v) : fmtNum(v) + unitOf(p));
+const fmtVal = (p, v) => (p.type === "dist" ? fmtClock(v) : p.type === "time" ? fmtHold(v) : fmtNum(v) + unitOf(p));
 const noRM = p => p.type === "time" || p.type === "dist" || p.type === "rep";
 function weekStart(t) { const d = new Date(t); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); }
 function prevWeek(t) { const d = new Date(t); d.setDate(d.getDate() - 7); return d.getTime(); }
@@ -1309,12 +1314,12 @@ function evoMetrics(p) {
   const out = []; if (has("kg")) out.push("kg", "orm"); if (has("reps")) out.push("reps");
   return out.length ? out : ["reps"];
 }
-const evoFmt = (m, v) => (v == null ? "—" : EVO_M[m].clock ? fmtClock(v) : fmtNum(m === "orm" ? Math.round(v * 2) / 2 : v) + EVO_M[m].unit);
+const evoFmt = (m, v) => (v == null ? "—" : EVO_M[m].clock ? fmtClock(v) : m === "sec" ? fmtHold(v) : fmtNum(m === "orm" ? Math.round(v * 2) / 2 : v) + EVO_M[m].unit);
 function evoDiff(m, d) {
   if (d == null) return "—";
   const r = Math.round(Math.abs(d) * (m === "orm" ? 2 : 100)) / (m === "orm" ? 2 : 100);
   if (!r) return "Stable";
-  return (d > 0 ? "+" : "−") + (EVO_M[m].clock ? fmtClock(r) : fmtNum(r) + EVO_M[m].unit);
+  return (d > 0 ? "+" : "−") + (EVO_M[m].clock ? fmtClock(r) : m === "sec" ? fmtHold(r) : fmtNum(r) + EVO_M[m].unit);
 }
 // recherche parmi les exercices déjà faits (mêmes règles que la recherche d'exercices : fautes, synonymes, muscles)
 function evoCands() {
@@ -1375,7 +1380,7 @@ function niceStep(raw, clock) {
 function evoChart(p, m, pts, W) {
   W = W || 360; const H = W > 520 ? 250 : 210, L = 44, R = 16, T = 26, B = 28, pw = W - L - R, ph = H - T - B, M = EVO_M[m];
   const vs = pts.map(x => x.v), mn = Math.min(...vs), mx = Math.max(...vs);
-  let step = niceStep(((mx - mn) || Math.max(1, mx * 0.1)) / 3, M.clock);
+  let step = niceStep(((mx - mn) || Math.max(1, mx * 0.1)) / 3, M.clock || m === "sec"); // temps tenu : graduations en secondes rondes (5 s, 10 s, 15 s…)
   if (!M.clock && m !== "orm" && step < 1 && (m === "reps" || m === "sec")) step = 1;
   let y0 = Math.floor(mn / step) * step, y1 = Math.ceil(mx / step) * step;
   if (y1 === y0) { y0 = Math.max(0, y0 - step); y1 += step; }
@@ -1387,7 +1392,7 @@ function evoChart(p, m, pts, W) {
     '<defs><linearGradient id="evoG" x1="0" x2="0" y1="0" y2="1"><stop offset="0"></stop><stop offset="1"></stop></linearGradient></defs>';
   for (let v = y0; v <= y1 + step / 1000; v += step) {
     const y = Y(v).toFixed(1);
-    svg += '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + y + '" y2="' + y + '"></line><text x="' + (L - 8) + '" y="' + (+y + 4) + '" text-anchor="end">' + (M.clock ? fmtClock(v) : fmtNum(v)) + "</text>";
+    svg += '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + y + '" y2="' + y + '"></line><text x="' + (L - 8) + '" y="' + (+y + 4) + '" text-anchor="end">' + (M.clock || (m === "sec" && v >= 60) ? fmtClock(v) : fmtNum(v)) + "</text>";
   }
   const dfx = span > 300 * 86400000 ? DF({ month: "short", year: "2-digit" }) : DF({ day: "numeric", month: "short" });
   const xl = pts.length > 1 ? [0, lastK] : [0];
@@ -1878,7 +1883,7 @@ function tick() {
         const lab = cpop.querySelector(".rp-label"), kind = chronoKind(w, c); if (lab.textContent !== kind) lab.textContent = kind;
         cpop.querySelector("[data-cptime]").textContent = prep ? String(left) : fmtDur(ms, "down");
         cpop.querySelector("[data-cpbar]").style.width = (c.target && !prep ? Math.min(100, 100 * ms / (c.target * 1000)) : 0) + "%";
-        cpop.querySelector("[data-cpgoal]").textContent = prep ? "Mets-toi en position…" : c.target ? (c.alerted ? "Objectif atteint !" : "Objectif " + fmtNum(c.target) + " s") : c.dist ? "Distance : " + fmtNum(c.dist) + " m · touche Terminer à l'arrivée" : "";
+        cpop.querySelector("[data-cpgoal]").textContent = prep ? "Mets-toi en position…" : c.target ? (c.alerted ? "Objectif atteint !" : "Objectif " + fmtHold(c.target)) : c.dist ? "Distance : " + fmtNum(c.dist) + " m · touche Terminer à l'arrivée" : "";
         cpop.querySelector(".gain-box").classList.toggle("prep", prep);
         cpop.querySelector(".gain-box").classList.toggle("reached", !!c.alerted);
       }
@@ -2083,7 +2088,7 @@ $app.addEventListener("click", async e => {
     case "newtpl": {
       const n = await ask({ title: "Nouveau programme", input: "", ok: "Créer" });
       if (!n) return;
-      const t = { id: "tpl-" + uid(), name: n.slice(0, 60), order: templates().length, variants: [{ id: "v1", name: "Séance 1", exercises: [] }] };
+      const t = { id: "tpl-" + uid(), name: n.slice(0, 60), order: templates().length, variants: [] }; // aucune séance par défaut : l'utilisateur ajoute la première avec « + Nouvelle séance »
       put("template", t); go("program/" + t.id);
     } break;
     case "picksec": {
@@ -2119,7 +2124,7 @@ $app.addEventListener("click", async e => {
       to.variants.push(c); put("template", to);
       toast("Séance dupliquée dans « " + to.name + " »"); go("program/" + to.id + "/" + c.id);
     } break;
-    case "delvar": { const { t, v } = currentProgram(); if (!v || t.variants.length < 2) return; if (!await ask({ title: "Supprimer « " + vLabel(v.name) + " » ?", text: "L'historique des séances déjà faites est conservé.", ok: "Supprimer", danger: true })) return; t.variants = t.variants.filter(x => x !== v); put("template", t); go("program/" + t.id); } break;
+    case "delvar": { const { t, v } = currentProgram(); if (!v) return; if (!await ask({ title: "Supprimer « " + vLabel(v.name) + " » ?", text: "L'historique des séances déjà faites est conservé.", ok: "Supprimer", danger: true })) return; t.variants = t.variants.filter(x => x !== v); put("template", t); go("program/" + t.id); } break;
     case "addtplex": {
       const { t, v } = currentProgram(); if (!v) return;
       const kind = await choose("Ajouter", ADD_CHOICES); if (!kind) return;
@@ -2197,7 +2202,7 @@ $app.addEventListener("click", async e => {
       catch (err) { await ask({ title: "Sauvegarde", text: "Copie ce texte :", input: data, multiline: true, cancel: false, ok: "Fermer" }); }
     } break;
     case "import": {
-      const txt = await ask({ title: "Restaurer une sauvegarde", text: "Colle le texte de la sauvegarde. Les éléments plus récents de la sauvegarde remplacent ceux de l'appli.", input: "", multiline: true, ok: "Restaurer" });
+      const txt = await ask({ title: "Restaurer une sauvegarde", text: "Colle le texte de la sauvegarde. Ce qui a été supprimé depuis revient ; ce que tu as modifié depuis garde sa version la plus récente.", input: "", multiline: true, ok: "Restaurer" });
       if (txt) restoreBackup(txt);
     } break;
   }
@@ -2207,8 +2212,8 @@ async function restoreBackup(txt) {
       try {
         const j = JSON.parse(await unpackBackup(txt)); if (!j || j.app !== "muscuapp" || !Array.isArray(j.items)) throw new Error();
         let n = 0, bad = 0;
-        for (const it of j.items) { if (it && it.kind === "workout" && it.data) it.data = fatWorkout(it.data); if (!validItem(it) || typeof it.updated_at !== "number") { bad++; continue; } const cur = db.items[it.id]; if (!cur || it.updated_at > cur.updated_at) { db.items[it.id] = { id: it.id, kind: it.kind, data: it.data, updated_at: Math.max(it.updated_at, (cur && cur.updated_at + 1) || 0), deleted: false, dirty: true }; n++; } }
-        dataRev++; localFixed = false; saveNow(); scheduleSync(); render(); toast(n + " élément" + (n > 1 ? "s" : "") + " restauré" + (n > 1 ? "s" : "") + (bad ? " (" + bad + " ignoré" + (bad > 1 ? "s" : "") + ")" : ""));
+        for (const it of j.items) { if (it && it.kind === "workout" && it.data) it.data = fatWorkout(it.data); if (!validItem(it) || typeof it.updated_at !== "number") { bad++; continue; } const cur = db.items[it.id]; if (!cur || cur.deleted || it.updated_at > cur.updated_at) { db.items[it.id] = { id: it.id, kind: it.kind, data: it.data, updated_at: Math.max(it.updated_at, (cur && cur.updated_at + 1) || 0), deleted: false, dirty: true }; n++; } }
+        dataRev++; localFixed = false; saveNow(); scheduleSync(); render(); toast((n ? n + " élément" + (n > 1 ? "s" : "") + " restauré" + (n > 1 ? "s" : "") : "Rien à restaurer : tout ce qui est dans la sauvegarde est déjà dans l'appli") + (bad ? " (" + bad + " ignoré" + (bad > 1 ? "s" : "") + ")" : ""));
       } catch (err) { toast("Ce texte n'est pas une sauvegarde valide"); }
   }
 }
