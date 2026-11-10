@@ -625,7 +625,7 @@ async function startWorkout(tid, vid) {
     act.endedAt = Date.now(); put("workout", act);
   }
   const w = {
-    id: "w-" + uid(), templateId: t.id, variantId: v.id, templateName: t.name, variantName: v.name, startedAt: Date.now(), endedAt: null,
+    id: "w-" + uid(), templateId: t.id, variantId: v.id, templateName: t.name, variantName: v.name, restBetween: num(v.restBetween) || 0, startedAt: Date.now(), endedAt: null,
     exercises: v.exercises.map(e => ({ exId: e.id, name: e.name, type: e.type, target: e.target, rest: e.rest, drops: dropsOf(e), groupId: e.groupId || null, groupKind: e.groupKind || null,
       dropScope: e.dropScope === "last" ? "last" : "all",
       sets: (n => Array.from({ length: n }, (_, k) => blankSet(dropsFor(e, k, n))))(Math.max(1, num(e.sets) || 1)) })),
@@ -789,11 +789,32 @@ function markDone(w, i, s) {
 function afterSet(w, i, s) {
   if (w.endedAt) return;
   const e = w.exercises[i];
-  if (e.groupId) {
-    const mem = w.exercises.filter(x => x.groupId === e.groupId);
-    if (!mem.every(x => !x.sets[s] || x.sets[s].done)) return;
-    startRest(mem[0].rest);
-  } else startRest(e.rest);
+  // toute la séance est validée : pas de repos, on félicite et on propose de terminer
+  if (w.exercises.every(x => x.sets.every(st => st.done))) {
+    db.live.restEnd = null; save();
+    whenFree(() => congrats(w.id));
+    return;
+  }
+  const mem = e.groupId ? w.exercises.filter(x => x.groupId === e.groupId) : [e];
+  if (e.groupId && !mem.every(x => !x.sets[s] || x.sets[s].done)) return; // tour pas encore fini
+  // exercice (ou superset / biset / triset) entièrement validé : repos entre exercices, s'il est réglé
+  const exDone = mem.every(x => x.sets.every(st => st.done));
+  if (exDone && num(w.restBetween) > 0) startRest(w.restBetween, "Repos · exercice suivant");
+  else startRest(mem[0].rest);
+}
+// attend que la fenêtre « Nouveau record » soit fermée avant d'en ouvrir une autre
+function whenFree(fn) { setTimeout(() => { if (document.querySelector(".recordpop")) whenFree(fn); else fn(); }, 400); }
+async function congrats(wid) {
+  const w = getItem(wid); if (!w || w.endedAt) return;
+  const name = firstName();
+  const ok = await ask({ title: "Félicitations" + (name ? " " + name : "") + " 🥳 !", text: "Tu as validé toutes les séries de ta séance.", ok: "Terminer la séance", cancel: "Continuer" });
+  if (ok) finishWorkout(getItem(wid));
+}
+function finishWorkout(w) {
+  if (!w || w.endedAt) return;
+  flushPending();
+  w.endedAt = Date.now(); put("workout", w); db.live = {}; save(); sync();
+  toast("Séance enregistrée"); go("home");
 }
 // arrête le chrono de gainage : le temps est noté dans la série, qui est validée, puis le repos démarre
 const CHRONO_PREP = 5;
@@ -820,10 +841,10 @@ function stopChrono(w) {
   const rec = checkRecord(w, c.i, c.s);
   if (rec) setTimeout(() => celebrate(rec), 50);
 }
-function startRest(sec) {
+function startRest(sec, label) {
   sec = num(sec) || 0;
   if (sec <= 0) return;
-  db.live.restEnd = Date.now() + sec * 1000; db.live.restTotal = sec * 1000; db.live.restAlerted = false; db.live.restMin = false; save();
+  db.live.restEnd = Date.now() + sec * 1000; db.live.restTotal = sec * 1000; db.live.restAlerted = false; db.live.restMin = false; db.live.restLabel = label || ""; save();
 }
 
 /* ================= Écran : programmes ================= */
@@ -863,6 +884,8 @@ function viewProgram(tid, vid) {
     '<button data-act="addvar">+ Séance</button></div>';
   if (!v) return h;
   h += '<div class="card"><label class="fl">Nom de la séance<input class="f" data-p="vname" value="' + esc(vLabel(v.name)) + '"></label>' +
+    '<div class="fl" style="margin-top:10px"><span>Repos entre les exercices</span><button type="button" class="f pick" data-act="picksec" data-sf="vrest">' + fmtSecs(num(v.restBetween) || 0) + "</button></div>" +
+    '<p class="muted small" style="margin:6px 0 0">Démarre quand toutes les séries d\'un exercice (ou d\'un superset, biset, triset) sont validées. « Aucun » : le repos habituel de l\'exercice.</p>' +
     '<div class="row" style="margin-top:10px;flex-wrap:wrap">' +
     '<button class="btn sm" data-act="dupvar">Dupliquer cette séance</button><button class="btn sm" data-act="sharevar">Partager cette séance</button>' +
     (t.variants.length > 1 ? '<button class="btn sm danger" data-act="delvar">Supprimer cette séance</button>' : "") + "</div></div>";
@@ -1151,7 +1174,7 @@ async function fetchShare(code) {
   return r.json();
 }
 async function shareVariant(t, v) {
-  const data = { app: "muscuapp-share", v: 1, prog: t.name, name: vLabel(v.name),
+  const data = { app: "muscuapp-share", v: 1, prog: t.name, name: vLabel(v.name), rb: num(v.restBetween) || 0,
     ex: v.exercises.map(e => ({ n: e.name, t: e.type, s: e.sets, c: e.target, r: e.rest, no: e.note || "", d: dropsOf(e), ds: dropsOf(e) && e.dropScope === "last" ? "last" : undefined, g: e.groupId || null, k: e.groupKind || null })) };
   // lien court (séance enregistrée dans Supabase avec un code) ; lien long en secours (sans compte, hors ligne…)
   let url = null;
@@ -1195,12 +1218,12 @@ async function importShared(code) {
   });
   let t, vid = "v" + uid();
   if (dest === "new") {
-    t = { id: "tpl-" + uid(), name: String(data.prog).slice(0, 60), order: ts.length, variants: [{ id: vid, name: String(data.name).slice(0, 60), exercises }] };
+    t = { id: "tpl-" + uid(), name: String(data.prog).slice(0, 60), order: ts.length, variants: [{ id: vid, name: String(data.name).slice(0, 60), restBetween: Math.max(0, Math.min(600, num(data.rb) || 0)), exercises }] };
   } else {
     t = getItem(dest.slice(2)); if (!t) return;
     let name = String(data.name).slice(0, 60);
     if (t.variants.some(v => vLabel(v.name) === name)) name += " (partagée)";
-    t.variants.push({ id: vid, name, exercises });
+    t.variants.push({ id: vid, name, restBetween: Math.max(0, Math.min(600, num(data.rb) || 0)), exercises });
   }
   put("template", t); toast("Séance importée"); go("program/" + t.id + "/" + vid);
 }
@@ -1373,6 +1396,7 @@ function tick() {
     if (on) {
       const left = fmtDur(L.restEnd - now);
       pop.querySelector("[data-rptime]").textContent = left;
+      const lab = pop.querySelector(".rp-label"); if (lab) lab.textContent = L.restLabel || "Repos";
       pop.querySelector("[data-rpbar]").style.width = Math.max(0, Math.min(100, 100 * (L.restEnd - now) / (L.restTotal || 1))) + "%";
       if (pill) pill.textContent = "Repos " + left + " · Agrandir";
     }
@@ -1412,7 +1436,7 @@ setInterval(tick, 250);
 function restDone() {
   document.querySelectorAll(".restpop.done").forEach(x => x.remove());
   const d = document.createElement("div"); d.className = "restpop done"; d.setAttribute("role", "alert");
-  d.innerHTML = '<div class="rp-box"><div class="rp-end">Pause terminée, au boulot !</div></div>';
+  d.innerHTML = '<div class="rp-box"><div class="rp-end">Pause terminée<span class="rp-end2">C\'est reparti 💪</span></div></div>';
   document.body.appendChild(d);
   const close = () => { d.remove(); clearInterval(flashTimer); flashTimer = null; applyTheme(); };
   d.addEventListener("click", close);
@@ -1537,8 +1561,7 @@ $app.addEventListener("click", async e => {
     case "finish": if (w) {
       flushPending();
       if (!await ask({ title: "Terminer la séance ?", text: "Elle sera enregistrée dans ton historique.", ok: "Terminer" })) return;
-      w.endedAt = Date.now(); put("workout", w); db.live = {}; save(); sync();
-      toast("Séance enregistrée"); go("home");
+      finishWorkout(getItem(w.id));
     } break;
     case "cancel": if (w) {
       if (!await ask({ title: "Annuler la séance ?", text: "Elle ne sera pas enregistrée.", ok: "Annuler la séance", cancel: "Continuer", danger: true })) return;
@@ -1572,6 +1595,11 @@ $app.addEventListener("click", async e => {
     } break;
     case "picksec": {
       const { t, v } = currentProgram(); if (!v) return;
+      if (b.dataset.sf === "vrest") {
+        const val = await pickSeconds("Repos entre les exercices", v.restBetween, 0, 600);
+        if (val == null) return;
+        v.restBetween = val; put("template", t); render(); return;
+      }
       const ex = v.exercises[+b.dataset.e]; if (!ex) return;
       const sf = b.dataset.sf, isTarget = sf === "target";
       const val = await pickSeconds(isTarget ? "Temps cible" : sf === "grest" ? "Repos après le tour" : "Temps de repos", isTarget ? ex.target : ex.rest, isTarget ? 5 : 0, 600);

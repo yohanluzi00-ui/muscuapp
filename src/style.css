@@ -347,3 +347,4 @@ div.fl { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color
 .wheel .wv.on { color: var(--ink); font-size: 24px; font-weight: 700; }
 .wheel-band { position: absolute; z-index: 0; left: 0; right: 0; top: 88px; height: 44px; border-radius: 12px; background: var(--soft); border: 1px solid var(--line); pointer-events: none; }
 .wheel:focus-visible + .wheel-band, .wheel-wrap:focus-within .wheel-band { border-color: var(--accent); }
+.rp-end2 { display: block; font-size: 22px; font-weight: 600; margin-top: 6px; }

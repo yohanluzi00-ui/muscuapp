@@ -138,8 +138,8 @@ public class RestTimerService extends Service {
         }
         Notification.Builder b = builder(ch)
                 .setSmallIcon(R.drawable.ic_stat)
-                .setContentTitle("Pause terminée, au boulot !")
-                .setContentText("Ton temps de repos est écoulé.")
+                .setContentTitle("Pause terminée")
+                .setContentText("C'est reparti 💪")
                 .setAutoCancel(true)
                 .setContentIntent(openApp())
                 .setCategory(Notification.CATEGORY_REMINDER);
