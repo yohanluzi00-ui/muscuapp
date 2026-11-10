@@ -5,12 +5,37 @@ const src = f => fs.readFileSync(path.join(__dirname, "src", f), "utf8");
 const VERSION = new Date().toISOString().slice(0, 16).replace("T", " ");
 const CACHE = Date.now().toString(36);
 const FONT = fs.readFileSync(path.join(__dirname, "src", "fonts", "space-grotesk.woff2")).toString("base64"); // police libre (OFL), embarquée pour marcher hors ligne
+const crypto = require("crypto");
+const sha = t => "'sha256-" + crypto.createHash("sha256").update(t, "utf8").digest("base64") + "'";
+const SUPABASE = "https://krszgabjpswqjtypalsn.supabase.co";
+
+// Les deux scripts de la page ; leur empreinte est inscrite dans la politique de sécurité (CSP) :
+// le navigateur refuse tout autre script, même si un texte malveillant arrivait à s'insérer dans la page.
+const bootJs = `window.APP_BUILD = ${JSON.stringify(VERSION)}; window.APP_VERSION = ${JSON.stringify(process.env.VERSION_NAME || "")};`;
+const appJs = "\n" + src("app.js") + "\n";
+if (!src("app.js").includes(SUPABASE)) throw new Error("Adresse Supabase différente dans app.js : mettre à jour SUPABASE dans build.js");
+const CSP = [
+  "default-src 'self'",
+  "script-src " + sha(bootJs) + " " + sha(appJs),
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data:",
+  "font-src 'self' data:",
+  "connect-src 'self' " + SUPABASE,
+  "manifest-src 'self'",
+  "worker-src 'self'",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "object-src 'none'",
+].join("; ");
+const PAGE_CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; font-src data:; base-uri 'none'; form-action 'none'";
 
 const html = `<!doctype html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="${CSP}">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <title>Fiitday</title>
 <meta name="description" content="Suivi de mes séances de musculation">
 <meta name="theme-color" content="#F4F2F8">
@@ -24,10 +49,8 @@ ${src("style.css")}
 </head>
 <body>
 <div id="app"></div>
-<script>window.APP_BUILD = ${JSON.stringify(VERSION)}; window.APP_VERSION = ${JSON.stringify(process.env.VERSION_NAME || "")};</script>
-<script>
-${src("app.js")}
-</script>
+<script>${bootJs}</script>
+<script>${appJs}</script>
 </body>
 </html>
 `;
@@ -81,6 +104,7 @@ for (const f of fs.readdirSync(path.join(__dirname, "src", "pages")).filter(f =>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="${PAGE_CSP}">
 <title>${title} · Fiitday</title>
 <link rel="icon" href="icon-192.png">
 <style>

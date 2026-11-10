@@ -28,6 +28,7 @@ Application personnelle pour noter mes performances pendant mes séances de musc
 2. Colle tout le contenu du fichier [`supabase/schema.sql`](supabase/schema.sql), puis clique sur **Run**.
    Fais de même avec [`supabase/partage.sql`](supabase/partage.sql) pour les liens de partage courts (`https://fiitday.com/#/s/CODE`).
    Et avec [`supabase/suppression-compte.sql`](supabase/suppression-compte.sql) pour le bouton « Supprimer mon compte ».
+   Puis avec [`supabase/securite.sql`](supabase/securite.sql) (rôle « postgres ») : renforcement de la sécurité (fonctions protégées, tailles maximales, 200 partages par compte).
 3. **Vérification de l'e-mail par code** (à la création d'un compte, l'appli demande un code reçu par e-mail) :
    - **Authentication › Sign In / Providers › Email** : active **Confirm email** ;
    - **Authentication › Emails › Templates › Confirm signup** : sujet « Ton code Fiitday », puis remplace le contenu par celui du fichier [`supabase/email-code-inscription.html`](supabase/email-code-inscription.html) (il affiche le code `{{ .Token }}`).
@@ -49,6 +50,7 @@ Publiée automatiquement sur GitHub Pages à chaque modification : **https://fii
 - `src/app.js` : toute la logique (écrans, minuteurs, synchronisation). `src/style.css` : le style.
 - `android/` : la coque Android (WebView) qui affiche la même page et donne accès à la vibration et au maintien de l'écran allumé.
 - `supabase/schema.sql` : la table `items` et ses règles de sécurité (chacun ne voit que ses données).
+- La page web déclare une politique de sécurité (CSP, calculée par `build.js`) : seuls les scripts de l'appli peuvent s'exécuter et elle ne peut contacter que Supabase. Si l'adresse Supabase change, la modifier aussi dans `build.js`.
 - `node build.js` construit `dist/` (version web) et copie la page dans l'appli Android.
 - `src/pages/` : les pages légales publiées sur fiitday.com (confidentialité, mentions légales, suppression de compte). L'adresse de contact se règle dans `build.js` (`CONTACT`).
 

@@ -21,8 +21,8 @@ grant insert, delete on public.shares to authenticated;
 
 -- lecture d'une séance partagée, uniquement par son code
 create or replace function public.get_share(p_code text) returns jsonb
-language sql stable security definer set search_path = public as $$
-  select data from public.shares where code = p_code
+language sql stable security definer set search_path = '' as $$
+  select s.data from public.shares s where s.code = p_code
 $$;
 revoke all on function public.get_share(text) from public;
 grant execute on function public.get_share(text) to anon, authenticated;

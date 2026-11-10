@@ -17,9 +17,9 @@ create index if not exists items_user_server_at on public.items (user_id, server
 
 -- server_at est toujours fixé par le serveur
 create or replace function public.items_touch_server_at() returns trigger
-language plpgsql as $$
+language plpgsql set search_path = '' as $$
 begin
-  new.server_at := clock_timestamp();
+  new.server_at := pg_catalog.clock_timestamp();
   return new;
 end $$;
 

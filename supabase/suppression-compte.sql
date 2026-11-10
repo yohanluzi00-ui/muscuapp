@@ -3,7 +3,7 @@
 -- Supprime le compte de la personne connectée ; ses données (items, shares) partent avec lui (on delete cascade).
 
 create or replace function public.delete_my_account() returns void
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = '' as $$
 declare
   uid uuid := auth.uid();
 begin

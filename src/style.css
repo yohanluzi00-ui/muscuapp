@@ -102,7 +102,6 @@ label.fl { display: flex; flex-direction: column; gap: 4px; font-size: 13px; col
 .last { margin-top: 10px; padding: 8px 10px; border-radius: 8px; background: var(--soft); font-size: 13px; color: var(--muted); }
 .last b { color: var(--ink); font-weight: 600; }
 .sets { display: grid; grid-template-columns: 44px minmax(0, 1fr) minmax(0, 1fr) 48px; gap: 8px; align-items: center; margin-top: 12px; }
-.sets.time { grid-template-columns: 44px minmax(0, 1fr) 88px 48px; }
 .sets .h { font-size: 12px; color: var(--muted); }
 .sets .n { font-weight: 700; text-align: center; }
 .set input, .grid input { width: 100%; min-height: 44px; border: 1px solid var(--in-line); border-radius: 10px; background: var(--in-bg); text-align: center; font-size: 17px; font-variant-numeric: tabular-nums; padding: 0 4px; }
@@ -119,10 +118,6 @@ label.fl { display: flex; flex-direction: column; gap: 4px; font-size: 13px; col
 .bottom-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: var(--card); border-top: 1px solid var(--line); padding: 10px 16px calc(12px + env(safe-area-inset-bottom)); }
 .bottom-bar .inner { max-width: 760px; margin: 0 auto; display: flex; gap: 8px; }
 @media (min-width: 900px) { .bottom-bar { left: 220px; } .bottom-bar .inner { max-width: 1400px; } }
-.rest { flex: 1; position: relative; overflow: hidden; border: 0; border-radius: 12px; background: var(--accent); color: var(--accent-ink); min-height: 52px; font-weight: 700; font-size: 17px; }
-.rest .bar { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(0, 0, 0, .18); }
-.rest .txt { position: relative; }
-.rest[hidden] { display: none; }
 
 /* ---------- Séance (tableau, ordinateur) */
 .table-wrap { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 14px; }
@@ -286,9 +281,6 @@ h1, .page-head h1, .ex-name, .tpl h2, .rp-time, .rp-end, .stat .v, .nav .brand, 
 .cal-d i { position: absolute; top: 3px; right: 5px; font-style: normal; font-size: 10px; font-weight: 800; }
 
 /* ---------- Corps */
-.chart .wline { fill: none; stroke: var(--chart); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
-.chart .wdot { fill: var(--chart); stroke: var(--card); stroke-width: 2; }
-.chart g:hover .wdot { r: 6; }
 
 /* ---------- Record battu */
 .recordpop { position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(8, 8, 13, .35); animation: recIn .25s ease-out; }

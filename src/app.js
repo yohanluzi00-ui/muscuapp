@@ -20,9 +20,13 @@ function fmtDur(ms) {
   const s = Math.max(0, Math.round(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
   return h ? h + ":" + pad(m) + ":" + pad(x) : m + ":" + pad(x);
 }
-const fmtDate = t => new Date(t).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
-const fmtDateLong = t => new Date(t).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
-const fmtTime = t => new Date(t).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+// formateurs de dates créés une seule fois (bien plus rapide qu'un toLocaleDateString par ligne)
+const DF = o => new Intl.DateTimeFormat("fr-FR", o);
+const dfShort = DF({ weekday: "short", day: "numeric", month: "short" }), dfLong = DF({ weekday: "long", day: "numeric", month: "long" }),
+  dfTime = DF({ hour: "2-digit", minute: "2-digit" }), dfMonth = DF({ month: "long", year: "numeric" });
+const fmtDate = t => dfShort.format(t);
+const fmtDateLong = t => dfLong.format(t);
+const fmtTime = t => dfTime.format(t);
 function fmtRest(s) { s = num(s) || 0; if (!s) return "—"; return s >= 60 ? (s % 60 ? Math.floor(s / 60) + " min " + pad(s % 60) : s / 60 + " min") : s + " s"; }
 function ago(t) {
   const d = Math.floor((startOfDay(Date.now()) - startOfDay(t)) / 86400000);
@@ -39,21 +43,23 @@ const ICON = {
   gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>',
   play: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4l13 8-13 8z"/></svg>',
   stop: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>',
-  dumbbell: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11"/></svg>',
 };
 
 /* ================= Stockage local ================= */
-function emptyDb() { return { items: {}, lastServerAt: null, auth: null, mode: null, seeded: false, live: {} }; }
+function emptyDb() { return { items: {}, lastServerAt: null, auth: null, mode: null, seeded: true, live: {}, owner: null }; }
 function load() {
   try { const d = JSON.parse(localStorage.getItem(DB_KEY)); if (d && d.items) return Object.assign(emptyDb(), d); } catch (e) { }
   return emptyDb();
 }
 let db = load();
+if (db.auth && !db.owner) db.owner = db.auth.user.id;
 let saveTimer = null;
 function save() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 300); }
 function saveNow() { clearTimeout(saveTimer); try { localStorage.setItem(DB_KEY, JSON.stringify(db)); } catch (e) { console.error(e); } }
 window.addEventListener("pagehide", saveNow);
 
+// compteur de modifications : permet de ne recalculer les listes triées qu'après un changement
+let dataRev = 0;
 function all(kind) { return Object.values(db.items).filter(i => i.kind === kind && !i.deleted).map(i => i.data); }
 function getItem(id) { const i = db.items[id]; return i && !i.deleted ? i.data : null; }
 function put(kind, data) {
@@ -61,12 +67,13 @@ function put(kind, data) {
   let t = Date.now();
   if (prev && prev.updated_at >= t) t = prev.updated_at + 1;
   db.items[data.id] = { id: data.id, kind, data, updated_at: t, deleted: false, dirty: true };
-  save(); scheduleSync();
+  dataRev++; save(); scheduleSync();
 }
 function remove(id) {
   const p = db.items[id]; if (!p) return;
-  db.items[id] = Object.assign({}, p, { deleted: true, dirty: true, updated_at: Math.max(Date.now(), p.updated_at + 1) });
-  save(); scheduleSync();
+  // le contenu est effacé : seule une marque « supprimé » reste (et part sur les autres appareils)
+  db.items[id] = { id, kind: p.kind, data: { id }, deleted: true, dirty: true, updated_at: Math.max(Date.now(), p.updated_at + 1) };
+  dataRev++; save(); scheduleSync();
 }
 // enregistrement différé pendant la saisie (évite une écriture à chaque touche)
 const pending = {};
@@ -80,34 +87,16 @@ function flushPending() {
 document.addEventListener("visibilitychange", () => { if (document.hidden) { flushPending(); saveNow(); } else sync(); });
 
 /* ================= Données ================= */
-const SEED = ["Push", "Pull", "Legs", "Haut du corps", "Bas du corps"];
-function seedIfNeeded() {
-  if (db.seeded) return;
-  if (all("template").length === 0) {
-    SEED.forEach((name, k) => {
-      const id = "tpl-" + norm(name).replace(/\s+/g, "-");
-      // updated_at 0 et non « dirty » : ces modèles vides ne remplacent jamais ceux d'un autre appareil
-      db.items[id] = { id, kind: "template", updated_at: 0, deleted: false, dirty: false, data: { id, name, order: k, variants: [1, 2, 3].map(n => ({ id: "v" + n, name: "Séance " + n, exercises: [] })) } };
-    });
-  }
-  db.seeded = true; save();
-}
-function migrate() {
-  if (db.items["tpl-amanda"]) return false; // déjà créée (ou supprimée volontairement)
-  const ex = [
-    ["Traction prise neutre assistée", "reps", "8-10", 90, ""],
-    ["Dips assistés", "reps", "8-10", 90, ""],
-    ["Hip thrust (hold 1 s)", "reps", "10-12", 90, "Tenir 1 s en haut"],
-    ["Rear kick debout avec appui", "reps", "12-15", 60, "Je pousse avec une jambe"],
-    ["Abduction hanche (machine)", "reps", "12-15", 60, ""],
-    ["Lombaires", "reps", "12-15", 60, ""],
-    ["Gainage", "time", "45", 60, ""],
-  ];
-  const data = { id: "tpl-amanda", name: "Amanda", order: 5, variants: [{ id: "v1", name: "Séance 1",
-    exercises: ex.map((x, k) => ({ id: "e-amanda-" + (k + 1), name: x[0], type: x[1], sets: 3, target: x[2], rest: x[3], note: x[4] })) }] };
-  // updated_at 1 : une version déjà modifiée sur un autre appareil l'emporte toujours
-  db.items["tpl-amanda"] = { id: "tpl-amanda", kind: "template", data, updated_at: 1, deleted: false, dirty: true };
-  save(); scheduleSync();
+// identifiants : lettres, chiffres, « _ » et « - » seulement (ils sont insérés dans les attributs HTML)
+const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+const okId = x => typeof x === "string" && ID_RE.test(x);
+function validItem(it) {
+  if (!it || !okId(it.id) || typeof it.kind !== "string" || !it.data || typeof it.data !== "object") return false;
+  if (it.deleted) return true;
+  const d = it.data;
+  if (d.id !== it.id) return false;
+  if (it.kind === "template") return Array.isArray(d.variants) && d.variants.every(v => v && okId(v.id) && Array.isArray(v.exercises) && v.exercises.every(e => e && okId(e.id) && (!e.groupId || okId(e.groupId))));
+  if (it.kind === "workout") return okId(d.templateId) && okId(d.variantId) && typeof d.startedAt === "number" && Array.isArray(d.exercises) && d.exercises.every(e => e && okId(e.exId) && (!e.groupId || okId(e.groupId)) && Array.isArray(e.sets));
   return true;
 }
 // anciens noms « Variante N » → « Séance N » (affichage, et renommage enregistré quand les données sont à jour)
@@ -116,7 +105,7 @@ function purgeBody() {
   for (const it of Object.values(db.items)) {
     if (it.kind !== "body" || (it.deleted && Object.keys(it.data || {}).length <= 1)) continue;
     db.items[it.id] = { id: it.id, kind: "body", data: { id: it.id }, updated_at: Math.max(Date.now(), it.updated_at + 1), deleted: true, dirty: true };
-    save(); scheduleSync();
+    dataRev++; save(); scheduleSync();
   }
 }
 function renameVariants() {
@@ -130,7 +119,8 @@ function renameVariants() {
   }
 }
 const templates = () => all("template").sort((a, b) => (a.order - b.order) || a.name.localeCompare(b.name));
-const workouts = () => all("workout").sort((a, b) => b.startedAt - a.startedAt);
+let wCache = { rev: -1, list: [] };
+const workouts = () => { if (wCache.rev !== dataRev) wCache = { rev: dataRev, list: all("workout").sort((a, b) => b.startedAt - a.startedAt) }; return wCache.list; };
 const finished = () => workouts().filter(w => w.endedAt);
 const activeWorkout = () => workouts().find(w => !w.endedAt) || null;
 function settings() { return Object.assign({ id: "settings", theme: "auto", alert: "vibration", goal: "5" }, getItem("settings") || {}); }
@@ -197,7 +187,17 @@ function setLabel(s, type) {
 const exSummary = e => e.sets.filter(s => setHasData(s, e.type)).map(s => setLabel(s, e.type)).join(", ");
 
 /* Dernière performance : même séance + même variante en priorité, sinon même nom d'exercice ailleurs */
+let lpCache = { rev: -1, map: new Map() };
 function lastPerf(w, ex) {
+  // même résultat tant qu'aucune séance n'a changé : évite de tout reparcourir à chaque champ affiché
+  if (lpCache.rev !== dataRev) lpCache = { rev: dataRev, map: new Map() };
+  const key = w.id + "|" + w.startedAt + "|" + ex.exId + "|" + norm(ex.name) + "|" + ex.type;
+  if (lpCache.map.has(key)) return lpCache.map.get(key);
+  const res = lastPerfCompute(w, ex);
+  lpCache.map.set(key, res);
+  return res;
+}
+function lastPerfCompute(w, ex) {
   const before = finished().filter(x => x.id !== w.id && x.startedAt < w.startedAt + 1);
   for (const x of before) {
     if (x.templateId === w.templateId && x.variantId === w.variantId) {
@@ -329,13 +329,14 @@ async function sync() {
       if (since) q += "&server_at=gte." + encodeURIComponent(since);
       const rows = await rest("GET", q);
       for (const r of rows) {
+        if (r && (!maxSeen || r.server_at > maxSeen)) maxSeen = r.server_at;
+        if (!validItem(r)) { console.warn("élément ignoré (format inattendu)", r && r.id); continue; }
         const loc = db.items[r.id];
         const ru = Number(r.updated_at);
         if (!loc || ru > loc.updated_at || (!loc.dirty && ru !== loc.updated_at)) {
           db.items[r.id] = { id: r.id, kind: r.kind, data: r.data, updated_at: ru, deleted: r.deleted, dirty: false };
-          changed = true;
+          changed = true; dataRev++;
         }
-        if (!maxSeen || r.server_at > maxSeen) maxSeen = r.server_at;
       }
       if (rows.length < 1000) break;
       since = rows[rows.length - 1].server_at;
@@ -382,7 +383,8 @@ function updateSyncBadges() {
 }
 
 /* ================= Navigation ================= */
-function route() { const h = location.hash.replace(/^#\/?/, ""); const p = h.split("/"); return { name: p[0] || "home", args: p.slice(1).map(decodeURIComponent) }; }
+const safeDecode = x => { try { return decodeURIComponent(x); } catch (e) { return ""; } };
+function route() { const h = location.hash.replace(/^#\/?/, ""); const p = h.split("/"); return { name: p[0] || "home", args: p.slice(1).map(safeDecode) }; }
 const go = path => { location.hash = "#/" + path; };
 window.addEventListener("hashchange", () => { flushPending(); render(); window.scrollTo(0, 0); });
 let isWide = window.innerWidth >= WIDE;
@@ -423,14 +425,19 @@ let rendering = false;
 function render() {
   if (rendering) { setTimeout(render, 0); return; }
   rendering = true;
-  try { renderNow(); } finally { rendering = false; }
+  try { renderNow(); }
+  catch (e) {
+    console.error(e);
+    $app.innerHTML = '<div class="login"><h1>Oups</h1><p class="muted">Un problème d\'affichage est survenu. Tes données ne sont pas perdues.</p><button type="button" class="btn primary big" data-act="reload">Revenir à l\'accueil</button></div>';
+  } finally { rendering = false; }
 }
+let localFixed = false; // sans compte : anciens noms et anciennes mesures corrigés une fois par lancement
 function renderNow() {
   applyTheme();
   if (!db.auth && db.mode !== "local") { keepScreen(false); $app.innerHTML = viewLogin(); return; }
   // un nouvel utilisateur arrive sur une page vierge : plus de programmes créés d'office
   // (les programmes déjà enregistrés dans un compte ne sont pas touchés)
-  if (!db.auth) { renameVariants(); purgeBody(); }
+  if (!db.auth && !localFixed) { localFixed = true; renameVariants(); purgeBody(); }
   const r = route();
   let body, wide = false, immersive = false;
   switch (r.name) {
@@ -479,7 +486,7 @@ function viewLogin() {
     '<form data-form="login" class="stack">' +
     (up ? '<label class="fl">Prénom<input class="f" name="firstname" autocomplete="given-name" maxlength="40" value="' + esc(loginName) + '"></label>' : "") +
     '<label class="fl">E-mail<input class="f" type="email" name="email" autocomplete="email" value="' + em + '" required></label>' +
-    '<label class="fl">Mot de passe<input class="f" type="password" name="password" minlength="6" autocomplete="' + (up ? "new-password" : "current-password") + '" required></label>' +
+    '<label class="fl">Mot de passe<input class="f" type="password" name="password" minlength="' + (up ? 8 : 6) + '" autocomplete="' + (up ? "new-password" : "current-password") + '" required></label>' +
     (up
       ? '<label class="consent"><input type="checkbox" name="consent" id="consent"><span>Pour créer un compte : j\'ai 15 ans ou plus et j\'accepte la <a href="' + LEGAL.privacy + '" target="_blank" rel="noopener">politique de confidentialité</a>, y compris l\'enregistrement de mes données d\'entraînement.</span></label>' +
         '<button class="btn primary big" type="submit" value="up">Créer mon compte</button>'
@@ -497,15 +504,22 @@ function authMessage(e) {
   if (/rate limit/i.test(m)) return "Trop d'e-mails envoyés pour le moment. Réessaie un peu plus tard.";
   if (/security purposes|only request this after/i.test(m)) return "Patiente une minute avant de redemander un code.";
   if (/already registered|already exists/i.test(m)) return "Un compte existe déjà avec cet e-mail : clique sur « Se connecter ».";
-  if (/password/i.test(m) && /6|short|weak/i.test(m)) return "Mot de passe trop court (6 caractères minimum).";
+  if (/password/i.test(m) && /6|8|short|weak|characters/i.test(m)) return "Mot de passe trop faible : au moins 8 caractères.";
   if (m === "Failed to fetch") return "Pas de connexion internet.";
   return m;
 }
 async function afterLogin() {
   loginMode = "in"; loginEmail = "";
   db.verify = null; db.seeded = true; db.lastServerAt = null;
-  // les données déjà saisies sans compte seront envoyées au compte
-  Object.values(db.items).forEach(i => { if (i.updated_at > 0) i.dirty = true; });
+  const uidNow = db.auth.user.id;
+  if (db.owner && db.owner !== uidNow) {
+    // données laissées par un AUTRE compte sur cet appareil (session expirée) : on ne les mélange pas
+    db.items = {}; db.live = {}; dataRev++;
+  } else if (!db.owner) {
+    // données saisies sans compte : elles sont envoyées au compte
+    Object.values(db.items).forEach(i => { if (i.updated_at > 0) i.dirty = true; });
+  }
+  db.owner = uidNow;
   saveNow(); render(); await sync();
   if (db.pendingConsent || db.pendingName) {
     const st = settings();
@@ -540,13 +554,14 @@ async function onLogin(form, mode) {
   try {
     if (mode === "up") {
       const fname = form.firstname.value.trim().slice(0, 40);
+      if (password.length < 8) { msg.className = "msg err"; msg.textContent = "Choisis un mot de passe d'au moins 8 caractères."; return; }
       if (!fname) { msg.className = "msg err"; msg.textContent = "Indique ton prénom."; return; }
       if (!form.consent.checked) { msg.className = "msg err"; msg.textContent = "Coche la case de consentement pour créer ton compte."; return; }
       const consentAt = new Date().toISOString();
       const j = await authReq("signup", { email, password, data: { consent_at: consentAt, consent_version: LEGAL.version, first_name: fname } });
-      db.pendingConsent = consentAt; db.pendingName = fname;
       // e-mail déjà inscrit : Supabase renvoie un utilisateur sans identité
       if (j.user && Array.isArray(j.user.identities) && j.user.identities.length === 0) throw new Error("already registered");
+      db.pendingConsent = consentAt; db.pendingName = fname;
       if (!j.access_token) { db.verify = email; saveNow(); render(); return; } // code de vérification envoyé par e-mail
       setSession(j);
     } else {
@@ -864,7 +879,7 @@ function viewPrograms() {
 function exFields(e, k, letter, inGroup) {
   const time = e.type === "time", d = dropsOf(e);
   return (inGroup ? '<div class="spread"><b><span class="letter">' + letter + '</span><span data-title="' + k + '">' + esc(e.name) + '</span></b><button class="btn sm danger" data-act="delex" data-e="' + k + '">Retirer</button></div>' : "") +
-    '<div class="ed-grid"><label class="fl full">Nom<input class="f" data-suggest autocomplete="off" data-p="name" data-e="' + k + '" value="' + esc(e.name) + '"><div class="sugg" hidden></div></label>' +
+    '<div class="ed-grid"><label class="fl full">Nom<input class="f" data-suggest autocomplete="off" maxlength="80" data-p="name" data-e="' + k + '" value="' + esc(e.name) + '"><div class="sugg" hidden></div></label>' +
     '<label class="fl">Type<select class="f" data-p="type" data-e="' + k + '"><option value="reps"' + (!time ? " selected" : "") + '>Poids × reps</option><option value="time"' + (time ? " selected" : "") + ">Temps (gainage)</option></select></label>" +
     (inGroup ? "" : '<label class="fl">Séries<input class="f" type="number" min="1" max="20" inputmode="numeric" data-p="sets" data-e="' + k + '" value="' + esc(e.sets) + '"></label>') +
     (time ? '<div class="fl"><span>Temps cible</span><button type="button" class="f pick" data-act="picksec" data-sf="target" data-e="' + k + '">' + fmtSecs(num(e.target) || 0) + "</button></div>"
@@ -879,14 +894,14 @@ function viewProgram(tid, vid) {
   if (!t) return '<a class="back" href="#/programs">‹ Programmes</a><div class="card empty">Programme introuvable.</div>';
   const v = t.variants.find(x => x.id === vid) || t.variants[0];
   let h = '<a class="back" href="#/programs">‹ Programmes</a>' +
-    '<label class="fl" style="margin-top:8px">Nom du programme<input class="f" data-p="tname" value="' + esc(t.name) + '" style="font-size:20px;font-weight:700"></label>' +
+    '<label class="fl" style="margin-top:8px">Nom du programme<input class="f" data-p="tname" maxlength="60" value="' + esc(t.name) + '" style="font-size:20px;font-weight:700"></label>' +
     '<div class="section-title">Séances</div><div class="tabs" data-sortable="var" data-axis="x">' +
     t.variants.map(x => '<button class="' + (v && x.id === v.id ? "on" : "") + '" data-act="tab" data-v="' + x.id + '" data-sort-id="' + x.id + '">' +
       (t.variants.length > 1 ? '<span class="grip" data-drag title="Maintiens et fais glisser pour changer l\'ordre">' + GRIP + "</span>" : "") +
       "<span" + (v && x.id === v.id ? " data-vtab" : "") + ">" + esc(vLabel(x.name)) + "</span></button>").join("") +
     '<button data-act="addvar">+ Séance</button></div>';
   if (!v) return h;
-  h += '<div class="card"><label class="fl">Nom de la séance<input class="f" data-p="vname" value="' + esc(vLabel(v.name)) + '"></label>' +
+  h += '<div class="card"><label class="fl">Nom de la séance<input class="f" data-p="vname" maxlength="60" value="' + esc(vLabel(v.name)) + '"></label>' +
     '<div class="row" style="margin-top:10px;flex-wrap:wrap">' +
     '<button class="btn sm" data-act="dupvar">Dupliquer cette séance</button><button class="btn sm" data-act="sharevar">Partager cette séance</button>' +
     (t.variants.length > 1 ? '<button class="btn sm danger" data-act="delvar">Supprimer cette séance</button>' : "") + "</div></div>";
@@ -987,13 +1002,17 @@ function viewHistory() {
   const ws = finished();
   if (!ws.length) return '<div class="page-head"><h1>Historique</h1></div><div class="card empty">Aucune séance terminée pour l\'instant.</div>';
   let h = '<div class="page-head"><h1>Historique</h1><span class="muted small">' + ws.length + " séance" + (ws.length > 1 ? "s" : "") + "</span></div>", month = "";
-  ws.forEach((w, k) => {
-    const m = new Date(w.startedAt).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+  ws.slice(0, histLimit).forEach(w => {
+    const m = dfMonth.format(w.startedAt);
     if (m !== month) { if (month) h += "</div>"; month = m; h += '<div class="section-title">' + esc(m) + '</div><div class="list">'; }
     h += historyRow(w);
   });
-  return h + "</div>";
+  h += "</div>";
+  // longue liste : affichée par tranches de 100
+  if (ws.length > histLimit) h += '<button class="btn block" data-act="histmore" style="margin-top:12px">Afficher les séances plus anciennes (' + (ws.length - histLimit) + ")</button>";
+  return h;
 }
+let histLimit = 100;
 
 /* ================= Écran : progression ================= */
 function progressData() {
@@ -1012,7 +1031,6 @@ function progressData() {
   return Object.values(map).sort((a, b) => a.name.localeCompare(b.name, "fr"));
 }
 const unitOf = p => p.type === "time" ? " s" : " kg";
-const DAY = 86400000;
 function weekStart(t) { const d = new Date(t); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); }
 function prevWeek(t) { const d = new Date(t); d.setDate(d.getDate() - 7); return d.getTime(); }
 function viewProgress() {
@@ -1209,7 +1227,7 @@ async function importShared(code) {
       const m = str.match(/import\/([A-Za-z0-9_-]+)/);
       data = JSON.parse(unb64url(m ? m[1] : str));
     }
-    if (!data || data.app !== "muscuapp-share" || !Array.isArray(data.ex) || !data.ex.length) throw new Error();
+    if (!data || data.app !== "muscuapp-share" || !Array.isArray(data.ex) || !data.ex.length || data.ex.length > 60) throw new Error();
   } catch (e) { toast("Ce lien de séance n'est pas valide"); return; }
   const ts = templates();
   const dest = await choose("Importer « " + data.prog + " · " + data.name + " » (" + data.ex.length + " exercices)", [["new", "Nouveau programme « " + data.prog + " »", "Crée un programme avec cette séance"]].concat(ts.map(t => ["t:" + t.id, "Ajouter à « " + t.name + " »", "Comme nouvelle séance de ce programme"])));
@@ -1222,10 +1240,10 @@ async function importShared(code) {
   });
   let t, vid = "v" + uid();
   if (dest === "new") {
-    t = { id: "tpl-" + uid(), name: String(data.prog).slice(0, 60), order: ts.length, variants: [{ id: vid, name: String(data.name).slice(0, 60), exercises }] };
+    t = { id: "tpl-" + uid(), name: String(data.prog || "Programme partagé").slice(0, 60), order: ts.length, variants: [{ id: vid, name: String(data.name || "Séance partagée").slice(0, 60), exercises }] };
   } else {
     t = getItem(dest.slice(2)); if (!t) return;
-    let name = String(data.name).slice(0, 60);
+    let name = String(data.name || "Séance partagée").slice(0, 60);
     if (t.variants.some(v => vLabel(v.name) === name)) name += " (partagée)";
     t.variants.push({ id: vid, name, exercises });
   }
@@ -1432,7 +1450,7 @@ function tick() {
     if (prep && left !== c.count) { c.count = left; if (left <= 3) prepBeep(false); }
     if (!prep && !c.go) { c.go = true; save(); prepBeep(true); }
     if (el) el.textContent = prep ? "Prêt · " + left : fmtDur(ms);
-    if (!c.alerted && c.target && ms >= c.target * 1000) { c.alerted = true; save(); signal(); } // atteint en arrière-plan : la notification Android a prévenu
+    if (!c.alerted && c.target && ms >= c.target * 1000) { c.alerted = true; save(); signal(); }
     const w = currentWorkout(), here = w && w.id === c.wid;
     if (cpop) {
       cpop.hidden = !here || !!c.min;
@@ -1484,6 +1502,8 @@ $app.addEventListener("click", async e => {
   const a = b.dataset.act, i = +b.dataset.i, s = +b.dataset.s;
   const w = currentWorkout();
   switch (a) {
+    case "reload": location.hash = "#/home"; location.reload(); break;
+    case "histmore": histLimit += 100; render(); break;
     /* connexion */
     case "local": db.mode = "local"; saveNow(); render(); break;
     case "loginmode": { const em = $app.querySelector('input[name="email"]'); if (em) loginEmail = em.value; const fn = $app.querySelector('input[name="firstname"]'); if (fn) loginName = fn.value; loginMode = b.dataset.m === "up" ? "up" : "in"; render(); const f = $app.querySelector(loginEmail ? 'input[name="password"]' : 'input[name="email"]'); if (f) f.focus(); } break;
@@ -1498,10 +1518,10 @@ $app.addEventListener("click", async e => {
       if (!await ask({ title: "Se déconnecter ?", text: "Tes données restent enregistrées dans ton compte. Elles seront effacées de cet appareil.", ok: "Se déconnecter", danger: true })) return;
       flushPending(); await sync();
       if (Object.values(db.items).some(x => x.dirty) && !await ask({ title: "Modifications non envoyées", text: "Certaines modifications n'ont pas pu être envoyées (pas de réseau ?). Se déconnecter quand même ?", ok: "Oui", danger: true })) return;
-      db = emptyDb(); saveNow(); go("home"); render(); break;
+      db = emptyDb(); dataRev++; consentAsked = nameAsked = false; saveNow(); go("home"); render(); break;
     }
     case "delaccount": {
-      const conf = await ask({ title: "Supprimer ton compte ?", text: "Ton compte et toutes tes données (programmes, séances, mesures, séances partagées) seront définitivement effacés, sur tous tes appareils. Cette action est irréversible.\n\nTape SUPPRIMER pour confirmer.", input: "", ok: "Supprimer définitivement", danger: true });
+      const conf = await ask({ title: "Supprimer ton compte ?", text: "Ton compte et toutes tes données (programmes, séances, historique, séances partagées) seront définitivement effacés, sur tous tes appareils. Cette action est irréversible.\n\nTape SUPPRIMER pour confirmer.", input: "", ok: "Supprimer définitivement", danger: true });
       if (conf == null) return;
       if (conf.trim().toUpperCase() !== "SUPPRIMER") { toast("Suppression annulée : tape SUPPRIMER pour confirmer"); return; }
       try {
@@ -1510,7 +1530,7 @@ $app.addEventListener("click", async e => {
         toast(err.status === 404 ? "Suppression indisponible pour le moment. Écris-nous (voir Informations légales)." : (err.message === "Failed to fetch" ? "Pas de connexion internet" : "La suppression a échoué, réessaie"));
         return;
       }
-      db = emptyDb(); saveNow(); toast("Ton compte a été supprimé"); go("home"); render();
+      db = emptyDb(); dataRev++; consentAsked = nameAsked = false; saveNow(); toast("Ton compte a été supprimé"); go("home"); render();
     } break;
     case "syncnow": flushPending(); await sync(); if (syncState.status === "ok") toast("Synchronisé"); break;
 
@@ -1544,9 +1564,9 @@ $app.addEventListener("click", async e => {
       const ex = w.exercises[i];
       const n = await ask({ title: "Renommer l'exercice", input: ex.name, ok: "Renommer" });
       if (!n) return;
-      ex.name = n; put("workout", w);
+      ex.name = n.slice(0, 80); put("workout", w);
       const t = getItem(w.templateId), te = tplExercise(w, ex.exId);
-      if (t && te) { te.name = n; put("template", t); }
+      if (t && te) { te.name = n.slice(0, 80); put("template", t); }
       render();
     } break;
     case "addex": if (w) {
@@ -1597,22 +1617,8 @@ $app.addEventListener("click", async e => {
     case "newtpl": {
       const n = await ask({ title: "Nouveau programme", input: "", ok: "Créer" });
       if (!n) return;
-      const t = { id: "tpl-" + uid(), name: n, order: templates().length, variants: [{ id: "v1", name: "Séance 1", exercises: [] }] };
+      const t = { id: "tpl-" + uid(), name: n.slice(0, 60), order: templates().length, variants: [{ id: "v1", name: "Séance 1", exercises: [] }] };
       put("template", t); go("program/" + t.id);
-    } break;
-    case "tplmove": {
-      const ts = templates(), k = ts.findIndex(x => x.id === b.dataset.t), j = k + (+b.dataset.d);
-      if (k < 0 || j < 0 || j >= ts.length) return;
-      const x = ts[k]; ts[k] = ts[j]; ts[j] = x;
-      ts.forEach((t, n) => { if (t.order !== n) { t.order = n; put("template", t); } });
-      render();
-    } break;
-    case "varmove": {
-      const { t, v } = currentProgram(); if (!v) return;
-      const k = t.variants.indexOf(v), j = k + (+b.dataset.d);
-      if (j < 0 || j >= t.variants.length) return;
-      t.variants[k] = t.variants[j]; t.variants[j] = v;
-      put("template", t); render();
     } break;
     case "picksec": {
       const { t, v } = currentProgram(); if (!v) return;
@@ -1718,9 +1724,9 @@ $app.addEventListener("click", async e => {
       if (!txt) return;
       try {
         const j = JSON.parse(await unpackBackup(txt)); if (!j || j.app !== "muscuapp" || !Array.isArray(j.items)) throw new Error();
-        let n = 0;
-        for (const it of j.items) { const cur = db.items[it.id]; if (!cur || it.updated_at > cur.updated_at) { db.items[it.id] = { id: it.id, kind: it.kind, data: it.data, updated_at: Math.max(it.updated_at, (cur && cur.updated_at + 1) || 0), deleted: false, dirty: true }; n++; } }
-        saveNow(); scheduleSync(); render(); toast(n + " élément" + (n > 1 ? "s" : "") + " restauré" + (n > 1 ? "s" : ""));
+        let n = 0, bad = 0;
+        for (const it of j.items) { if (!validItem(it) || typeof it.updated_at !== "number") { bad++; continue; } const cur = db.items[it.id]; if (!cur || it.updated_at > cur.updated_at) { db.items[it.id] = { id: it.id, kind: it.kind, data: it.data, updated_at: Math.max(it.updated_at, (cur && cur.updated_at + 1) || 0), deleted: false, dirty: true }; n++; } }
+        dataRev++; localFixed = false; saveNow(); scheduleSync(); render(); toast(n + " élément" + (n > 1 ? "s" : "") + " restauré" + (n > 1 ? "s" : "") + (bad ? " (" + bad + " ignoré" + (bad > 1 ? "s" : "") + ")" : ""));
       } catch (err) { toast("Ce texte n'est pas une sauvegarde valide"); }
     } break;
   }
