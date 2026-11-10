@@ -1411,7 +1411,7 @@ function pickSeconds(title, value, min, max) {
 // bibliothèque de l'onglet Exercices (index léger inclus dans la page) : [id, nom, muscles, matériel, temps ?, reps, repos]
 const EXO_LIB = (window.EXO_INDEX || []).map(([id, n, mus, gear, kind, reps, rest, dist, load, cat, al], k) => ({ id, n, mus, gear, kind: ["reps", "time", "dist"][kind] || "reps", reps, rest, dist, load: !!load, cat: cat || "", al: al || [], nn: norm(n), k }));
 const words = t => norm(t).split(/[^a-z0-9]+/).filter(Boolean);
-EXO_LIB.forEach(x => { x.w = words(x.n); x.o = words(x.mus + " " + x.gear + " " + x.cat); });
+EXO_LIB.forEach(x => { x.w = words(x.n); x.a = words(x.al.join(" ")); x.o = words(x.mus + " " + x.gear + " " + x.cat); });
 const libByName = {}; EXO_LIB.forEach(x => { libByName[x.nn] = x; x.al.forEach(a => { libByName[norm(a)] = x; }); }); // anciens noms reconnus aussi
 const libFor = name => (name ? libByName[norm(name)] || null : null);
 // mots courants (anglais, abréviations, pluriels) → mots de la bibliothèque ; « | » sépare des choix possibles
@@ -1434,6 +1434,7 @@ const fuzzy = (tok, w) => { const tol = tok.length >= 7 ? 2 : tok.length >= 4 ? 
 function direct(tok, c) {
   let best = 0;
   for (const w of c.w) { if (w === tok) best = Math.max(best, 4); else if (w.startsWith(tok)) best = Math.max(best, 3); else if (tok.length >= 3 && w.includes(tok)) best = Math.max(best, 2); else if (fuzzy(tok, w)) best = Math.max(best, 1.5); }
+  for (const w of c.a || []) { if (w === tok) best = Math.max(best, 3.6); else if (w.startsWith(tok)) best = Math.max(best, 2.7); else if (fuzzy(tok, w)) best = Math.max(best, 1.3); } // autres noms (« rear kick »…)
   for (const w of c.o || []) { if (w.startsWith(tok)) best = Math.max(best, 1.2); else if (fuzzy(tok, w)) best = Math.max(best, 0.6); }
   return best;
 }
