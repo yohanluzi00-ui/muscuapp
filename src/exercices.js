@@ -51,19 +51,22 @@ function mirrorPose(p) {
 }
 function STR(a, b, side, mid) {
   a = Object.assign({ hpose: "flat" }, a.pc || a.hipAt || a.shAt ? {} : ST({}), a); // debout par défaut
-  for (const q of [b, mid || {}]) for (const k in q) if (isPair(q[k]) && !isPair(a[k])) a[k] = [a[k], a[k]]; // mêmes formes au départ : transitions sans saut
-  const M = mid ? [mid] : [];
+  for (const q of [b].concat(mid || [])) for (const k in q) if (isPair(q[k]) && !isPair(a[k])) a[k] = [a[k], a[k]]; // mêmes formes au départ : transitions sans saut
+  const M = !mid ? [] : Array.isArray(mid) ? mid : [mid];
   const tag = (o, lab) => Object.assign({}, o, { lab });
+  // positions intermédiaires réparties entre t0 et t1 (à l'aller), puis dans l'ordre inverse au retour
+  const go = (t0, t1, lab, f) => M.map((x, k) => tag(Object.assign({ at: t0 + (t1 - t0) * (k + 1) / (M.length + 1) }, f ? f(x) : x), lab));
+  const back = (t0, t1, lab, f) => M.slice().reverse().map((x, k) => tag(Object.assign({ at: t0 + (t1 - t0) * (k + 1) / (M.length + 1) }, f ? f(x) : x), lab));
   let keys;
   if (side === true) {
     const hold = "tiens et respire lentement";
-    keys = [{ at: 0, lab: "Mise en place" }, ...M.map(x => tag(Object.assign({ at: 0.06 }, x), "Mise en place")), Object.assign({ at: 0.13, lab: "Côté gauche · " + hold }, b), { at: 0.42, lab: "Relâche doucement" },
-      ...M.map(x => tag(Object.assign({ at: 0.46 }, x), "Relâche doucement")), { at: 0.5, back: true, lab: "Change de côté" },
-      ...M.map(x => tag(Object.assign({ at: 0.56 }, mirrorPose(x)), "Change de côté")), Object.assign({ at: 0.63, lab: "Côté droit · " + hold }, mirrorPose(b)), { at: 0.92, lab: "Relâche doucement" },
-      ...M.map(x => tag(Object.assign({ at: 0.96 }, mirrorPose(x)), "Relâche doucement")), { at: 1, back: true }];
+    keys = [{ at: 0, lab: "Mise en place" }, ...go(0, 0.13, "Mise en place"), Object.assign({ at: 0.13, lab: "Côté gauche · " + hold }, b), { at: 0.42, lab: "Relâche doucement" },
+      ...back(0.42, 0.5, "Relâche doucement"), { at: 0.5, back: true, lab: "Change de côté" },
+      ...go(0.5, 0.63, "Change de côté", mirrorPose), Object.assign({ at: 0.63, lab: "Côté droit · " + hold }, mirrorPose(b)), { at: 0.92, lab: "Relâche doucement" },
+      ...back(0.92, 1, "Relâche doucement", mirrorPose), { at: 1, back: true }];
   } else {
-    keys = [{ at: 0, lab: "Mise en place" }, ...M.map(x => tag(Object.assign({ at: 0.1 }, x), "Mise en place")), Object.assign({ at: 0.2, lab: side === "one" ? "Tiens et respire, puis change de côté" : "Étirement · tiens et respire lentement" }, b),
-      { at: 0.8, lab: "Relâche doucement" }, ...M.map(x => tag(Object.assign({ at: 0.9 }, x), "Relâche doucement")), { at: 1, back: true }];
+    keys = [{ at: 0, lab: "Mise en place" }, ...go(0, 0.2, "Mise en place"), Object.assign({ at: 0.2, lab: side === "one" ? "Tiens et respire, puis change de côté" : "Étirement · tiens et respire lentement" }, b),
+      { at: 0.8, lab: "Relâche doucement" }, ...back(0.8, 1, "Relâche doucement"), { at: 1, back: true }];
   }
   return { order: "loop", dur: side === true ? 13 : 8, a, keys };
 }
@@ -303,8 +306,8 @@ export const EXOS = [
     tips: ["Buste penché, dos plat", "Haut des bras le long du corps, immobile", "Tends les bras vers l'arrière", "Reviens lentement, avant-bras vers le sol"],
     err: ["Bouger le haut du bras", "Balancer les haltères", "Dos rond"],
     vars: ["Extension triceps à la poulie", "Barre au front"], order: "con", ph: { con: "Extension", exc: "Retour lent" },
-    a: ST({ pc: [-0.24, 0.84], th: 78, hp: -30, hand: { c: { el: [-0.98, -0.2, 0.02] }, r: L.fa, d: [0.6, -0.8, 0] }, elbow: [0, 1, 0.1], palm: [0, 0, -1], foot: [0, 0.085, 0.14], knee: [1, 0, 0.15] }),
-    b: { hand: { c: { el: [-0.98, -0.2, 0.02] }, r: L.fa, d: [-0.98, -0.2, 0] } }, imp: [{ t: "db", grip: "F" }] },
+    a: ST({ pc: [-0.24, 0.84], th: 78, hp: -30, hand: { c: { el: [-0.97, -0.2, 0.2] }, r: L.fa, d: [0.15, -1, 0.05] }, elbow: [0, 1, 0.1], palm: [0, 0, -1], foot: [0, 0.085, 0.12], knee: [1, 0, 0.15] }),
+    b: { hand: { c: { el: [-0.97, -0.2, 0.2] }, r: L.fa, d: [-0.98, -0.2, 0.05] } }, imp: [{ t: "db", grip: "F" }] },
   { id: "pompes-diamant", n: "Pompes diamant", gear: "Poids du corps", lvl: "Intermédiaire", p: ["triceps"], s: ["pectoraux", "deltoides_ant"], reps: "8-15", rest: 60,
     tips: ["Mains rapprochées sous la poitrine, pouces et index qui se touchent", "Corps gainé des talons à la tête", "Descends en gardant les coudes près du corps", "Pousse jusqu'aux bras tendus"],
     err: ["Écarter les coudes", "Bassin qui s'affaisse", "Amplitude trop courte"],
@@ -399,7 +402,7 @@ export const EXOS = [
     err: ["Pousser sur les pointes de pieds", "Cambrer le bas du dos", "Monter trop vite"],
     vars: ["Hip thrust"], order: "con", ph: { con: "Montée des hanches", exc: "Descente contrôlée" },
     a: { shAt: [-0.45, 0.125, 0], th: -90, hp: 12, hand: [0.06, 0.022, 0.25], hdir: [1, 0, 0], hpose: "flat", palm: [0, -1, 0], elbow: [0, 0.15, 1], foot: [0.38, 0.085, 0.15], knee: [0, 1, 0.1], fdir: [1, 0, 0.12] },
-    b: { th: -125 }, props: P => P.mat(-0.9, 0.6) },
+    b: { th: -125, hp: 28 }, props: P => P.mat(-0.9, 0.6) },
   { id: "kettlebell-swing", n: "Kettlebell swing", gear: "Kettlebell", lvl: "Intermédiaire", p: ["fessiers", "ischios"], s: ["lombaires", "abdos"], reps: "15-20", rest: 60, tempo: 1.5,
     tips: ["Pieds un peu plus larges que les épaules", "Le mouvement vient des hanches, pas des bras", "Pousse les hanches vers l'avant pour lancer la kettlebell", "Laisse-la redescendre entre les jambes, dos plat"],
     err: ["Soulever la kettlebell avec les bras", "Arrondir le dos en bas", "Faire un squat au lieu d'une flexion de hanches"],
@@ -443,6 +446,7 @@ export const EXOS = [
     err: ["Bassin qui monte", "Mains trop en avant des épaules", "Mouvement trop court"],
     vars: ["Gainage (planche)", "Pompes"], order: "alt", ph: { con: "Genou gauche", exc: "Genou droit" },
     a: { pc: [-0.485, 0.58], th: 90, hp: -15, hand: [0, 0.022, 0.28], hdir: [1, 0, -0.1], hpose: "flat", palm: [0, -1, 0], elbow: [-0.8, 0.6, 0.65], foot: [{ c: { kn: [0.6, -0.8, 0.05] }, r: L.sh, d: [-0.9, 0.3, 0] }, { c: { kn: [-0.891, -0.454, 0] }, r: L.sh, d: [-0.891, -0.454, 0] }], knee: [0, -1, 0], fdir: [[0.35, -0.94, 0.03], [0.55, -0.84, 0.03]] },
+    m: { foot: [{ c: { kn: [-0.2, -0.98, 0.03] }, r: L.sh, d: [-0.95, 0.3, 0] }, { c: { kn: [-0.2, -0.98, 0.03] }, r: L.sh, d: [-0.95, 0.3, 0] }], fdir: [[-0.5, -0.85, 0.03], [-0.5, -0.85, 0.03]] }, mt: 0.5,
     b: { foot: [{ c: { kn: [-0.891, -0.454, 0] }, r: L.sh, d: [-0.891, -0.454, 0] }, { c: { kn: [0.6, -0.8, 0.05] }, r: L.sh, d: [-0.9, 0.3, 0] }], fdir: [[0.55, -0.84, 0.03], [0.35, -0.94, 0.03]] }, props: P => P.mat(-1.5, 0.4) },
   { id: "crunch-poulie", n: "Crunch à la poulie", gear: "Poulie haute et corde", lvl: "Intermédiaire", p: ["abdos"], s: ["obliques"], reps: "12-15", rest: 60,
     tips: ["À genoux face à la poulie, corde tenue près de la tête", "Les hanches ne bougent pas", "Enroule le buste vers le sol en contractant les abdos", "Reviens lentement"],
@@ -510,7 +514,7 @@ export const EXOS = [
     err: ["Écarter le coude sur le côté", "Se cambrer", "Descendre trop vite"],
     vars: ["Extension nuque haltère", "Extension triceps à la poulie"], order: "exc", ph: { exc: "Descente derrière la tête", con: "Extension" },
     a: SEATED({ th: -3, hand: [[0.36, 0.62, 0.2], { c: { el: [-0.03, 1, -0.06] }, r: L.fa, d: [0.02, 1, -0.08] }], elbow: [[0, -1, 1], [0, 0, 1]], hpose: ["flat", "grip"], palm: [[0, -1, 0], [0, 0, -1]] }),
-    b: { hand: [[0.36, 0.62, 0.2], { c: { el: [-0.03, 1, -0.06] }, r: L.fa, d: [-0.34, -0.9, -0.24] }] },
+    b: { hand: [[0.36, 0.62, 0.2], { c: { el: [-0.03, 1, -0.06] }, r: L.fa, d: [-0.6, -0.75, -0.2] }] },
     props: P => { P.seat(0.02, 0.49); P.backPad(-3, 0, 0.6, 0.75); }, imp: [{ t: "db", hands: [1] }] },
   { id: "hip-thrust-machine", n: "Hip thrust à la machine", gear: "Machine", lvl: "Débutant", p: ["fessiers"], s: ["ischios", "quadriceps"], reps: "10-12", rest: 90,
     tips: ["Haut du dos contre le dossier, pieds à plat largeur de hanches", "Coussin de la machine sur le pli des hanches", "Monte les hanches jusqu'à aligner genoux, hanches et épaules", "Serre les fessiers en haut puis redescends lentement"],
@@ -612,7 +616,7 @@ export const EXOS = [
     err: ["Genoux qui dépassent loin devant les pieds", "S'appuyer sur les cuisses avec les mains", "Décoller le dos du mur"],
     vars: ["Squat au poids du corps", "Gainage (planche)"], order: "iso", ph: { iso: "Maintien de la position", isoTitle: "Chaise" },
     a: { pc: [0.0, 0.55], th: -2, hand: { c: "sh", r: 0.55, d: [1, 0.02, 0.05] }, palm: [0, -1, 0], elbow: [0, 1, 0.3], foot: [0.45, 0.075, 0.15], knee: [1, 0.5, 0.1], fdir: [1, 0, 0.12] },
-    b: { pc: [0.0, 0.552] }, props: P => P.box([0.06, 1.8, 1.0], [-0.2, 0.9, 0], "frame"), view: [0.6, 0.3, 1] },
+    b: { pc: [0.0, 0.552] }, props: P => P.box([0.06, 1.8, 1.0], [-0.2, 0.9, 0], "wall"), view: [0.6, 0.3, 1] },
   { id: "superman", n: "Superman", gear: "Poids du corps", lvl: "Débutant", p: ["lombaires", "fessiers"], s: ["ischios", "deltoides_post", "trapezes"], reps: "10-15", rest: 45,
     tips: ["Allongé sur le ventre, bras tendus devant toi", "Décolle en même temps les bras, la poitrine et les jambes", "Regard vers le sol, nuque dans l'alignement", "Marque une pause en haut, puis redescends lentement"],
     err: ["Relever fortement la tête", "Plier les genoux", "Aller trop vite"],
@@ -668,7 +672,8 @@ export const EXOS = [
     err: ["Tirer seulement avec les bras", "Trop plier les genoux (ça devient un squat)", "Arrondir le dos"],
     vars: ["Rameur", "Tirage vertical"], order: "con", tempo: 1.4, ph: { con: "Tirage", exc: "Remontée" },
     a: ST({ pc: [-0.02, 0.975], th: -2, hand: [0.32, 1.92, 0.22], hdir: [0, 1, 0], palm: [1, 0, 0], elbow: [-0.5, -0.4, 1], foot: [0, 0.085, 0.14] }),
-    b: { pc: [-0.16, 0.86], th: 42, hp: -20, hand: [0.18, 0.74, 0.22], hdir: [0.3, -1, 0], elbow: [-0.6, 0.5, 0.4], knee: [1, 0, 0.15] },
+    m: { pc: [-0.09, 0.9175], th: 20, hp: -10, hand: [0.25, 1.33, 0.22], hdir: [1, -0.1, 0], palm: [0, -1, 0], elbow: [-0.55, 0.05, 0.7], knee: [1, 0, 0.125] }, mt: 0.5,
+    b: { pc: [-0.16, 0.86], th: 42, hp: -20, hand: [0.18, 0.74, 0.22], hdir: [0.3, -1, 0], palm: [-1, -0.3, 0], elbow: [-0.6, 0.5, 0.4], knee: [1, 0, 0.15] },
     props: P => P.skierg(0.66), imp: [{ t: "cable", from: [0.6, 2.15, 0.22], to: "hands", handle: "d" }], view: [0.25, 0.3, 1] },
   { id: "sled-push", n: "Sled push", gear: "Traîneau lesté (sled)", lvl: "Intermédiaire", g: "hyrox", cat: "hyrox", p: ["quadriceps", "fessiers"], s: ["mollets", "deltoides_ant", "triceps"], dist: 50, load: true, rest: 120,
     tips: ["Mains sur les barres verticales, bras tendus ou légèrement pliés", "Buste penché vers l'avant, dos droit", "Pousse avec les jambes en petits pas rapides, sur l'avant des pieds", "Garde les hanches basses"],
@@ -689,10 +694,11 @@ export const EXOS = [
     err: ["Sauter sur une seule jambe", "Atterrir jambes tendues", "Ne pas toucher le sol avec la poitrine"],
     vars: ["Burpees", "Squat sauté"], order: "loop", dur: 3.4, ph: { loop: "Burpee" },
     a: { pc: [-0.02, 0.975], th: 0, hand: [-0.02, 0.86, 0.24], elbow: [-1, 0, 0.2], palm: [0, 0, -1], foot: [0, 0.085, 0.13], knee: [1, 0, 0.15], fdir: [1, 0, 0.15] },
-    keys: [{ at: 0, lab: "Descente" }, { at: 0.14, lab: "Poitrine au sol", pc: [-0.12, 0.5], th: 42, hp: -20, hand: [0.42, 0.022, 0.2], hdir: [1, 0, -0.1], hpose: "flat", palm: [0, -1, 0], elbow: [-0.8, 0.6, 0.6], knee: [1, 0.35, 0.45] },
+    keys: [{ at: 0, lab: "Descente" }, { at: 0.14, lab: "Poitrine au sol", pc: [-0.12, 0.5], th: 42, hp: -20, hand: [0.42, 0.022, 0.27], hdir: [1, 0, -0.1], hpose: "flat", palm: [0, -1, 0], elbow: [-0.8, 0.6, 0.6], knee: [1, 0.35, 0.45] },
       { at: 0.28, pc: [0.002, 0.166], th: 85.9, hp: -10, foot: [-0.92, 0.205, 0.1], fdir: [0.55, -0.84, 0.03], knee: [1, 0.35, 0.3] },
       { at: 0.42, lab: "Pieds vers les mains", pc: [-0.12, 0.5], th: 42, hp: -20, foot: [0, 0.085, 0.13], fdir: [1, 0, 0.15], knee: [1, 0.35, 0.45] },
-      { at: 0.55, lab: "Saut en avant", pc: [-0.12, 0.62], th: 30, hand: [-0.3, 0.75, 0.24], hdir: [-0.3, -1, 0], hpose: "grip", palm: [0, 0, -1], elbow: [-1, 0, 0.2] },
+      { at: 0.485, lab: "Pieds vers les mains", hand: [0.2, 0.42, 0.38], hdir: [0, -1, 0], hpose: "grip", palm: [0, 0, -1], elbow: [-1, 0, 0.3] },
+      { at: 0.55, lab: "Saut en avant", pc: [-0.12, 0.62], th: 30, hand: [-0.3, 0.75, 0.3], hdir: [-0.3, -1, 0], hpose: "grip", palm: [0, 0, -1], elbow: [-1, 0, 0.2] },
       { at: 0.7, lab: "Saut en avant", pc: [0.35, 1.05], th: 10, hp: 0, hand: [0.75, 1.3, 0.22], hdir: [1, 0.4, 0], foot: [0.25, 0.3, 0.13], fdir: [0.7, -0.7, 0.12] },
       { at: 0.82, lab: "Réception", pc: [0.6, 0.62], th: 30, hp: -15, hand: [0.95, 0.75, 0.24], hdir: [0.5, -1, 0], foot: [0.62, 0.085, 0.13], fdir: [1, 0, 0.15] },
       { at: 0.92, lab: "Réception", pc: [0.6, 0.975], th: 0, hand: [0.6, 0.86, 0.24], hdir: null, knee: [1, 0, 0.15] }, { at: 1, back: true }],
@@ -731,7 +737,7 @@ export const EXOS = [
     a: { pc: [-0.15, 0.52], th: 22, hp: -10, hand: { t: [0.2, -0.18, 0.11] }, hdir: { t: [0.3, 1, 0] }, palm: [0, 0.3, -1], elbow: { t: [0, -1, 0.5] }, foot: [0, 0.085, 0.2], knee: [1, 0, 0.4], fdir: [1, 0, 0.35] },
     keys: [{ at: 0, lab: "Squat" }, { at: 0.3, lab: "Lancer", pc: [-0.03, 0.985], th: 0, hp: 0, hand: { t: [0.28, 0.45, 0.13] }, elbow: { t: [0.3, -0.5, 1] } },
       { at: 0.5, ball: 1.05 }, { at: 0.72, lab: "Réception", ball: 0 }, { at: 1, back: true }],
-    props: P => { P.box([0.08, 3.4, 1.0], [0.62, 1.7, 0], "frame"); P.target(0.57, 3.05); }, imp: [{ t: "ball" }], view: [0.08, 0.25, 1] },
+    props: P => { P.box([0.08, 3.4, 1.0], [0.62, 1.7, 0], "wall"); P.target(0.57, 3.05); }, imp: [{ t: "ball" }], view: [0.08, 0.25, 1] },
   /* ---------------- Étirements (haut, milieu et bas du corps) ---------------- */
   // Haut du corps
   { id: "etirement-cou", n: "Étirement du cou", gear: "Sans matériel", lvl: "Débutant", zone: "haut", cat: "etirement", p: ["trapezes"], s: [], time: true, hold: 30, side: true, rest: 15,
@@ -740,14 +746,16 @@ export const EXOS = [
     br: "Expire lentement en laissant l'épaule descendre : la tension doit rester douce, jamais de douleur dans la nuque.",
     vars: ["Étirement de l'épaule bras croisé", "Étirement du haut du dos"],
     ...STR({ hand: [{ t: [0, -0.6, 0.235] }, { t: [0, -0.6, 0.235] }], elbow: [[-1, 0, 0.2], [-1, 0, 0.2]], palm: [[0, 0, -1], [0, 0, -1]], hdir: [[0, -1, 0], [0, -1, 0]] },
-      { hl: 32, shrug: -0.01, hand: [{ t: [0, -0.63, 0.24] }, { t: [0.03, 0.28, 0.05] }], elbow: [[-1, 0, 0.2], [0.2, 0.6, 1]], palm: [[0, 0, -1], [0, -0.7, 0.7]], hdir: [[0, -1, 0], [0, -0.6, -0.8]] }, true,
-      { hand: [{ t: [0, -0.6, 0.235] }, { t: [0.15, -0.05, 0.45] }], elbow: [[-1, 0, 0.2], [0, -0.3, 1]] }), view: [1, 0.15, 0.3] },
+      { hl: 32, shrug: -0.01, hand: [{ t: [0, -0.63, 0.24] }, { t: [0.03, 0.28, 0.05] }], elbow: [[-1, 0, 0.2], [0.2, 0.6, 1]], palm: [[0, 0, -1], [0, -0.8, 0.6]], hdir: [[0, -1, 0], [0, -0.6, -0.8]] }, true,
+      [{ hand: [{ t: [0, -0.6, 0.235] }, { t: [0.1, -0.42, 0.42] }], elbow: [[-1, 0, 0.2], [0, -1, 0.3]], palm: [[0, 0, -1], [1, 0, 0]], hdir: [[0, -1, 0], [0, -0.7, 0.7]] },
+        { hand: [{ t: [0, -0.6, 0.235] }, { t: [0.05, -0.05, 0.55] }], elbow: [[-1, 0, 0.2], [0, -1, 0.2]], palm: [[0, 0, -1], [0, 1, 0]], hdir: [[0, -1, 0], [0, 0, 1]] },
+        { hand: [{ t: [0, -0.6, 0.235] }, { t: [0.02, 0.55, 0.22] }], elbow: [[-1, 0, 0.2], [0, 0, 1]], palm: [[0, 0, -1], [0, 0, -1]], hdir: [[0, -1, 0], [0, 1, 0]] }]), view: [1, 0.15, 0.3] },
   { id: "etirement-epaule-bras-croise", n: "Étirement de l'épaule bras croisé", gear: "Sans matériel", lvl: "Débutant", zone: "haut", cat: "etirement", p: ["deltoides_post"], s: ["trapezes", "triceps"], time: true, hold: 30, side: true, rest: 15,
     tips: ["Debout, passe un bras tendu devant la poitrine, à hauteur d'épaule", "Avec l'autre main, ramène-le vers toi juste au-dessus du coude", "Garde les épaules basses et le buste face à l'avant", "Tu sens l'étirement à l'arrière de l'épaule"],
     err: ["Tirer sur le coude (l'articulation) plutôt qu'au-dessus", "Tourner le buste pour aller plus loin", "Hausser l'épaule"],
     vars: ["Étirement des triceps", "Étirement du haut du dos"],
     ...STR({ hand: [{ t: [0, -0.6, 0.235] }, { t: [0, -0.6, 0.235] }], elbow: [[-1, 0, 0.2], [-1, 0, 0.2]], palm: [[0, 0, -1], [0, 0, -1]] },
-      { hand: [{ t: [0.27, -0.1, -0.33] }, { t: [0.25, -0.13, 0.03] }], elbow: [[0, -1, 0], [0.2, -1, 0.5]], palm: [[-1, 0, 0], [-1, 0.2, 0]] }, true,
+      { hand: [{ t: [0.31, -0.1, -0.33] }, { t: [0.28, -0.13, 0.03] }], elbow: [[0, -1, 0], [0.2, -1, 0.5]], palm: [[-1, 0, 0], [-1, 0.2, 0]] }, true,
       { hand: [{ t: [0.45, -0.25, 0.1] }, { t: [0.15, -0.4, 0.2] }], elbow: [[0, -1, 0.2], [-0.4, -1, 0.3]] }), view: [1, 0.25, 0.55] },
   { id: "etirement-pectoraux-porte", n: "Étirement des pectoraux dans l'encadrement d'une porte", al: ["Étirement des pectoraux au mur"], gear: "Encadrement de porte ou mur", lvl: "Débutant", zone: "haut", cat: "etirement", p: ["pectoraux"], s: ["deltoides_ant", "biceps"], time: true, hold: 30, side: false, rest: 15,
     tips: ["Avant-bras posés de chaque côté de l'encadrement, coudes à hauteur d'épaules", "Un pied devant l'autre, abdos serrés", "Avance doucement le buste à travers la porte", "Tu sens l'étirement sur la poitrine et le devant des épaules"],
@@ -761,9 +769,12 @@ export const EXOS = [
     tips: ["Lève un bras et plie le coude : la main descend derrière la tête, entre les omoplates", "Avec l'autre main, pousse doucement le coude vers l'arrière de la tête", "Garde la tête droite et le dos sans te cambrer", "Tu sens l'étirement à l'arrière du bras"],
     err: ["Pencher la tête en avant", "Cambrer le dos", "Forcer sur le coude"],
     vars: ["Étirement de l'épaule bras croisé", "Étirement des dorsaux en appui"],
-    ...STR({ hand: [{ c: { el: [0.03, -1, 0.04] }, r: L.fa, d: [0.15, -1, 0.04] }, { t: [0, -0.6, 0.235] }], elbow: [[-1, 0, 0.2], [-1, 0, 0.2]], palm: [[0, 0, -1], [0, 0, -1]] },
-      { hp: 4, hand: [{ c: { el: [-0.12, 0.96, -0.22] }, r: L.fa, d: [-0.35, -0.93, -0.08] }, { t: [0.01, 0.28, -0.07] }], elbow: [[-1, 0, 0.2], [1, 0.2, 0.4]], palm: [[1, 0, 0], [0, -1, 0]] }, true,
-      { hand: [{ c: { el: [0.85, 0.5, 0.15] }, r: L.fa, d: [0.3, 0.9, 0.1] }, { t: [0.12, -0.2, 0.3] }], elbow: [[-1, 0, 0.2], [0, -1, 0.4]] }), view: [0.75, 0.3, 1] },
+    ...STR({ hand: [{ t: [0, -0.6, 0.235] }, { t: [0, -0.6, 0.235] }], elbow: [[-1, 0, 0.2], [-1, 0, 0.2]], palm: [[0, 0, -1], [0, 0, -1]], hdir: [[0, -1, 0], [0, -1, 0]] },
+      { hp: 4, hand: [{ t: [-0.11, -0.01, 0.09] }, { t: [0.04, 0.31, -0.06] }], elbow: [[-0.15, 1, -0.25], [1, 0.3, 0.6]], palm: [[0, 0, -1], [0, -1, 0]], hdir: [[-0.1, -1, 0], [0, 0, -1]] }, true,
+      [{ hand: [{ t: [0.1, -0.42, 0.42] }, { t: [0, -0.6, 0.235] }], elbow: [[0, -1, 0.3], [-1, 0, 0.2]], palm: [[1, 0, 0], [0, 0, -1]], hdir: [[0, -0.7, 0.7], [0, -1, 0]] },
+        { hand: [{ t: [0.02, -0.05, 0.62] }, { t: [0, -0.6, 0.235] }], elbow: [[0, -1, 0], [-1, 0, 0.2]], palm: [[0, 1, 0], [0, 0, -1]], hdir: [[0, 0, 1], [0, -1, 0]] },
+        { hand: [{ t: [0.03, 0.56, 0.2] }, { t: [0, -0.6, 0.235] }], elbow: [[0, 0, 1], [-1, 0, 0.2]], palm: [[0, 0, -1], [0, 0, -1]], hdir: [[0, 1, 0], [0, -1, 0]] },
+        { hand: [{ t: [-0.2, 0.3, 0.13] }, { t: [0.32, -0.02, 0.2] }], elbow: [[0.1, 1, -0.1], [0, -1, 0.3]], palm: [[0, 0, -1], [0, 0, -1]], hdir: [[-1, 0, 0], [1, 0, 0]] }]), view: [0.75, 0.3, 1] },
   { id: "etirement-biceps", n: "Étirement des biceps et des épaules", gear: "Sans matériel", lvl: "Débutant", zone: "haut", cat: "etirement", p: ["biceps", "deltoides_ant"], s: ["pectoraux"], time: true, hold: 30, side: false, rest: 15,
     tips: ["Debout, entrelace les doigts dans le dos, bras tendus", "Ouvre la poitrine et serre légèrement les omoplates", "Monte doucement les mains vers l'arrière sans te pencher", "Tu sens l'étirement à l'avant des épaules et des bras"],
     err: ["Pencher le buste en avant pour monter plus haut", "Plier les coudes", "Hausser les épaules"],
@@ -824,15 +835,17 @@ export const EXOS = [
     br: "Respire par le ventre : à chaque expiration, les genoux se rapprochent un peu de la poitrine.",
     vars: ["Torsion allongée", "Posture de l'enfant"],
     ...STR({ pc: [0, 0.12], th: -90, cp: 0, hand: { t: [0, -0.6, 0.235] }, palm: [0, 0, -1], elbow: [0, 1, 0.3], foot: [0.42, 0.085, 0.13], knee: [0, 1, 0.1], fdir: [1, 0, 0.12] },
-      { cp: 6, hand: { t: [0.4, -0.38, 0.13] }, palm: [0, -1, -0.4], hpose: "grip", elbow: [0, -0.2, 1], foot: [0.07, 0.43, 0.11], knee: [-1, 0.6, 0.1], fdir: [0.3, 0.95, 0.05] }, false),
+      { cp: 6, hand: { t: [0.4, -0.38, 0.13] }, palm: [0, -1, -0.4], hpose: "grip", elbow: [0, -0.2, 1], foot: [0.07, 0.43, 0.11], knee: [-1, 0.6, 0.1], fdir: [0.3, 0.95, 0.05] }, false,
+      { cp: 3, hand: { t: [0.3, -0.42, 0.33] }, elbow: [0, 0.4, 1], foot: [0.07, 0.43, 0.11], knee: [-1, 0.6, 0.1], fdir: [0.3, 0.95, 0.05] }),
     props: P => P.mat(-1.0, 0.7), view: [0.35, 0.5, 1] },
   { id: "inclinaison-laterale", n: "Inclinaison latérale debout", gear: "Sans matériel", lvl: "Débutant", zone: "milieu", cat: "etirement", p: ["obliques", "dorsaux"], s: ["abdos"], time: true, hold: 30, side: true, rest: 15,
     tips: ["Debout, pieds un peu plus écartés que les hanches", "Lève un bras au-dessus de la tête", "Penche-toi de l'autre côté, comme entre deux vitres", "L'autre main glisse le long de la cuisse"],
     err: ["Pencher le buste en avant ou en arrière", "Plier les genoux", "Hausser l'épaule du bras levé"],
     vars: ["Torsion allongée", "Étirement des dorsaux en appui"],
-    ...STR({ cl: 0, hl: 0, hand: [{ t: [0, -0.6, 0.235] }, { t: [0, -0.6, 0.235] }], elbow: [[-1, 0, 0.2], [-1, 0, 0.2]], palm: [[0, 0, -1], [0, 0, -1]], foot: [0, 0.085, 0.19] },
-      { cl: 24, hl: 8, hand: [{ t: [0.02, 0.5, 0.03] }, { t: [0.02, -0.64, 0.26] }], elbow: [[0, 0.2, 1], [-1, 0, 0.2]], palm: [[0, -0.3, 1], [0, 0, -1]] }, true,
-      { hand: [{ t: [0.05, -0.05, 0.62] }, { t: [0, -0.6, 0.235] }], elbow: [[0, -1, 0.3], [-1, 0, 0.2]] }), view: [1, 0.2, 0.2] },
+    ...STR({ cl: 0, hl: 0, hand: [{ t: [0, -0.6, 0.235] }, { t: [0, -0.6, 0.235] }], elbow: [[-1, 0, 0.2], [-1, 0, 0.2]], palm: [[0, 0, -1], [0, 0, -1]], hdir: [[0, -1, 0], [0, -1, 0]], foot: [0, 0.085, 0.19] },
+      { cl: 24, hl: 8, hand: [{ t: [0.02, 0.5, 0.03] }, { t: [0.02, -0.63, 0.3] }], elbow: [[0, 0.2, 1], [-1, 0, 0.2]], palm: [[0, 0, -1], [0, 0, -1]], hdir: [[0, 1, -0.4], [0, -1, 0]] }, true,
+      [{ hand: [{ t: [0.1, -0.42, 0.42] }, { t: [0.02, -0.63, 0.3] }], elbow: [[0, -1, 0.3], [-1, 0, 0.2]], palm: [[1, 0, 0], [0, 0, -1]], hdir: [[0, -0.7, 0.7], [0, -1, 0]] },
+        { hand: [{ t: [0.05, -0.05, 0.62] }, { t: [0.02, -0.63, 0.3] }], elbow: [[0, -1, 0.3], [-1, 0, 0.2]], palm: [[0, 1, 0], [0, 0, -1]], hdir: [[0, 0, 1], [0, -1, 0]] }]), view: [1, 0.2, 0.2] },
   { id: "fente-basse", n: "Fente basse (fléchisseurs de hanche)", al: ["Étirement du psoas"], gear: "Tapis", lvl: "Débutant", zone: "milieu", cat: "etirement", p: ["quadriceps"], s: ["abdos"], time: true, hold: 30, side: "one", rest: 15,
     tips: ["Un genou au sol, l'autre pied devant, genou avant au-dessus de la cheville", "Buste droit, rentre légèrement le bassin (serre le fessier arrière)", "Avance doucement le bassin vers l'avant et le bas", "Tu sens l'étirement à l'avant de la hanche et de la cuisse arrière"],
     err: ["Cambrer le bas du dos", "Genou avant qui dépasse beaucoup les orteils", "Genou arrière douloureux (mets un coussin)"],
@@ -856,21 +869,24 @@ export const EXOS = [
     err: ["Genou qui part sur le côté ou vers l'avant", "Cambrer le dos", "Tirer le pied sur le côté"],
     vars: ["Fente basse (fléchisseurs de hanche)", "Étirement des ischios debout"],
     ...STR({ pc: [-0.02, 1.0], th: 0, hand: [{ t: [0, -0.6, 0.235] }, { t: [0, -0.6, 0.235] }], elbow: [[-1, 0, 0.2], [-1, 0, 0.2]], palm: [[0, 0, -1], [0, 0, -1]], foot: [{ c: { kn: [0.03, -1, 0.0] }, r: L.sh, d: [0, -1, 0.01] }, { c: { kn: [0.03, -1, 0.0] }, r: L.sh, d: [0, -1, 0.01] }], knee: [[1, 0, 0], [1, 0, 0]], fdir: [[1, 0, 0.12], [1, 0, 0.12]] },
-      { th: -2, hand: [{ t: [-0.2, -0.53, 0.14] }, { t: [0.08, -0.22, 0.6] }], elbow: [[-0.3, -1, 0.3], [0, -1, 0.3]], palm: [[1, 0, 0], [0, -1, 0]], foot: [{ c: { kn: [-0.06, -1, 0.0] }, r: L.sh, d: [-0.3, 0.95, 0.0] }, { c: { kn: [0.03, -1, 0.0] }, r: L.sh, d: [0, -1, 0.01] }], fdir: [[-0.95, -0.2, 0], [1, 0, 0.12]] }, true), view: [-0.5, 0.25, 1] },
+      { th: -2, hand: [{ t: [-0.2, -0.53, 0.14] }, { t: [0.08, -0.22, 0.6] }], elbow: [[-0.3, -1, 0.3], [0, -1, 0.3]], palm: [[1, 0, 0], [0, -1, 0]], foot: [{ c: { kn: [-0.06, -1, 0.0] }, r: L.sh, d: [-0.3, 0.95, 0.0] }, { c: { kn: [0.03, -1, 0.0] }, r: L.sh, d: [0, -1, 0.01] }], fdir: [[-0.95, -0.2, 0], [1, 0, 0.12]] }, true,
+      { hand: [{ t: [-0.1, -0.6, 0.2] }, { t: [0.05, -0.4, 0.45] }], foot: [{ c: { kn: [0, -1, 0.0] }, r: L.sh, d: [-0.78, -0.62, 0] }, { c: { kn: [0.03, -1, 0.0] }, r: L.sh, d: [0, -1, 0.01] }], fdir: [[0.5, -0.86, 0], [1, 0, 0.12]] }), view: [-0.5, 0.25, 1] },
   { id: "ischios-assis", n: "Étirement des ischios assis", gear: "Tapis", lvl: "Débutant", zone: "bas", cat: "etirement", p: ["ischios"], s: ["mollets", "lombaires"], time: true, hold: 30, side: true, rest: 15,
     tips: ["Assis, une jambe tendue devant, l'autre pliée, pied contre la cuisse", "Penche le buste vers la jambe tendue en partant des hanches", "Garde le dos le plus plat possible", "Les mains glissent le long du tibia, sans chercher à toucher le pied"],
     err: ["Arrondir le dos pour aller plus loin", "Plier la jambe tendue", "Faire des rebonds"],
     br: "Inspire en grandissant le dos, expire en te penchant un peu plus depuis les hanches.",
     vars: ["Étirement des ischios debout", "Papillon (adducteurs)"],
-    ...STR({ pc: [0, 0.16], th: 4, cp: 0, hp: 0, hand: [[0.05, 0.03, 0.26], [0.05, 0.03, 0.26]], hdir: [1, 0, 0], palm: [0, -1, 0], elbow: [-1, 0, 0.3], foot: [[0.86, 0.085, 0.1], [0.86, 0.085, 0.1]], knee: [[0, 1, 0], [0, 1, 0]], fdir: [[0.15, 1, 0.05], [0.15, 1, 0.05]] },
-      { th: 48, cp: 8, hp: 8, hand: [[0.6, 0.16, 0.13], [0.56, 0.165, -0.05]], palm: [0, -1, -0.2], foot: [[0.86, 0.085, 0.1], [0.36, 0.08, -0.02]], knee: [[0, 1, 0], [0.33, -0.05, 0.94]], fdir: [[0.15, 1, 0.05], [0.6, 0, -0.8]] }, true),
+    ...STR({ pc: [0, 0.16], th: 4, cp: 0, hp: 0, cy: 0, hand: [[-0.1, 0.03, 0.27], [-0.1, 0.03, 0.27]], hdir: [1, 0, 0], palm: [0, -1, 0], elbow: [-1, 0, 0.3], foot: [[0.86, 0.085, 0.1], [0.86, 0.085, 0.1]], knee: [[0, 1, 0], [0, 1, 0]], fdir: [[0.15, 1, 0.05], [0.15, 1, 0.05]] },
+      { th: 48, cp: 8, hp: 8, cy: -16, hand: [[0.6, 0.16, 0.13], [0.6, 0.17, -0.03]], palm: [0, -1, -0.2], foot: [[0.86, 0.085, 0.1], [0.32, 0.08, 0.01]], knee: [[0, 1, 0], [0.33, -0.05, 0.94]], fdir: [[0.15, 1, 0.05], [0.9, 0.1, -0.25]] }, true,
+      [{ th: 10, hand: [[0.0, 0.36, 0.3], [0.0, 0.36, 0.3]] },
+        { th: 24, cp: 4, cy: -10, hand: [[0.34, 0.42, 0.16], [0.36, 0.44, 0.1]], foot: [[0.86, 0.085, 0.1], [0.6, 0.15, 0.12]], knee: [[0, 1, 0], [0.3, 0.6, 0.8]], fdir: [[0.15, 1, 0.05], [0.4, 0.9, 0]] }]),
     props: P => P.mat(-0.5, 1.05), view: [0.35, 0.35, 1] },
   { id: "ischios-debout", n: "Étirement des ischios debout", al: ["Étirement des ischios talon sur un support"], gear: "Banc ou marche", lvl: "Débutant", zone: "bas", cat: "etirement", p: ["ischios"], s: ["mollets"], time: true, hold: 30, side: true, rest: 15,
     tips: ["Pose un talon sur un banc ou une marche, jambe tendue, pointe vers le haut", "Jambe d'appui légèrement fléchie", "Penche le buste en avant en gardant le dos plat", "Tu sens l'étirement derrière la cuisse"],
     err: ["Arrondir le dos", "Support trop haut", "Bloquer le genou de la jambe tendue"],
     vars: ["Étirement des ischios assis", "Étirement des mollets au mur"],
-    ...STR({ pc: [-0.05, 0.965], th: 0, hp: 0, hand: [{ t: [0, -0.6, 0.235] }, { t: [0, -0.6, 0.235] }], elbow: [[-1, 0, 0.2], [-1, 0, 0.2]], palm: [[0, 0, -1], [0, 0, -1]], foot: [[-0.05, 0.085, 0.13], [-0.05, 0.085, 0.13]], knee: [[1, 0, 0.1], [1, 0, 0.1]], fdir: [[1, 0, 0.15], [1, 0, 0.15]] },
-      { pc: [-0.12, 0.93], th: 46, hp: 6, hand: [{ t: [0.42, -0.42, 0.13] }, { t: [0.42, -0.45, 0.03] }], elbow: [[-0.5, -1, 0.3], [-0.5, -1, 0.3]], palm: [[0, -1, 0], [0, -1, 0]], foot: [[0.62, 0.53, 0.11], [-0.1, 0.085, 0.13]], knee: [[0, 1, 0], [1, 0, 0.1]], fdir: [[0.2, 1, 0.05], [1, 0, 0.15]] }, true,
+    ...STR({ pc: [-0.05, 0.965], th: 0, hp: 0, hand: [{ t: [0, -0.6, 0.235] }, { t: [0, -0.6, 0.235] }], elbow: [[-1, 0, 0.2], [-1, 0, 0.2]], palm: [[0, 0, -1], [0, 0, -1]], hdir: [[0, -1, 0], [0, -1, 0]], foot: [[-0.05, 0.085, 0.13], [-0.05, 0.085, 0.13]], knee: [[1, 0, 0.1], [1, 0, 0.1]], fdir: [[1, 0, 0.15], [1, 0, 0.15]] },
+      { pc: [-0.12, 0.93], th: 46, hp: 6, hand: [{ t: [0.42, -0.39, 0.14] }, { t: [0.42, -0.42, 0.04] }], elbow: [[-0.5, -1, 0.3], [-0.5, -1, 0.3]], palm: [[0, -1, 0], [0, -1, 0]], hdir: [[1, -0.4, 0], [1, -0.4, 0]], foot: [[0.62, 0.53, 0.11], [-0.1, 0.085, 0.13]], knee: [[0, 1, 0], [1, 0, 0.1]], fdir: [[0.2, 1, 0.05], [1, 0, 0.15]] }, true,
       { pc: [-0.08, 0.95], th: 6, foot: [[0.62, 0.53, 0.11], [-0.1, 0.085, 0.13]], knee: [[0, 1, 0], [1, 0, 0.1]], fdir: [[0.2, 1, 0.05], [1, 0, 0.15]] }),
     props: P => P.benchZ(0.65, 0.45), view: [0.2, 0.25, 1] },
   { id: "fessiers-allonge", n: "Étirement des fessiers allongé", al: ["Figure 4", "Étirement du piriforme"], gear: "Tapis", lvl: "Débutant", zone: "bas", cat: "etirement", p: ["fessiers"], s: ["abducteurs"], time: true, hold: 30, side: true, rest: 15,
@@ -878,7 +894,8 @@ export const EXOS = [
     err: ["Décoller la tête et les épaules", "Tirer avec les bras crispés", "Pied croisé qui glisse sur le tibia"],
     vars: ["Posture du pigeon", "Genoux à la poitrine"],
     ...STR({ pc: [0, 0.12], th: -90, cp: 0, hand: [{ t: [0, -0.6, 0.235] }, { t: [0, -0.6, 0.235] }], palm: [[0, 0, -1], [0, 0, -1]], elbow: [[0, 1, 0.3], [0, 1, 0.3]], foot: [[0.42, 0.085, 0.13], [0.42, 0.085, 0.13]], knee: [[0, 1, 0.1], [0, 1, 0.1]], fdir: [[1, 0, 0.12], [1, 0, 0.12]] },
-      { cp: 5, hand: [{ t: [0.3, -0.45, -0.03] }, { t: [0.3, -0.45, 0.14] }], palm: [[0, 0, -1], [0, 0, 1]], hpose: "grip", elbow: [[0, -0.3, 1], [0, -0.3, 1]], foot: [[0.07, 0.5, -0.12], [0.42, 0.55, 0.12]], knee: [[0.6, 0.2, 1], [-0.3, 1, 0.05]], fdir: [[0.3, 0.3, -1], [0.15, 1, 0.05]] }, true),
+      { cp: 5, hand: [{ t: [0.27, -0.38, -0.04] }, { t: [0.27, -0.38, 0.13] }], palm: [[0, 0, -1], [0, 0, -1]], hpose: "grip", elbow: [[0, -0.3, 1], [0, -0.3, 1]], foot: [[0.07, 0.5, -0.12], [0.42, 0.55, 0.12]], knee: [[0.6, 0.2, 1], [-0.3, 1, 0.05]], fdir: [[0.3, 0.3, -1], [0.15, 1, 0.05]] }, true,
+      { cp: 3, hand: [{ t: [0.15, -0.25, 0.05] }, { t: [0.15, -0.25, 0.28] }], elbow: [[0, -0.3, 1], [0, -0.3, 1]], foot: [[0.07, 0.5, -0.12], [0.42, 0.55, 0.12]], knee: [[0.6, 0.2, 1], [-0.3, 1, 0.05]], fdir: [[0.3, 0.3, -1], [0.15, 1, 0.05]] }),
     props: P => P.mat(-1.0, 0.7), view: [0.45, 0.55, 1] },
   { id: "pigeon", n: "Posture du pigeon", gear: "Tapis", lvl: "Intermédiaire", zone: "bas", cat: "etirement", p: ["fessiers"], s: ["abducteurs", "quadriceps"], time: true, hold: 30, side: "one", rest: 15,
     tips: ["Une jambe pliée devant toi, tibia en travers, l'autre tendue en arrière", "Bassin face à l'avant, posé le plus bas possible", "Penche le buste au-dessus de la jambe avant, avant-bras au sol", "Tu sens l'étirement dans la fesse de la jambe avant"],
@@ -892,8 +909,8 @@ export const EXOS = [
     tips: ["Assis, plantes de pieds collées, talons près du bassin", "Tiens les pieds avec les mains, dos droit", "Laisse les genoux descendre vers le sol", "Pour aller plus loin, penche le buste en avant, dos plat"],
     err: ["Arrondir le dos", "Appuyer fort sur les genoux", "Faire des rebonds avec les jambes"],
     vars: ["Étirement des adducteurs en fente latérale", "Étirement des ischios assis"],
-    ...STR({ pc: [0, 0.16], th: 16, cp: 0, hp: 0, hand: [0.31, 0.12, 0.08], hdir: [0.3, -1, 0], palm: [0, 0, -1], hpose: "grip", elbow: [0, -0.4, 1], foot: [0.37, 0.075, 0.05], knee: [0.4, 0.1, 1], fdir: [1, 0.1, -0.15] },
-      { th: 34, cp: 6, hp: 8, hand: [0.36, 0.1, 0.07], elbow: [0.2, -1, 0.8], knee: [0.3, -0.15, 1] }, false),
+    ...STR({ pc: [0, 0.16], th: 16, cp: 0, hp: 0, hand: [0.41, 0.12, 0.075], hdir: [0.3, -1, 0], palm: [0, 0, -1], hpose: "grip", elbow: [0, -0.4, 1], foot: [0.37, 0.075, 0.05], knee: [0.4, 0.1, 1], fdir: [1, 0.1, -0.15] },
+      { th: 34, cp: 6, hp: 8, hand: [0.44, 0.11, 0.07], elbow: [0.2, -1, 0.8], knee: [0.3, -0.15, 1] }, false),
     props: P => P.mat(-0.5, 0.8), view: [1, 0.55, 0.35] },
   { id: "adducteurs-fente-laterale", n: "Étirement des adducteurs en fente latérale", gear: "Sans matériel", lvl: "Débutant", zone: "bas", cat: "etirement", p: ["adducteurs"], s: ["ischios"], time: true, hold: 30, side: true, rest: 15,
     tips: ["Pieds très écartés, pointes légèrement vers l'extérieur", "Plie une jambe en descendant les fesses vers l'arrière", "L'autre jambe reste tendue, pied à plat", "Tu sens l'étirement à l'intérieur de la cuisse tendue"],
@@ -1051,14 +1068,22 @@ function buildMan() {
 }
 
 /* ---------- Résolution d'une pose ---------- */
+// orientations (doigts, paume, pied) : passage progressif entre une direction donnée et la valeur par défaut (non précisée, "sup", "pro")
+const MIXK = { hdir: 1, palm: 1, fdir: 1 };
+const loose = v => v == null || typeof v === "string";
 function lerpSpec(a, b, t, key) {
+  if (MIXK[key] && a !== b && (loose(a) || loose(b))) {
+    if (isPair(a) || isPair(b)) { const A = isPair(a) ? a : [a, a], B = isPair(b) ? b : [b, b]; return [0, 1].map(i => lerpSpec(A[i], B[i], t, key)); }
+    return t <= 0 ? a : t >= 1 ? b : { mx: t, a, b };
+  }
   if (b === undefined) return a;
   if (typeof a === "number" && typeof b === "number") return a + (b - a) * t;
   if (Array.isArray(a) && Array.isArray(b)) {
     if (key === "d" && typeof a[0] === "number") return slerp(a, b, t);
     return a.map((x, i) => lerpSpec(x, b[i], t, key));
   }
-  if (a && b && typeof a === "object" && typeof b === "object" && !Array.isArray(a) && !Array.isArray(b)) { const o = {}; for (const k in a) o[k] = lerpSpec(a[k], b[k], t, k); return o; }
+  // toutes les propriétés des deux poses (une propriété ajoutée à l'étape suivante compte dès le début de la transition)
+  if (a && b && typeof a === "object" && typeof b === "object" && !Array.isArray(a) && !Array.isArray(b)) { const o = {}; for (const k of new Set(Object.keys(a).concat(Object.keys(b)))) o[k] = lerpSpec(a[k], b[k], t, k); return o; }
   return t < 0.5 ? a : b;
 }
 function slerp(a, b, t) {
@@ -1118,6 +1143,8 @@ function solve(ex, s) {
     return p.plus ? o.add(W(p.plus, i)) : o;
   };
   const dir = (d, i) => (isPt(d) ? W(d, i) : Fc.clone().multiplyScalar(d.t[0]).addScaledVector(Uc, d.t[1]).addScaledVector(Rc, sg(i) * d.t[2])).normalize();
+  // direction mélangée (voir lerpSpec) : moyenne pondérée des deux directions, sinon la direction elle-même
+  const mixd = (sp, base) => sp && sp.mx !== undefined ? mixd(sp.a, base).multiplyScalar(1 - sp.mx).addScaledVector(mixd(sp.b, base), sp.mx).normalize() : base(sp);
   let pc;
   if (k.pc) pc = V(k.pc[0], k.pc[1], k.pc[2] || 0);
   else if (k.hipAt) pc = point(k.hipAt, 1).setZ(0).addScaledVector(U, L.hipDrop);
@@ -1133,7 +1160,10 @@ function solve(ex, s) {
   // articulation intermédiaire imposée (coude ou genou fixe) : pas de calcul, position exacte
   const fixed = (root, midP, end, pole) => {
     const u = end.clone().sub(root).normalize(), v = midP.clone().sub(root); v.addScaledVector(u, -v.dot(u));
-    return { mid: midP, end, bend: v.lengthSq() > 1e-6 ? v.normalize() : pole.clone().addScaledVector(u, -pole.dot(u)).normalize() };
+    const vs = v.lengthSq() > 1e-6 ? v.normalize() : pole.clone().addScaledVector(u, -pole.dot(u)).normalize();
+    // côté du pli = opposé à la bissectrice des deux segments ; reste continu quand l'articulation se replie complètement
+    const c = root.clone().sub(midP).normalize().add(end.clone().sub(midP).normalize()), w = Math.min(1, Math.max(0, (c.lengthSq() - 0.03) / 0.15));
+    return { mid: midP, end, bend: w > 0 ? vs.multiplyScalar(1 - w).addScaledVector(c.normalize().negate(), w).normalize() : vs };
   };
   for (let i = 0; i < 2; i++) {
     const hs = side(k.hand || HANG, i), hp = dir(side(k.elbow || [-1, 0, 0.2], i), i);
@@ -1141,10 +1171,9 @@ function solve(ex, s) {
     if (hs.c && hs.c.el) { const E = center(hs.c, i); a = fixed(ctx.sh[i], E, E.clone().addScaledVector(W(hs.d, i).normalize(), L.fa), hp); }
     else a = ik(ctx.sh[i], point(hs, i), L.ua, L.fa, hp);
     const fd = a.end.clone().sub(a.mid).normalize();
-    const hds = k.hdir ? side(k.hdir, i) : null, hd = hds ? dir(hds, i) : fd;
+    const hd = mixd(side(k.hdir, i), sp => sp ? dir(sp, i) : fd.clone());
     // paume : "sup" = supination (côté des fléchisseurs), "pro" = pronation, sinon une direction
-    const ps = side(k.palm, i);
-    let pv = ps === "pro" ? a.bend.clone() : (!ps || ps === "sup") ? a.bend.clone().negate() : dir(ps, i);
+    let pv = mixd(side(k.palm, i), sp => sp === "pro" ? a.bend.clone() : (!sp || sp === "sup") ? a.bend.clone().negate() : dir(sp, i));
     pv.addScaledVector(hd, -pv.dot(hd));
     if (pv.lengthSq() < 1e-4) { pv = a.bend.clone().negate().addScaledVector(hd, -a.bend.clone().negate().dot(hd)); if (pv.lengthSq() < 1e-4) pv = Math.abs(hd.y) < 0.9 ? UP.clone().addScaledVector(hd, -hd.y) : V(1, 0, 0); }
     pv.normalize();
@@ -1157,7 +1186,7 @@ function solve(ex, s) {
     if (fs.c && fs.c.kn) { const K = center(fs.c, i); l = fixed(ctx.hip[i], K, K.clone().addScaledVector(W(fs.d, i).normalize(), L.sh), kp); }
     else l = ik(ctx.hip[i], point(fs, i), L.th, L.sh, kp);
     out.kn.push(l.mid); out.an.push(l.end); out.bendL.push(l.bend);
-    const fdv = dir(side(k.fdir || STAND.fdir, i), i); out.fdir.push(fdv);
+    const fdv = mixd(side(k.fdir, i), sp => dir(sp || side(STAND.fdir, i), i)); out.fdir.push(fdv);
     const fus = k.fup ? side(k.fup, i) : null; out.fup.push(fus ? dir(fus, i) : null);
   }
   return out;
@@ -1650,7 +1679,10 @@ function detailHtml(ex) {
     '<button class="btn primary block big" id="exo-add">Ajouter à une séance</button></article></div>';
 }
 // suite d'étirements parcourue avec Précédent / Suivant : la liste filtrée en cours, sinon la zone de l'étirement
-function seqFor(ex) { const f = STRETCHES.filter(matchesStretch); return f.includes(ex) ? f : STRETCHES.filter(e => e.zone === ex.zone); }
+function seqFor(ex) {
+  if (api && api.seq && api.seq.includes(ex.id)) return api.seq.map(id => STRETCHES.find(e => e.id === id)).filter(Boolean); // suite proposée après une séance
+  const f = STRETCHES.filter(matchesStretch); return f.includes(ex) ? f : STRETCHES.filter(e => e.zone === ex.zone);
+}
 const BREATH = "Inspire lentement par le nez, puis expire plus longtemps que l'inspiration en relâchant la zone étirée. Ne bloque jamais ta respiration.";
 // nom court pour la barre Précédent / Suivant (« Étirement de l'épaule bras croisé » → « Épaule bras croisé »)
 const shortName = n => { const t = n.replace(/^Étirement (des |du |de l'|de la |de )/, ""); return t.charAt(0).toUpperCase() + t.slice(1); };
@@ -1661,7 +1693,7 @@ function stretchDetailHtml(ex) {
     (prev ? '<button type="button" class="btn" data-seq="' + prev.id + '" aria-label="Étirement précédent : ' + esc(prev.n) + '"><span aria-hidden="true">‹</span><span class="t">' + esc(shortName(prev.n)) + "</span></button>" : '<span class="exo-seq-gap"></span>') +
     '<span class="n">' + (k + 1) + " / " + seq.length + "</span>" +
     (next ? '<button type="button" class="btn primary" data-seq="' + next.id + '" aria-label="Étirement suivant : ' + esc(next.n) + '"><span class="t">' + esc(shortName(next.n)) + '</span><span aria-hidden="true">›</span></button>'
-      : '<a class="btn" href="#/exercices" aria-label="Fin de la série : retour aux étirements"><span class="t">Terminé</span><span aria-hidden="true">✓</span></a>') + "</nav>";
+      : '<a class="btn" href="' + esc(api && api.back ? api.back.href : "#/exercices") + '" aria-label="Fin de la série"><span class="t">Terminé</span><span aria-hidden="true">✓</span></a>') + "</nav>";
   return back +
     '<div class="exo-main">' + stageHtml(true) +
     '<article class="card exo-fiche" id="exo-fiche"><div><h1 class="exo-title">' + esc(ex.n) + '</h1><div class="exo-tags"><span>' + esc(zoneName(ex.zone)) + "</span><span>" + esc(ex.gear) + "</span><span>" + esc(holdTxt(ex)) + "</span></div></div>" +
@@ -1790,11 +1822,12 @@ function implCaps(ex, o) {
   }
   return C;
 }
-function check(ex) {
+function check(ex, n = 20) {
   const issues = {};
-  const note = (k, v) => { if (!issues[k] || v > issues[k].v) issues[k] = { v: Math.round(v * 1000) / 10 }; };
-  for (let k = 0; k <= 20; k++) {
-    const s = k / 20, o = solve(ex, s), B = bodyCaps(o), I = implCaps(ex, o);
+  let s = 0;
+  const note = (k, v) => { if (!issues[k] || v * 100 > issues[k].v) issues[k] = { v: Math.round(v * 1000) / 10, s }; };
+  for (let k = 0; k <= n; k++) {
+    s = k / n; const o = solve(ex, s), B = bodyCaps(o), I = implCaps(ex, o);
     for (const c of B) { const low = Math.min(c.a.y, c.b.y) - c.r; if (low < -0.012) note("sol/" + c.n, -low); }
     for (const c of I) { const low = Math.min(c.a.y, c.b.y) - c.r; if (low < -0.005) note("sol/" + c.n, -low); }
     for (const im of I) for (const b of B) {
@@ -1845,7 +1878,7 @@ function handShot(id, s, viewDir, dist) {
   Object.assign(G.orbit, { az: Math.atan2(d.z, d.x), pol: Math.asin(d.y), dist: dist || 0.55, target: o.hand[1].clone(), goal: null });
   placeCamera(0); G.renderer.render(G.scene, G.camera); return G.renderer.domElement.toDataURL("image/png");
 }
-export const __debug = { orbit: () => (G && G.orbit ? { dist: G.orbit.dist, az: G.orbit.az } : null), solve, EXOS, handShot, metrics: id => metrics(EXOS.find(e => e.id === id)), check: id => check(EXOS.find(e => e.id === id)), shot(id, s, w = 360, h = 300, viewDir) {
+export const __debug = { orbit: () => (G && G.orbit ? { dist: G.orbit.dist, az: G.orbit.az } : null), solve, EXOS, handShot, metrics: id => metrics(EXOS.find(e => e.id === id)), check: (id, n) => check(EXOS.find(e => e.id === id), n), shot(id, s, w = 360, h = 300, viewDir) {
   const ex = EXOS.find(e => e.id === id); initScene(); G.renderer.setSize(w, h, false); G.camera.aspect = w / h; G.camera.updateProjectionMatrix();
   view.stage = null; view.ex = null; showExercise(ex); view.playing = false; view.time = 0;
   if (viewDir) { const d = V(...viewDir).normalize(); G.orbit.az = Math.atan2(d.z, d.x); G.orbit.pol = Math.asin(d.y); }

@@ -489,13 +489,13 @@ function renderNow() {
 }
 
 /* ================= Écran : exercices (bibliothèque 3D, chargée à la demande) ================= */
-let exoMod = null, exoReturn = null;
+let exoMod = null, exoReturn = null, stretchSeq = null; // stretchSeq : suite d'étirements proposée après une séance
 function mountExercises(id, arg) {
   const root = document.getElementById("exo-root"); if (!root) return;
-  if (!id || id === "etirements") exoReturn = null; // liste ouverte directement : retour normal
+  if (!id || id === "etirements") { exoReturn = null; stretchSeq = null; } // liste ouverte directement : retour normal
   const back = id && exoReturn ? { href: exoReturn, label: /^#\/session/.test(exoReturn) ? "Retour à la séance" : /^#\/(home)?$/.test(exoReturn) ? "Accueil" : "Retour au programme" } : null;
   const ready = exoMod ? Promise.resolve(exoMod) : import("./exercices.js?v=" + encodeURIComponent(window.APP_BUILD || "")).then(m => (exoMod = m));
-  ready.then(m => { if (root.isConnected) m.mount(root, id && /^[a-z0-9-]{1,60}$/.test(id) ? id : null, { add: addLibraryExercise, back }, /^[a-z]{1,12}$/.test(arg || "") ? arg : null); })
+  ready.then(m => { if (root.isConnected) m.mount(root, id && /^[a-z0-9-]{1,60}$/.test(id) ? id : null, { add: addLibraryExercise, back, seq: stretchSeq }, /^[a-z]{1,12}$/.test(arg || "") ? arg : null); })
     .catch(err => { console.error(err); if (root.isConnected) root.innerHTML = '<div class="page-head"><h1>Exercices</h1></div><div class="card empty">Impossible de charger les exercices' + (navigator.onLine === false ? " sans connexion la première fois" : "") + '. Réessaie dans un instant.</div>'; });
 }
 // « Ajouter à une séance » depuis la fiche d'un exercice
@@ -635,6 +635,7 @@ function variantStats(t) {
 function viewHome() {
   const act = activeWorkout();
   let h = '<div class="page-head"><div><div class="muted small">' + esc(fmtDateLong(Date.now())) + '</div><h1>Bonjour' + (firstName() ? " " + esc(firstName()) : "") + '</h1></div>' + syncBadge() + "</div>" +
+    homeStretch(act) +
     '<div class="home-actions"><button class="btn primary" data-act="newtpl">+ Nouveau programme</button><button class="btn" data-act="importvar">Importer</button></div>';
   if (act) {
     h += '<div class="hero"><div class="small" style="opacity:.75">Séance en cours</div><div style="font-size:21px;font-weight:800;margin-top:2px">' + esc(act.templateName) + " · " + esc(vLabel(act.variantName)) + "</div>" +
@@ -664,8 +665,6 @@ function viewHome() {
       }).join("") + "</div></div>";
   }
   h += "</div>";
-  const lastW = finished()[0];
-  if (!act && lastW && Date.now() - lastW.endedAt < 3 * 3600000 && !stretchDismissed(lastW.id)) h += stretchCard(lastW, true);
   h += '<div class="section-title">Découvrir</div><div class="home-more"><a class="card" href="#/exercices/etirements"><b>Étirements</b><span class="muted small">Haut, milieu et bas du corps, avec les conseils</span></a>' +
     '<a class="card" href="#/programs"><b>Programmes Fiitday</b><span class="muted small"><span class="tag">Bientôt</span> Programmes prêts à l\'emploi et cardio</span></a></div>';
   const recent = finished().slice(0, 3);
@@ -808,7 +807,7 @@ function viewSession(id) {
     (active ? '<button class="btn sm" data-act="cancel">Annuler</button>' : "") + "</div></div>";
   if (!active) h += '<div class="banner">Séance terminée. Tu peux encore corriger les valeurs.</div>' + stretchCard(w, false);
   h += wide ? sessionTable(w) : sessionCards(w);
-  h += '<div style="margin-top:16px" class="row"><button class="btn" data-act="addex">+ Ajouter un exercice à cette séance</button></div>';
+  h += '<div class="add-row" style="margin-top:16px"><button class="btn" data-act="addex">+ Ajouter un exercice</button><button class="btn" data-act="sessstretch">+ Ajouter un étirement</button></div>';
   if (active) h += '<div class="restpop" data-restpop hidden><div class="rp-box" role="timer" aria-label="Minuteur de repos"><div class="rp-label">Repos</div>' +
     '<div class="rp-time num" data-rptime>0:00</div><div class="rp-bar"><span data-rpbar></span></div>' +
     '<div class="rp-btns"><button class="rp-b" data-act="restadd" data-v="-15">−15 s</button><button class="rp-b rp-go" data-act="skiprest">Passer</button><button class="rp-b" data-act="restadd" data-v="15">+15 s</button></div>' +
@@ -1003,7 +1002,7 @@ function viewProgram(tid, vid) {
         (bi < bl.length - 1 && !bl[bi + 1].groupId ? '<button class="link" style="margin-top:6px" data-act="link" data-b="' + bi + '">Enchaîner avec l\'exercice suivant (superset / biset)</button>' : "") + "</div>";
     }
   });
-  h += '<button class="btn block primary" data-act="addtplex">+ Ajouter un exercice</button></div>' +
+  h += '<div class="add-row"><button class="btn primary" data-act="addtplex">+ Ajouter un exercice</button><button class="btn" data-act="addstretch">+ Ajouter un étirement</button></div></div>' +
     '<div style="margin-top:32px"><button class="btn danger" data-act="deltpl">Supprimer le programme « ' + esc(t.name) + " »</button></div>";
   return h;
 }
@@ -1034,6 +1033,37 @@ function choose(title, opts) {
     });
   });
 }
+// choix d'un ou plusieurs étirements de la bibliothèque (recherche, zones, cases à cocher)
+function pickStretches(title) {
+  return new Promise(res => {
+    const all = EXO_LIB.filter(x => x.cat === "etirement"), picked = new Set();
+    let zone = "", q = "";
+    const d = document.createElement("div"); d.className = "modal sheet";
+    const listHtml = () => {
+      const qs = words(q), v = all.filter(x => (!zone || x.zone === zone) && (!qs.length || qs.every(t => words(x.n + " " + x.mus + " " + x.al.join(" ")).some(w => w.startsWith(t)))));
+      if (!v.length) return '<p class="muted small" style="margin:8px 2px">Aucun étirement ne correspond.</p>';
+      return ["haut", "milieu", "bas"].map(z => { const it = v.filter(x => x.zone === z); return it.length ? '<div class="pk-h">' + ZONE_NAMES[z] + "</div>" + it.map(x =>
+        '<label class="pk-row"><input type="checkbox" data-pk="' + x.id + '"' + (picked.has(x.id) ? " checked" : "") + '><span><b>' + esc(x.n) + '</b><span class="muted small">' + esc(x.mus) + " · " + x.hold + " s" + (x.side ? " de chaque côté" : "") + "</span></span></label>").join("") : ""; }).join("");
+    };
+    const okLabel = () => picked.size ? "Ajouter (" + picked.size + ")" : "Ajouter";
+    d.innerHTML = '<div class="modal-box pk" role="dialog" aria-modal="true" aria-label="' + esc(title) + '"><h3>' + esc(title) + '</h3><p class="muted small" style="margin:0 0 8px">Chaque étirement est ajouté en mode temps : 2 séries de 30 s.</p>' +
+      '<input class="f" type="search" data-pkq placeholder="Rechercher un étirement, un muscle" autocomplete="off" aria-label="Rechercher un étirement">' +
+      '<div class="pk-zones" role="group" aria-label="Zone">' + [["", "Tous"], ["haut", "Haut"], ["milieu", "Milieu"], ["bas", "Bas"]].map(z => '<button type="button" class="chip-btn" data-pkz="' + z[0] + '" aria-pressed="' + (z[0] === zone) + '">' + z[1] + "</button>").join("") + "</div>" +
+      '<div class="pk-list">' + listHtml() + '</div><div class="modal-btns"><button class="btn" data-r="0">Annuler</button><button class="btn primary" data-r="1">' + okLabel() + "</button></div></div>";
+    document.body.appendChild(d);
+    const box = d.querySelector(".pk-list"), ok = d.querySelector('[data-r="1"]');
+    d.querySelector("[data-pkq]").addEventListener("input", e => { q = e.target.value; box.innerHTML = listHtml(); });
+    d.addEventListener("change", e => { const id = e.target.dataset && e.target.dataset.pk; if (!id) return; if (e.target.checked) picked.add(id); else picked.delete(id); ok.textContent = okLabel(); });
+    d.addEventListener("click", e => {
+      if (e.target === d) { d.remove(); res(null); return; }
+      const z = e.target.closest("[data-pkz]"); if (z) { zone = z.dataset.pkz; d.querySelectorAll("[data-pkz]").forEach(x => x.setAttribute("aria-pressed", String(x === z))); box.innerHTML = listHtml(); return; }
+      const b = e.target.closest("[data-r]"); if (!b) return;
+      if (b.dataset.r === "1" && !picked.size) { ok.textContent = "Coche au moins un étirement"; return; }
+      d.remove(); res(b.dataset.r === "1" ? all.filter(x => picked.has(x.id)) : null);
+    });
+  });
+}
+const stretchExercise = x => Object.assign(newExercise(), { name: x.n }, libDefaults(x));
 // demande le nom d'un ou plusieurs exercices, avec la liste des exercices déjà connus
 function askNames(title, n, text) {
   return new Promise(res => {
@@ -1081,35 +1111,101 @@ function zonesOf(e) {
   return out;
 }
 function stretchDismissed(id) { try { return localStorage.getItem("fiitday-stretch-ok") === id; } catch (e) { return false; } }
-const firstStretch = z => EXO_LIB.find(x => x.cat === "etirement" && x.zone === z);
+const STRETCH_MIN = 15; // la carte reste 15 min en haut de l'accueil après la fin d'une séance
+let stretchTimer = null;
+function homeStretch(act) {
+  clearTimeout(stretchTimer);
+  const w = finished()[0]; if (act || !w || stretchDismissed(w.id)) return "";
+  const left = w.endedAt + STRETCH_MIN * 60000 - Date.now(); if (left <= 0) return "";
+  stretchTimer = setTimeout(() => { if (route().name === "home") softRender(); }, left + 500); // disparaît toute seule
+  return stretchCard(w, true);
+}
+// étirements conseillés : ceux des muscles travaillés (retour au calme), et ceux des zones reposées (souplesse) ;
+// une séance qui fait travailler tout le corps n'a que le retour au calme ; les étirements déjà faits pendant la séance ne sont pas reproposés
+function stretchPlan(w) {
+  const lib = EXO_LIB.filter(x => x.cat === "etirement"), done = new Set(), mus = {}, zones = new Set();
+  const used = w.exercises.filter(exHasData), list = used.length ? used : w.exercises;
+  for (const e of w.exercises) { const l = libFor(e.name); if (l && l.cat === "etirement" && (exHasData(e) || !used.length)) done.add(l.id); }
+  for (const e of list) {
+    const l = libFor(e.name); if (l && l.cat === "etirement") continue;
+    if (l) l.mus.split(", ").forEach(m => { mus[norm(m)] = (mus[norm(m)] || 0) + 1; });
+    zonesOf(e).forEach(z => zones.add(z));
+  }
+  const left = lib.filter(x => !done.has(x.id));
+  const score = x => x.mus.split(", ").reduce((n, m) => n + (mus[norm(m)] || 0), 0);
+  let calm = left.filter(x => score(x) > 0);
+  if (!calm.length) calm = left.filter(x => zones.has(x.zone)); // exercices perso : d'après la zone
+  if (calm.length > 8) { const keep = new Set(calm.slice().sort((a, b) => score(b) - score(a) || a.k - b.k).slice(0, 8)); calm = calm.filter(x => keep.has(x)); }
+  const worked = ["haut", "milieu", "bas"].filter(z => zones.has(z)), rested = ["haut", "milieu", "bas"].filter(z => !zones.has(z));
+  const flex = worked.length && worked.length < 3 ? left.filter(x => rested.includes(x.zone) && !calm.includes(x)) : [];
+  return { calm, flex, worked, rested: rested.filter(z => flex.some(x => x.zone === z)), done: done.size };
+}
 function stretchCard(w, onHome) {
-  const count = { haut: 0, milieu: 0, bas: 0 };
-  w.exercises.forEach(e => { if (exHasData(e) || !onHome) zonesOf(e).forEach(z => { count[z]++; }); });
-  const worked = Object.keys(count).filter(z => count[z]).sort((a, b) => count[b] - count[a]), rested = Object.keys(count).filter(z => !count[z]);
-  if (!firstStretch("haut")) return "";
-  const go = (z, label) => '<button type="button" class="btn sm" data-act="stretchgo" data-z="' + z + '">' + esc(label) + " ›</button>";
-  const row = (title, z, txt) => '<div class="sc-row"><div><b>' + esc(title) + '</b><span class="muted small">' + esc(txt) + "</span></div>" + go(z, ZONE_NAMES[z]) + "</div>";
+  const P = stretchPlan(w);
+  if (!P.calm.length && !P.flex.length) return "";
+  const zl = zs => zs.map(z => ZONE_NAMES[z].toLowerCase()).join(" et ");
+  const go = (seq, label) => '<button type="button" class="btn sm" data-act="stretchgo" data-seq="' + seq.map(x => x.id).join(",") + '">' + esc(label) + " ›</button>";
+  const row = (title, txt, seq) => '<div class="sc-row"><div><b>' + esc(title) + '</b><span class="muted small">' + esc(txt) + "</span></div>" + go(seq, "Commencer (" + seq.length + ")") + "</div>";
   let rows = "";
-  if (worked.length) rows += row("Maintenant, en douceur", worked[0], "Retour au calme : 1 à 2 fois 20 à 30 s par étirement, sans forcer" + (worked.length > 1 ? " (" + worked.slice(1).map(z => ZONE_NAMES[z].toLowerCase()).join(", ") + " aussi)" : ""));
-  if (rested.length && worked.length) rows += row("Pour gagner en souplesse", rested[0], "Ces muscles sont chauds et reposés : 2 à 4 fois 30 s");
-  else if (worked.length) rows += '<p class="muted small" style="margin:0">Tout le corps a travaillé : pour gagner en souplesse, fais plutôt une séance d\'étirements plus tard ou un jour de repos.</p>';
-  if (!worked.length) rows += row("Retour au calme", "haut", "Quelques étirements doux de 20 à 30 s pour finir");
-  return '<div class="card stretch-card"><div class="spread"><h2>Étirements conseillés</h2>' + (onHome ? '<button type="button" class="linkbtn" data-act="stretchok" data-id="' + esc(w.id) + '" aria-label="Masquer">Masquer</button>' : "") + "</div>" +
-    (worked.length ? '<p class="muted small" style="margin:2px 0 8px">' + (onHome ? "Après ta séance " + esc(w.templateName) + " : " : "Cette séance : ") + "surtout le " + esc(ZONE_NAMES[worked[0]].toLowerCase()) + ".</p>" : "") + rows +
+  if (P.calm.length) rows += row("Maintenant, en douceur", "Retour au calme des muscles travaillés : 1 à 2 fois 20 à 30 s par étirement, sans forcer", P.calm);
+  if (P.flex.length) rows += row("Pour gagner en souplesse", ZONE_NAMES[P.rested[0]] + (P.rested[1] ? " et " + ZONE_NAMES[P.rested[1]].toLowerCase() : "") + " : ces muscles sont chauds et reposés, 2 à 4 fois 30 s", P.flex);
+  const intro = P.worked.length === 3 ? "tout le corps a travaillé, donc seulement un retour au calme" : P.worked.length ? "surtout le " + zl(P.worked) : "";
+  return '<div class="card stretch-card' + (onHome ? " top" : "") + '"><div class="spread"><h2>Étirements conseillés</h2>' + (onHome ? '<button type="button" class="linkbtn" data-act="stretchok" data-id="' + esc(w.id) + '">Masquer</button>' : "") + "</div>" +
+    '<p class="muted small" style="margin:2px 0 8px">' + (onHome ? "Après ta séance " + esc(w.templateName) : "Cette séance") + (intro ? " : " + esc(intro) : "") + "." + (P.done ? " Les étirements déjà faits pendant la séance ne sont pas reproposés." : "") + "</p>" + rows +
     '<a class="exo-link small" href="#/exercices/conseils-etirements" data-act="stretchtips">Conseils pour bien s\'étirer ›</a></div>';
 }
 
 /* ================= Écran : historique ================= */
 function historyRow(w) {
   const done = w.exercises.reduce((n, e) => n + e.sets.filter(s => s.done || setHasData(s, e.type)).length, 0);
-  return '<a href="#/session/' + w.id + '"><div><b>' + esc(w.templateName) + '</b> <span class="muted">· ' + esc(vLabel(w.variantName)) + '</span><div class="muted small">' +
-    esc(fmtDate(w.startedAt)) + " · " + w.exercises.length + " exercices · " + done + ' séries</div></div><span class="muted small num">' + fmtDur((w.endedAt || Date.now()) - w.startedAt) + "</span></a>";
+  // glisser la ligne de droite à gauche fait apparaître « Supprimer »
+  return '<div class="swipe"><button type="button" class="swipe-del" data-act="swipedel" data-id="' + esc(w.id) + '" tabindex="-1">Supprimer</button>' +
+    '<a class="swipe-row" draggable="false" href="#/session/' + w.id + '"><div><b>' + esc(w.templateName) + '</b> <span class="muted">· ' + esc(vLabel(w.variantName)) + '</span><div class="muted small">' +
+    esc(fmtDate(w.startedAt)) + " · " + w.exercises.length + " exercices · " + done + ' séries</div></div><span class="muted small num">' + fmtDur((w.endedAt || Date.now()) - w.startedAt) + "</span></a></div>";
 }
+// glisser pour supprimer : la ligne suit le doigt (ou la souris) horizontalement ; le défilement vertical reste normal
+const SW_W = 104;
+let sw = null, swOpen = null, swipedAt = 0;
+function swClose(row) { if (row) { row.style.transform = ""; row.parentElement.classList.remove("open"); } if (swOpen === row) swOpen = null; }
+$app.addEventListener("pointerdown", e => {
+  const row = e.target.closest && e.target.closest(".swipe-row");
+  if (swOpen && swOpen !== row && !(e.target.closest && e.target.closest(".swipe-del"))) swClose(swOpen);
+  if (!row || e.button > 0) return;
+  sw = { row, x: e.clientX, y: e.clientY, base: swOpen === row ? -SW_W : 0, dir: null, dx: 0, id: e.pointerId };
+});
+$app.addEventListener("pointermove", e => {
+  if (!sw || e.pointerId !== sw.id) return;
+  const dx = e.clientX - sw.x, dy = e.clientY - sw.y;
+  if (!sw.dir) {
+    if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+    sw.dir = Math.abs(dx) > Math.abs(dy) ? "h" : "v";
+    if (sw.dir === "h") { sw.row.classList.add("swiping"); try { sw.row.setPointerCapture(e.pointerId); } catch (err) { } }
+  }
+  if (sw.dir !== "h") return;
+  sw.dx = Math.max(-SW_W - 30, Math.min(0, sw.base + dx));
+  sw.row.style.transform = "translateX(" + sw.dx + "px)";
+});
+const swEnd = e => {
+  if (!sw || e.pointerId !== sw.id) return;
+  const s0 = sw; sw = null;
+  if (s0.dir !== "h") return;
+  s0.row.classList.remove("swiping"); swipedAt = Date.now();
+  if (s0.dx < -SW_W / 2) { s0.row.style.transform = "translateX(" + -SW_W + "px)"; s0.row.parentElement.classList.add("open"); swOpen = s0.row; }
+  else swClose(s0.row);
+};
+$app.addEventListener("pointerup", swEnd);
+$app.addEventListener("pointercancel", swEnd);
+// juste après un glissé, la séance ne s'ouvre pas ; toucher une ligne ouverte la referme
+$app.addEventListener("click", e => {
+  const row = e.target.closest && e.target.closest(".swipe-row"); if (!row) return;
+  const justSwiped = Date.now() - swipedAt < 350;
+  if (justSwiped || row === swOpen) { e.preventDefault(); e.stopPropagation(); if (!justSwiped) swClose(row); }
+}, true);
 function viewHistory() {
   const ws = finished();
   const head = '<div class="page-head"><h1>Stats</h1></div>' + statsTabs("history");
   if (!ws.length) return head + '<div class="card empty">Aucune séance terminée pour l\'instant.</div>';
-  let h = head + '<p class="muted small" style="margin:0 2px 4px">' + ws.length + " séance" + (ws.length > 1 ? "s" : "") + " terminée" + (ws.length > 1 ? "s" : "") + ". Touche une séance pour la voir ou la corriger.</p>", month = "";
+  let h = head + '<p class="muted small" style="margin:0 2px 4px">' + ws.length + " séance" + (ws.length > 1 ? "s" : "") + " terminée" + (ws.length > 1 ? "s" : "") + ". Touche une séance pour la voir ou la corriger, glisse-la vers la gauche pour la supprimer.</p>", month = "";
   ws.slice(0, histLimit).forEach(w => {
     const m = dfMonth.format(w.startedAt);
     if (m !== month) { if (month) h += "</div>"; month = m; h += '<div class="section-title">' + esc(m) + '</div><div class="list">'; }
@@ -1600,7 +1696,7 @@ function pickSeconds(title, value, min, max) {
 
 /* ================= Propositions de noms d'exercices (recherche intelligente) ================= */
 // bibliothèque de l'onglet Exercices (index léger inclus dans la page) : [id, nom, muscles, matériel, temps ?, reps, repos]
-const EXO_LIB = (window.EXO_INDEX || []).map(([id, n, mus, gear, kind, reps, rest, dist, load, cat, al, hold, zone], k) => ({ id, n, mus, gear, kind: ["reps", "time", "dist"][kind] || "reps", reps, rest, dist, load: !!load, cat: cat || "", al: al || [], hold: hold || 0, zone: zone || "", nn: norm(n), k }));
+const EXO_LIB = (window.EXO_INDEX || []).map(([id, n, mus, gear, kind, reps, rest, dist, load, cat, al, hold, zone, side], k) => ({ id, n, mus, gear, kind: ["reps", "time", "dist"][kind] || "reps", reps, rest, dist, load: !!load, cat: cat || "", al: al || [], hold: hold || 0, zone: zone || "", side: !!side, nn: norm(n), k }));
 const words = t => norm(t).split(/[^a-z0-9]+/).filter(Boolean);
 EXO_LIB.forEach(x => { x.w = words(x.n); x.a = words(x.al.join(" ")); x.o = words(x.mus + " " + x.gear + " " + x.cat); });
 const libByName = {}; EXO_LIB.forEach(x => { libByName[x.nn] = x; x.al.forEach(a => { libByName[norm(a)] = x; }); }); // anciens noms reconnus aussi
@@ -1718,6 +1814,8 @@ function viewSettings() {
 }
 
 /* ================= Minuteurs ================= */
+// titre du chrono : étirement, gainage ou course (distance)
+function chronoKind(w, c) { const ex = w && w.exercises[c.i], lb = ex && libFor(ex.name); return lb && lb.cat === "etirement" ? "Étirement" : c.dist || (ex && ex.type === "dist") ? "Chrono" : "Gainage"; }
 function tick() {
   const now = Date.now(), L = db.live || {};
   document.querySelectorAll('[data-tick="elapsed"]').forEach(el => { const w = getItem(el.dataset.id); if (w) el.textContent = fmtDur((w.endedAt || now) - w.startedAt); });
@@ -1760,15 +1858,15 @@ function tick() {
       if (here) {
         const ex = w.exercises[c.i];
         cpop.querySelector("[data-cpname]").textContent = ex && norm(ex.name) !== "gainage" ? ex.name + " · série " + (c.s + 1) : "Série " + (c.s + 1);
+        const lab = cpop.querySelector(".rp-label"), kind = chronoKind(w, c); if (lab.textContent !== kind) lab.textContent = kind;
         cpop.querySelector("[data-cptime]").textContent = prep ? String(left) : fmtDur(ms);
         cpop.querySelector("[data-cpbar]").style.width = (c.target && !prep ? Math.min(100, 100 * ms / (c.target * 1000)) : 0) + "%";
         cpop.querySelector("[data-cpgoal]").textContent = prep ? "Mets-toi en position…" : c.target ? (c.alerted ? "Objectif atteint !" : "Objectif " + fmtNum(c.target) + " s") : c.dist ? "Distance : " + fmtNum(c.dist) + " m · touche Terminer à l'arrivée" : "";
-        cpop.querySelector(".rp-label").textContent = c.dist ? "Chrono" : "Gainage";
         cpop.querySelector(".gain-box").classList.toggle("prep", prep);
         cpop.querySelector(".gain-box").classList.toggle("reached", !!c.alerted);
       }
     }
-    if (cpill) { cpill.hidden = !here || !c.min; cpill.textContent = (prep ? "Départ dans " + left : (c.dist ? "Chrono " : "Gainage ") + fmtDur(ms)) + " · Agrandir"; }
+    if (cpill) { cpill.hidden = !here || !c.min; cpill.textContent = (prep ? "Départ dans " + left : (here ? chronoKind(w, c) : c.dist ? "Chrono" : "Gainage") + " " + fmtDur(ms)) + " · Agrandir"; }
   } else {
     if (cpop) cpop.hidden = true;
     if (cpill) cpill.hidden = true;
@@ -1808,8 +1906,13 @@ $app.addEventListener("click", async e => {
   switch (a) {
     case "reload": location.hash = "#/home"; location.reload(); break;
     case "histmore": histLimit += 100; render(); break;
-    case "stretchgo": { const f = firstStretch(b.dataset.z); if (f) { exoReturn = location.hash || "#/home"; go("exercices/" + f.id + "/" + b.dataset.z); } break; }
-    case "stretchtips": exoReturn = location.hash || "#/home"; break;
+    case "swipedel": {
+      const x = getItem(b.dataset.id); if (!x) return;
+      if (!await ask({ title: "Supprimer cette séance ?", text: x.templateName + " · " + vLabel(x.variantName) + " du " + fmtDate(x.startedAt) + "\nElle disparaîtra de l'historique et des stats.", ok: "Supprimer", danger: true })) { swClose(swOpen); return; }
+      remove(x.id); swOpen = null; toast("Séance supprimée"); render();
+    } break;
+    case "stretchgo": { const ids = String(b.dataset.seq || "").split(",").filter(x => /^[a-z0-9-]{1,60}$/.test(x)); if (ids.length) { exoReturn = location.hash || "#/home"; stretchSeq = ids; go("exercices/" + ids[0]); } break; }
+    case "stretchtips": exoReturn = location.hash || "#/home"; stretchSeq = null; break;
     case "stretchok": try { localStorage.setItem("fiitday-stretch-ok", b.dataset.id); } catch (err) { } render(); break;
     case "evometric": evo.m[b.dataset.k] = b.dataset.v; render(); break;
     case "evoper": evo.per = b.dataset.v; render(); break;
@@ -1906,6 +2009,14 @@ $app.addEventListener("click", async e => {
       w.exercises.push({ exId: te.id, name: te.name, type: te.type, target: te.target, rest: te.rest, load: !!te.load, drops: 0, groupId: null, groupKind: null, sets: Array.from({ length: te.sets }, () => blankSet(0)) });
       put("workout", w); render();
     } break;
+    case "sessstretch": if (w) {
+      const xs = await pickStretches("Ajouter des étirements"); if (!xs) return;
+      const tes = xs.map(stretchExercise);
+      const add = await ask({ title: "Les ajouter au programme ?", text: "Les ajouter aussi à « " + w.templateName + " · " + vLabel(w.variantName) + " » pour les prochaines fois ?", ok: "Oui", cancel: "Juste aujourd'hui" });
+      if (add) { const t = getItem(w.templateId); const v = t && t.variants.find(x => x.id === w.variantId); if (v) { tes.forEach(te => v.exercises.push(te)); put("template", t); } }
+      tes.forEach(te => w.exercises.push({ exId: te.id, name: te.name, type: te.type, target: te.target, rest: te.rest, load: false, drops: 0, groupId: null, groupKind: null, sets: Array.from({ length: te.sets }, () => blankSet(0)) }));
+      put("workout", w); render();
+    } break;
     case "chronostop": if (w) { stopChrono(w); save(); render(); } break;
     case "chronocancel": db.live.chrono = null; save(); render(); break;
     case "chronomin": if (db.live.chrono) { db.live.chrono.min = true; save(); tick(); } break;
@@ -1995,6 +2106,12 @@ $app.addEventListener("click", async e => {
         v.exercises.push(e);
       });
       put("template", t); render();
+    } break;
+    case "addstretch": {
+      const { t, v } = currentProgram(); if (!v) return;
+      const xs = await pickStretches("Ajouter des étirements"); if (!xs) return;
+      xs.forEach(x => v.exercises.push(stretchExercise(x)));
+      put("template", t); render(); toast(xs.length > 1 ? xs.length + " étirements ajoutés" : "Étirement ajouté");
     } break;
     case "addmember": {
       const { t, v } = currentProgram(); if (!v) return;

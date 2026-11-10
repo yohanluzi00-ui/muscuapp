@@ -483,3 +483,22 @@ a.chip-btn { text-decoration: none; display: inline-flex; align-items: center; }
 .sc-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--soft); border: 1px solid var(--line); }
 .sc-row > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .sc-row .btn { flex: none; }
+
+/* Ajouter un exercice | un étirement sur une ligne ; fenêtre de choix des étirements ; carte en haut de l'accueil */
+.add-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.add-row .btn { padding: 0 8px; font-size: 14.5px; white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.pk { max-height: min(86vh, 760px); }
+.pk-zones { display: flex; gap: 6px; flex-wrap: wrap; }
+.pk-zones .chip-btn { min-height: 34px; padding: 4px 12px; }
+.pk-list { overflow-y: auto; min-height: 120px; margin: 0 -6px; padding: 0 6px; flex: 1; }
+.pk-h { font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 12px 0 4px; }
+.pk-row { display: flex; gap: 12px; align-items: center; padding: 9px 4px; border-bottom: 1px solid var(--line2); cursor: pointer; }
+.pk-row input { width: 22px; height: 22px; accent-color: var(--accent); flex: none; }
+.pk-row > span { display: flex; flex-direction: column; min-width: 0; }
+.stretch-card.top { margin: 0 0 14px; }
+
+/* glisser une séance vers la gauche pour la supprimer */
+.list > .swipe { display: block; padding: 0; min-height: 0; position: relative; overflow: hidden; }
+.swipe-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; min-height: 56px; text-decoration: none; color: inherit; background: var(--card); position: relative; z-index: 1; touch-action: pan-y; transition: transform .22s ease; -webkit-user-drag: none; -webkit-touch-callout: none; }
+.swipe-row.swiping { transition: none; -webkit-user-select: none; user-select: none; }
+.swipe-del { position: absolute; top: 0; right: 0; bottom: 0; width: 104px; border: 0; background: #D93025; color: #fff; font: inherit; font-weight: 700; font-size: 15px; cursor: pointer; }

@@ -24,7 +24,7 @@ for (const m0 of exoSrc.matchAll(/\{ id: "([a-z0-9-]+)", n: "([^"]+)",(.*?) p: \
   const dist = +((rest.match(/dist: (\d+)/) || [])[1] || 0), cat = (rest.match(/cat: "(\w+)"/) || [])[1] || "";
   const al = ((rest.match(/al: \[([^\]]*)\]/) || [])[1] || "").match(/"[^"]+"/g) || [];
   const hold = +((rest.match(/hold: (\d+)/) || [])[1] || 0), zone = (rest.match(/zone: "(\w+)"/) || [])[1] || "";
-  EXO_INDEX.push([m[1], m[2], prim.map(k => MUS[k] || k).join(", "), m[3], /time: true/.test(rest) ? 1 : dist ? 2 : 0, reps, rst, dist, /load: true/.test(rest) ? 1 : 0, cat, al.map(x => x.slice(1, -1)), hold, zone]);
+  EXO_INDEX.push([m[1], m[2], prim.map(k => MUS[k] || k).join(", "), m[3], /time: true/.test(rest) ? 1 : dist ? 2 : 0, reps, rst, dist, /load: true/.test(rest) ? 1 : 0, cat, al.map(x => x.slice(1, -1)), hold, zone, /side: (true|"one")/.test(rest) ? 1 : 0]);
 }
 if (EXO_INDEX.length < 50) throw new Error("Index des exercices incomplet (" + EXO_INDEX.length + ") : vérifier le format de src/exercices.js");
 const bootJs = `window.APP_BUILD = ${JSON.stringify(VERSION)}; window.APP_VERSION = ${JSON.stringify(process.env.VERSION_NAME || "")}; window.EXO_INDEX = ${JSON.stringify(EXO_INDEX)};`;
