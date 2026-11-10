@@ -6,12 +6,12 @@ Application personnelle pour noter mes performances pendant mes séances de musc
 
 - Des **programmes** (Push, Haut du corps…) que chacun crée depuis l'accueil (« + Nouveau programme », « Importer »), chacun avec ses **séances** et leurs propres exercices. Toucher une séance propose « Modifier » ou « C'est parti ». Un nouveau compte démarre sur une page vierge.
 - La page **Programmes** est réservée au futur mode premium (programmes prêts à l'emploi, cardio) : elle affiche « Bientôt ».
-- Pour chaque exercice : nombre de séries, reps cible (ou temps cible pour le gainage, ou **distance** pour la course et l'Hyrox, avec ou sans charge), temps de repos et **notes**.
+- Pour chaque exercice : un type (**poids × reps**, **reps uniquement**, **temps** ou **distance**), nombre de séries, reps cible (ou temps cible pour le gainage, ou distance pour la course et l'Hyrox, avec ou sans charge), temps de repos et **notes**. En haut de la configuration d'une séance, « Lancer la séance » la démarre directement ; sur l'accueil, « + Nouvelle séance » ajoute une séance à un programme.
 - Modes d'enchaînement, au choix en ajoutant un exercice :
   - **Dégressif** : chaque série a 1 à 3 « baisses » (charge réduite, sans repos) ;
   - **Superset / Biset** : 2 exercices enchaînés, **Triset** : 3 exercices enchaînés. La séance se fait par tours (A puis B puis C) et le repos ne démarre qu'à la fin du tour.
 - **Pendant la séance** :
-  - tu notes les kg et reps de chaque série (ou le temps, avec un chrono, pour le gainage ; pour un exercice à distance, ton temps en m:ss, et les kg s'il y a une charge — le meilleur temps devient ton record) ;
+  - tu notes les kg et reps de chaque série (ou le temps, rempli par le chrono, pour le gainage et les étirements ; pour un exercice à distance, ton temps en m:ss, et les kg s'il y a une charge — le meilleur temps devient ton record) ;
   - un encadré discret rappelle ta **dernière performance avec la même variante** ;
   - les valeurs de la dernière fois apparaissent en grisé : appuie sur ✓ pour les reprendre telles quelles ;
   - le minuteur de repos démarre seul, puis vibre et/ou sonne à la fin (au choix dans Réglages) ;
@@ -33,6 +33,7 @@ Application personnelle pour noter mes performances pendant mes séances de musc
    Fais de même avec [`supabase/partage.sql`](supabase/partage.sql) pour les liens de partage courts (`https://fiitday.com/#/s/CODE`).
    Et avec [`supabase/suppression-compte.sql`](supabase/suppression-compte.sql) pour le bouton « Supprimer mon compte ».
    Puis avec [`supabase/securite.sql`](supabase/securite.sql) (rôle « postgres ») : renforcement de la sécurité (fonctions protégées, tailles maximales, 200 partages par compte).
+   Puis avec [`supabase/securite-2.sql`](supabase/securite-2.sql) : les séances partagées ne se lisent qu'une fois connecté (correctif du Security Advisor).
 3. **Vérification de l'e-mail par code** (à la création d'un compte, l'appli demande un code reçu par e-mail) :
    - **Authentication › Sign In / Providers › Email** : active **Confirm email** ;
    - **Authentication › Emails › Templates › Confirm signup** : sujet « Ton code Fiitday », puis remplace le contenu par celui du fichier [`supabase/email-code-inscription.html`](supabase/email-code-inscription.html) (il affiche le code `{{ .Token }}`).

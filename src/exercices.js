@@ -78,7 +78,7 @@ export const EXOS = [
     vars: ["Développé incliné", "Développé couché haltères", "Développé à la machine", "Pompes"], order: "exc", ph: { exc: "Descente contrôlée", con: "Poussée" },
     a: m(BENCH, { hand: [-0.445, 1.02, 0.3], elbow: [0.85, -0.5, 0.85], hdir: [0, 1, 0], palm: [1, 0, 0] }), b: { hand: [-0.34, 0.665, 0.3] },
     props: P => { P.bench(-0.85, 0.35); P.rack(-0.82); }, imp: [{ t: "bar", r: 0.17 }] },
-  { id: "developpe-incline", n: "Développé incliné", gear: "Barre et banc incliné", lvl: "Intermédiaire", p: ["pectoraux"], s: ["deltoides_ant", "triceps"], reps: "6-10", rest: 120,
+  { id: "developpe-incline", n: "Développé incliné", al: ["Développé couché incliné", "Développé incliné barre"], gear: "Barre et banc incliné", lvl: "Intermédiaire", p: ["pectoraux"], s: ["deltoides_ant", "triceps"], reps: "6-10", rest: 120,
     tips: ["Banc incliné à 30° environ, pas plus", "Omoplates serrées, poitrine sortie", "Descends la barre sur le haut des pectoraux", "Pousse à la verticale, au-dessus des épaules"],
     err: ["Incliner le banc trop fort (ça devient un exercice d'épaules)", "Décoller les fesses du banc", "Rebondir sur la poitrine"],
     vars: ["Développé couché", "Développé incliné haltères", "Développé à la machine"], order: "exc", ph: { exc: "Descente contrôlée", con: "Poussée" },
@@ -90,7 +90,7 @@ export const EXOS = [
     vars: ["Développé couché", "Développé incliné haltères", "Écarté couché haltères"], order: "exc", ph: { exc: "Descente contrôlée", con: "Poussée" },
     a: m(BENCH, { hand: [-0.47, 1.02, 0.2], elbow: [0.85, -0.5, 0.85], hdir: [0, 1, 0], palm: [1, 0, 0] }), b: { hand: [-0.36, 0.67, 0.33] },
     props: P => P.bench(-0.85, 0.35), imp: [{ t: "db", grip: "R" }] },
-  { id: "developpe-incline-halteres", n: "Développé incliné haltères", gear: "Haltères et banc incliné", lvl: "Débutant", p: ["pectoraux"], s: ["deltoides_ant", "triceps"], reps: "8-12", rest: 90,
+  { id: "developpe-incline-halteres", n: "Développé incliné haltères", al: ["Développé couché incliné haltères"], gear: "Haltères et banc incliné", lvl: "Débutant", p: ["pectoraux"], s: ["deltoides_ant", "triceps"], reps: "8-12", rest: 90,
     tips: ["Banc à 30°, dos et fesses en appui", "Haltères au-dessus des épaules, paumes vers l'avant", "Descends jusqu'à sentir l'étirement du haut des pectoraux", "Remonte sans verrouiller les coudes"],
     err: ["Banc trop incliné", "Coudes trop écartés", "Amplitude trop courte"],
     vars: ["Développé incliné", "Développé couché haltères", "Écarté à la poulie"], order: "exc", ph: { exc: "Descente contrôlée", con: "Poussée" },
@@ -136,12 +136,24 @@ export const EXOS = [
     imp: [{ t: "link", piv: [-0.3, 1.6, 0.42], to: "hand", pad: "grip" }, { t: "stackmove", ref: "hands", k: 0.5 }] },
 
   /* ---------------- Dos ---------------- */
-  { id: "tractions", n: "Tractions", gear: "Barre de traction", lvl: "Intermédiaire", p: ["dorsaux"], s: ["biceps", "trapezes", "avantbras"], reps: "5-10", rest: 120,
+  { id: "tractions", n: "Tractions pronation", al: ["Tractions", "Traction pronation", "Pull-up"], gear: "Barre de traction", lvl: "Intermédiaire", p: ["dorsaux"], s: ["biceps", "trapezes", "avantbras"], reps: "5-10", rest: 120,
     tips: ["Prise un peu plus large que les épaules, paumes vers l'avant", "Pars bras tendus, épaules engagées", "Tire la poitrine vers la barre en abaissant les coudes", "Redescends lentement jusqu'aux bras tendus"],
     err: ["Se balancer pour monter", "Remonter à moitié", "Lâcher la descente"],
-    vars: ["Tirage vertical", "Tirage horizontal"], order: "con", ph: { con: "Tirage", exc: "Descente lente" },
+    vars: ["Tractions supination", "Tractions prise neutre", "Tirage vertical"], order: "con", ph: { con: "Tirage", exc: "Descente lente" },
     a: { pc: [-0.02, 1.195], th: -8, hand: [0, 2.105, 0.36], elbow: [0, -1, 1], hdir: [0, 1, 0], palm: [1, 0, 0], foot: [-0.12, 0.305, 0.09], knee: [1, 0, 0], fdir: [0.3, -0.95, 0.05] },
     b: { pc: [-0.02, 1.62], th: -10, foot: [-0.12, 0.73, 0.09] }, props: P => P.pullup(2.17) },
+  { id: "tractions-supination", n: "Tractions supination", al: ["Traction supination", "Chin-up", "Tractions prise inversée"], gear: "Barre de traction", lvl: "Intermédiaire", p: ["dorsaux", "biceps"], s: ["trapezes", "avantbras"], reps: "5-10", rest: 120,
+    tips: ["Prise à largeur d'épaules, paumes tournées vers toi", "Pars bras tendus, épaules engagées", "Tire le menton au-dessus de la barre, coudes vers l'avant et le bas", "Redescends lentement jusqu'aux bras tendus"],
+    err: ["Se balancer pour monter", "Monter seulement le menton en tendant le cou", "Lâcher la descente"],
+    vars: ["Tractions pronation", "Tractions prise neutre", "Curl barre"], order: "con", ph: { con: "Tirage", exc: "Descente lente" },
+    a: { pc: [-0.02, 1.195], th: -8, hand: [0, 2.105, 0.2], elbow: [0.6, -1, 0.5], hdir: [0, 1, 0], palm: [-1, 0, 0], foot: [-0.12, 0.305, 0.09], knee: [1, 0, 0], fdir: [0.3, -0.95, 0.05] },
+    b: { pc: [-0.04, 1.6], th: -10, foot: [-0.12, 0.71, 0.09] }, props: P => P.pullup(2.17) },
+  { id: "tractions-neutre", n: "Tractions prise neutre", al: ["Traction neutre", "Tractions prise serrée neutre"], gear: "Barre de traction avec poignées parallèles", lvl: "Intermédiaire", p: ["dorsaux"], s: ["biceps", "avantbras", "trapezes"], reps: "6-10", rest: 120,
+    tips: ["Mains sur les poignées parallèles, paumes face à face", "Pars bras tendus, épaules engagées", "Tire la poitrine vers les poignées, coudes près du corps", "Redescends lentement jusqu'aux bras tendus"],
+    err: ["Se balancer pour monter", "Remonter à moitié", "Hausser les épaules"],
+    vars: ["Tractions pronation", "Tractions supination", "Tirage vertical"], order: "con", ph: { con: "Tirage", exc: "Descente lente" },
+    a: { pc: [-0.02, 1.195], th: -8, hand: [0, 2.105, 0.24], elbow: [0.3, -1, 0.6], hdir: [0, 1, 0], palm: [0, 0, -1], foot: [-0.12, 0.305, 0.09], knee: [1, 0, 0], fdir: [0.3, -0.95, 0.05] },
+    b: { pc: [-0.03, 1.61], th: -10, foot: [-0.12, 0.72, 0.09] }, props: P => { P.pullup(2.17); [1, -1].forEach(z => P.box([0.34, 0.032, 0.032], [0, 2.105, 0.24 * z], "steel")); P.box([0.05, 0.06, 0.6], [0, 2.15, 0], "frame"); } },
   { id: "tirage-vertical", n: "Tirage vertical", gear: "Machine à poulie haute", lvl: "Débutant", p: ["dorsaux"], s: ["biceps", "trapezes", "deltoides_post"], reps: "8-12", rest: 90,
     tips: ["Cuisses bien calées sous les boudins", "Prise un peu plus large que les épaules", "Tire la barre vers le haut de la poitrine en abaissant les épaules", "Buste légèrement penché en arrière, poitrine sortie"],
     err: ["Tirer la barre derrière la nuque", "Se jeter en arrière pour tirer", "Laisser remonter la barre d'un coup"],
@@ -165,6 +177,12 @@ export const EXOS = [
     vars: ["Rowing haltère", "Tirage horizontal", "Soulevé de terre"], order: "con", ph: { con: "Tirage", exc: "Descente contrôlée" },
     a: ST({ pc: [-0.18, 0.90], th: 50, hp: -20, hand: [0.19, 0.66, 0.25], elbow: [-0.6, 1, 0.15], palm: [-1, 0, 0], foot: [0, 0.085, 0.15], knee: [1, 0, 0.15] }), b: { hand: [0.0, 0.83, 0.25], elbow: [-1, 0.9, 0.12] },
     imp: [{ t: "bar", r: 0.2 }] },
+  { id: "rowing-machine-guidee", n: "Rowing barre à la machine guidée", al: ["Rowing à la Smith machine", "Rowing Smith", "Rowing machine guidée"], gear: "Machine guidée (Smith)", lvl: "Débutant", p: ["dorsaux", "trapezes"], s: ["biceps", "lombaires", "deltoides_post"], reps: "8-12", rest: 90,
+    tips: ["Debout dans la machine, barre à hauteur des genoux, prise un peu plus large que les épaules", "Buste penché à 45°, dos plat, genoux légèrement fléchis", "Tire la barre vers le bas du ventre, coudes le long du corps", "La barre est guidée : concentre-toi sur le dos et redescends lentement"],
+    err: ["Arrondir le dos", "Se relever pour tirer", "Pieds trop en arrière (la barre frotte les cuisses)"],
+    vars: ["Rowing barre", "Tirage horizontal", "Rowing haltère"], order: "con", ph: { con: "Tirage", exc: "Descente contrôlée" },
+    a: ST({ pc: [-0.18, 0.90], th: 50, hp: -20, hand: [0.12, 0.64, 0.25], elbow: [-0.6, 1, 0.15], palm: [-1, 0, 0], foot: [0, 0.085, 0.15], knee: [1, 0, 0.15] }), b: { hand: [0.12, 0.85, 0.25], elbow: [-1, 0.9, 0.12] },
+    props: P => P.smith(0.12), imp: [{ t: "bar", r: 0.2 }] },
   { id: "rowing-haltere", n: "Rowing haltère", gear: "Haltère et banc", lvl: "Débutant", p: ["dorsaux"], s: ["biceps", "trapezes", "deltoides_post"], reps: "8-12 par bras", rest: 60,
     tips: ["Une main et un genou sur le banc, dos plat", "Bras tendu sous l'épaule au départ", "Tire l'haltère vers la hanche, coude près du corps", "Redescends lentement sans tourner le buste"],
     err: ["Tourner le buste pour monter l'haltère", "Tirer vers l'épaule au lieu de la hanche", "Dos rond"],
@@ -495,6 +513,13 @@ export const EXOS = [
       { at: 0.5, lab: "Bras droit · montée", hand: [{ c: { el: [0.02, -1, 0] }, r: L.fa, d: [0.5, -0.86, 0.18] }, { c: { el: [0.02, -1, 0] }, r: L.fa, d: [0.5, -0.86, 0.18] }] },
       { at: 0.75, lab: "Bras droit · descente lente", hand: [{ c: { el: [0.02, -1, 0] }, r: L.fa, d: [0.5, -0.86, 0.18] }, { c: { el: [0.03, -1, 0] }, r: L.fa, d: [0.68, 0.73, -0.06] }] }, { at: 1, back: true }],
     imp: [{ t: "db" }] },
+  { id: "curl-incline-halteres", n: "Curl incliné haltères", al: ["Curl incliné assis", "Curl incliné"], gear: "Haltères et banc incliné", lvl: "Intermédiaire", p: ["biceps"], s: ["avantbras"], reps: "10-12", rest: 60,
+    tips: ["Assis sur un banc incliné à 45-60°, dos et épaules plaqués", "Bras tendus vers le sol, paumes vers l'avant", "Monte les haltères sans avancer les coudes", "Redescends lentement jusqu'aux bras tendus : le biceps s'étire"],
+    err: ["Avancer les coudes pendant la montée", "Décoller les épaules du dossier", "Raccourcir la descente"],
+    vars: ["Curl biceps haltères", "Curl marteau", "Curl au pupitre"], order: "con", ph: { con: "Montée", exc: "Descente lente" },
+    a: { pc: [0.02, 0.58], th: -42, hp: 18, hand: { c: { el: [0, -1, 0.16] }, r: L.fa, d: [0.06, -1, 0.1] }, elbow: [-1, 0, 0], palm: "sup", foot: [0.45, 0.085, 0.2], knee: [0.3, 1, 0.2], fdir: [1, 0, 0.2] },
+    b: { hand: { c: { el: [0, -1, 0.16] }, r: L.fa, d: [0.62, 0.78, -0.06] } },
+    props: P => P.inclineBench(-42, 0.02, 0.58), imp: [{ t: "db", grip: "R" }], view: [0.35, 0.25, 1] },
   { id: "curl-unilateral-poulie", n: "Curl unilatéral à la poulie", gear: "Poulie basse et poignée", lvl: "Débutant", p: ["biceps"], s: ["avantbras"], reps: "10-12 par bras", rest: 60,
     tips: ["Face à la poulie basse, une poignée dans une main, paume vers le haut", "Coude collé au corps, il ne bouge pas", "Monte la poignée jusqu'à l'épaule en contractant le biceps", "Redescends lentement en gardant la tension du câble"],
     err: ["Reculer le buste pour tirer", "Décoller le coude", "Lâcher la descente"],
@@ -546,6 +571,14 @@ export const EXOS = [
     a: ST({ pc: [-0.12, 0.97], th: 18, hand: [0.42, 1.18, 0.2], elbow: [-0.5, -1, 0.5], palm: [1, 0, 0], foot: [[0, 0.085, 0.12], { c: "hip", r: 0.79, d: [0.15, -1, 0.02] }], knee: [1, 0, 0.05], fdir: [[1, 0, 0.12], [1, -0.1, 0.05]] }),
     b: { foot: [[0, 0.085, 0.12], { c: "hip", r: 0.79, d: [-0.62, -0.78, 0.02] }], fdir: [[1, 0, 0.12], [0.3, -0.95, 0.05]] },
     props: P => P.tower(0.62, 0.12, 0.1, 0.5), imp: [{ t: "cable", from: [0.5, 0.1, 0.12], to: "ankle1", stacks: [0] }] },
+  { id: "kickback-fessier-machine", n: "Kickback fessier à la machine", al: ["Rear kick à la machine", "Rear kick machine", "Glute kickback machine"], gear: "Machine à kickback", lvl: "Débutant", p: ["fessiers"], s: ["ischios", "lombaires"], reps: "12-15 par jambe", rest: 60,
+    tips: ["Avant-bras posés sur les coussins, mains sur les poignées", "Un pied au sol, l'autre posé à plat sur la plateforme", "Pousse la plateforme vers l'arrière et vers le haut en serrant le fessier", "Reviens lentement sans cambrer le bas du dos"],
+    err: ["Cambrer le bas du dos en fin de mouvement", "Pousser avec la jambe d'appui", "Aller trop vite et laisser retomber la plateforme"],
+    vars: ["Kickback fessier à la poulie", "Hip thrust à la machine", "Pont fessier"], order: "con", ph: { con: "Poussée en arrière", exc: "Retour lent" },
+    a: { pc: [0, 0.95], th: 55, hp: -12, hand: { c: { el: [0, -1, 0.05] }, r: L.fa, d: [1, 0, 0] }, hdir: [1, 0, 0], palm: [0, 0, -1], elbow: [1, 0, 0],
+      foot: [[0.05, 0.085, 0.12], { c: [-1.13, 0.43, 0.088], r: 0.68, d: [1, 0.08, 0] }], knee: [[1, 0, 0.1], [1, -0.6, 0]], fdir: [[1, 0, 0.12], [0.15, -1, 0]] },
+    b: { foot: [[0.05, 0.085, 0.12], { c: [-1.13, 0.43, 0.088], r: 0.68, d: [0.37, 0.93, 0] }], knee: [[1, 0, 0.1], [0.3, -1, 0]], fdir: [[1, 0, 0.12], [-0.3, -0.95, 0]] },
+    props: P => P.kickMachine(), imp: [{ t: "link", piv: [-1.13, 0.43, 0.088], to: "sole", only: 1, pad: "plate" }, { t: "stackmove", ref: "foot1", k: 0.35 }], view: [0.15, 0.3, 1] },
   { id: "crunch-machine", n: "Crunch à la machine", al: ["Crunch abdos à la machine"], gear: "Machine", lvl: "Débutant", p: ["abdos"], s: ["obliques"], reps: "12-15", rest: 60,
     tips: ["Assis, pieds calés, poignées ou coussins contre le haut de la poitrine", "Enroule le buste vers les genoux en contractant les abdos", "Les hanches restent sur le siège", "Reviens lentement en gardant la tension"],
     err: ["Tirer avec les bras", "Prendre trop lourd et donner des à-coups", "Revenir sans contrôle"],
@@ -688,7 +721,7 @@ export const EXOS = [
     vars: ["Sled push", "Tirage horizontal"], order: "loop", dur: 1.6, ph: { loop: "Tirage" },
     a: { pc: [-0.08, 0.9], th: -12, hp: 8, hand: [[0.52, 1.12, 0.1], [0.08, 0.92, 0.2]], elbow: [[0, -1, 0.3], [-1, -0.2, 0.3]], palm: [[0, -0.2, -1], [0, -0.2, -1]], foot: [[0.25, 0.085, 0.2], [-0.2, 0.085, 0.2]], knee: [1, 0, 0.25], fdir: [1, 0, 0.25] },
     keys: [{ at: 0, lab: "Main droite" }, { at: 0.5, lab: "Main gauche", hand: [[0.08, 0.92, 0.2], [0.52, 1.12, 0.1]], elbow: [[-1, -0.2, 0.3], [0, -1, 0.3]] }, { at: 1, back: true }],
-    props: P => P.sled(2.4, false), imp: [{ t: "cable", from: [2.15, 0.35, 0.0], to: "hands", rope: true }], view: [0.35, 0.35, 1] },
+    props: P => P.sled(2.4, false), imp: [{ t: "sledpull", step: 0.24, loops: 3 }, { t: "cable", from: [2.15, 0.35, 0.0], to: "hands", rope: true, follow: "sled" }], view: [0.35, 0.35, 1] },
   { id: "burpees-sautes", n: "Burpees sautés en longueur", gear: "Poids du corps", lvl: "Intermédiaire", g: "hyrox", cat: "hyrox", p: ["quadriceps", "pectoraux"], s: ["fessiers", "triceps", "mollets", "abdos"], dist: 80, rest: 120,
     tips: ["Fais un burpee : poitrine au sol, puis remonte les pieds vers les mains", "Saute vers l'avant à deux pieds, le plus loin possible", "Atterris genoux souples et enchaîne le burpee suivant", "Garde un rythme régulier sur toute la distance"],
     err: ["Sauter sur une seule jambe", "Atterrir jambes tendues", "Ne pas toucher le sol avec la poitrine"],
@@ -1230,11 +1263,26 @@ function kitBuilder(g) {
       [1, -1].forEach(z => cyl(0.035, 0.04, [x - 0.06, 2.15, 0.22 * z], [Math.PI / 2, 0, 0], "steel", 20));
     },
     sled(x, poles) {
+      const sg = new THREE.Group(); g.add(sg); P._sled = sg; const g0 = g; g = sg; // les pièces du traîneau bougent ensemble (sled pull)
       box([0.62, 0.08, 0.6], [x + 0.38, 0.06, 0], "frame"); box([0.7, 0.03, 0.08], [x + 0.36, 0.015, 0.26], "steel"); box([0.7, 0.03, 0.08], [x + 0.36, 0.015, -0.26], "steel");
       cyl(0.03, 0.34, [x + 0.42, 0.27, 0], null, "steel");
       [0, 1, 2].forEach(k => cyl(0.2, 0.045, [x + 0.42, 0.13 + k * 0.05, 0], null, k === 2 ? "pink" : "plate", 36));
       if (poles) [1, -1].forEach(z => { cyl(0.022, 1.0, [x, 0.6, 0.22 * z], null, "steel"); box([0.4, 0.05, 0.05], [x + 0.2, 0.12, 0.22 * z], "steel"); });
       else box([0.1, 0.1, 0.1], [x - 0.25, 0.3, 0], "steel");
+      g = g0;
+    },
+    // machine guidée (Smith) : deux rails verticaux, la barre coulisse entre eux
+    smith(x, h = 2.25) {
+      [1, -1].forEach(z => { cyl(0.022, h, [x, h / 2, 0.52 * z], null, "steel"); box([0.08, h, 0.08], [x - 0.16, h / 2, 0.6 * z]); box([0.7, 0.04, 0.08], [x - 0.1, 0.02, 0.6 * z]); });
+      box([0.1, 0.08, 1.3], [x - 0.08, h, 0], "frame");
+    },
+    // machine à kickback fessier : coussins pour les avant-bras et poignées devant, plateforme sur un bras articulé derrière
+    kickMachine() {
+      box([0.38, 0.06, 0.18], [0.52, 0.84, 0.19], "dark"); box([0.38, 0.06, 0.18], [0.52, 0.84, -0.19], "dark");
+      [1, -1].forEach(z => cyl(0.018, 0.16, [0.73, 0.9, 0.19 * z], null, "steel"));
+      box([0.08, 0.84, 0.08], [0.62, 0.42, 0]); box([0.08, 0.06, 0.5], [0.62, 0.81, 0], "frame"); box([0.5, 0.04, 0.5], [0.62, 0.02, 0]);
+      box([0.08, 0.43, 0.08], [-1.13, 0.215, 0.2]); box([0.5, 0.04, 0.5], [-1.13, 0.02, 0.2]); cyl(0.03, 0.2, [-1.13, 0.43, 0.15], [Math.PI / 2, 0, 0], "steel");
+      box([1.7, 0.04, 0.08], [-0.25, 0.02, 0.32]); P.stack(-1.0, -0.35);
     },
     rower() {
       box([1.95, 0.06, 0.16], [0.18, 0.25, 0], "frame"); box([0.08, 0.25, 0.4], [-0.75, 0.125, 0], "frame");
@@ -1344,7 +1392,7 @@ function kettlebell() {
 }
 
 // matériel en mouvement : renvoie une fonction de mise à jour
-function buildImplements(ex, g, stacks, o0) {
+function buildImplements(ex, g, stacks, o0, P) {
   const ups = [];
   const mid = o => o.hand[0].clone().add(o.hand[1]).multiplyScalar(0.5);
   const lat = o => o.hand[1].clone().sub(o.hand[0]);
@@ -1381,6 +1429,7 @@ function buildImplements(ex, g, stacks, o0) {
       cabs.forEach(c => g.add(c));
       const ends = o => im.to === "hands" ? [0, 1].map(i => o.hand[i]) : im.to === "hand1" ? [o.hand[1]] : im.to === "ankle1" ? [o.an[1].clone().addScaledVector(o.fdir[1], -0.03)] : [mid(o)];
       const froms = [0, 1].map(i => V(im.from[0], im.from[1], (i === 0 ? -1 : 1) * im.from[2]));
+      const follow = () => { if (im.follow === "sled" && P && P._sled) froms.forEach(f => { f.x = im.from[0] + P._sled.position.x; }); };
       let handle = null;
       if (im.handle === "lat") { handle = new THREE.Group(); const b = barbell(0, 1.0); handle.add(b); [1, -1].forEach(s => { const e = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.19, 12), MAT.steel); e.position.set(0, 0.57 * s, -0.03); e.rotation.x = -0.35 * s; handle.add(e); }); g.add(shadowy(handle)); }
       if (im.handle === "rope") { handle = new THREE.Group(); [0, 1].forEach(() => handle.add(new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 1, 10), MAT.dark))); g.add(handle); }
@@ -1390,6 +1439,7 @@ function buildImplements(ex, g, stacks, o0) {
       const lens = o => ends(o).map((e, i) => e.distanceTo(n === 2 ? froms[i] : froms[1]));
       const base = lens(o0);
       ups.push(o => {
+        follow();
         const es = ends(o);
         es.forEach((e, i) => segment(cabs[i], n === 2 ? froms[i] : froms[1], e));
         if (handle && im.handle === "lat") orient(handle, mid(o), lat(o), UP);
@@ -1399,6 +1449,14 @@ function buildImplements(ex, g, stacks, o0) {
         if (im.to === "ankle1" && !cuff.parent) g.add(cuff);
         if (im.to === "ankle1") orient(cuff, o.an[1].clone().addScaledVector(o.an[1].clone().sub(o.kn[1]).normalize(), -0.04), o.an[1].clone().sub(o.kn[1]), V(1, 0, 0));
         const L2 = lens(o); (im.stacks || []).forEach((si, k) => { if (stacks[si]) stacks[si].rise((L2[Math.min(k, L2.length - 1)] - base[Math.min(k, base.length - 1)]) * (im.k || 1)); });
+      });
+    } else if (im.t === "sledpull") {
+      // le traîneau avance à chaque traction de corde (une main, puis l'autre), sur plusieurs boucles avant de repartir
+      const N = im.loops || 3, step = im.step || 0.2, dur = ex.dur || 1.6;
+      ups.push((o, s) => {
+        const sled = P && P._sled; if (!sled) return;
+        const loop = Math.floor((view.ex === ex ? view.time : 0) / dur + 1e-6) % N, half = s < 0.5 ? ease(s / 0.5) : 1 + ease((s - 0.5) / 0.5);
+        sled.position.x = -(Math.max(0, loop) * 2 + half) * step;
       });
     } else if (im.t === "bodypad") {
       const pad = new THREE.Mesh(new THREE.BoxGeometry(...im.size), MAT.dark); g.add(shadowy(pad));
@@ -1413,26 +1471,33 @@ function buildImplements(ex, g, stacks, o0) {
           segment(rod, sideOf(1), c.clone().setZ(Math.min(im.piv[2], half))); segment(rod2, sideOf(-1), c.clone().setZ(-Math.min(im.piv[2], half))); }
       });
     } else if (im.t === "link") {
-      const parts = [0, 1].map(i => {
+      const parts = (im.only != null ? [im.only] : [0, 1]).map(i => {
         const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 1, 10), MAT.frame); g.add(rod);
         let pad;
         if (im.pad === "roller") { pad = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.13, 20), MAT.dark); }
+        else if (im.pad === "plate") { pad = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.26, 0.03), MAT.dark); }
         else if (im.pad === "pad") { pad = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.16, 0.12), MAT.dark); }
         else { pad = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.14, 12), MAT.dark); }
-        g.add(pad); shadowy(rod); shadowy(pad); return { rod, pad, piv: V(im.piv[0], im.piv[1], (i === 0 ? -1 : 1) * im.piv[2]) };
+        g.add(pad); shadowy(rod); shadowy(pad); return { rod, pad, i, piv: V(im.piv[0], im.piv[1], (i === 0 ? -1 : 1) * im.piv[2]) };
       });
-      ups.push(o => parts.forEach((p, i) => {
-        let at;
+      ups.push(o => parts.forEach(p => {
+        const i = p.i; let at, sole = null;
         if (im.to === "hand") at = o.hand[i].clone();
+        else if (im.to === "sole") { // plateforme sous la plante du pied
+          const fd = o.fdir[i], up = (o.fup[i] || V(-fd.y, fd.x, 0)).clone().normalize(); sole = up.negate();
+          at = o.an[i].clone().addScaledVector(fd, 0.07).addScaledVector(sole, 0.075);
+          orient(p.pad, at, fd, sole);
+        }
         else if (im.to === "knee") { const out = V(0, 0, i === 0 ? -1 : 1); at = o.kn[i].clone().addScaledVector(out, im.side === "in" ? -0.075 : 0.075); }
         else { const sd = o.an[i].clone().sub(o.kn[i]).normalize(), fr = o.bendL[i].clone().addScaledVector(sd, -o.bendL[i].dot(sd)).normalize(); at = o.an[i].clone().addScaledVector(sd, -0.06).addScaledVector(fr, im.side === "back" ? -0.07 : 0.07); }
-        segment(p.rod, p.piv, at);
-        if (im.pad === "roller") { p.pad.position.copy(at); p.pad.rotation.set(Math.PI / 2, 0, 0); }
+        segment(p.rod, p.piv, sole ? at.clone().addScaledVector(sole, 0.02) : at);
+        if (im.pad === "plate") { /* déjà orientée sous le pied */ }
+        else if (im.pad === "roller") { p.pad.position.copy(at); p.pad.rotation.set(Math.PI / 2, 0, 0); }
         else if (im.pad === "pad") { p.pad.position.copy(at); p.pad.rotation.set(0, 0, 0); }
         else { orient(p.pad, at, UP, V(1, 0, 0)); }
       }));
     } else if (im.t === "stackmove") {
-      const ref = o => im.ref === "ankles" ? o.an[0].clone().add(o.an[1]).multiplyScalar(0.5) : im.ref === "knees" ? V(0, 0, Math.abs(o.kn[1].z - o.kn[0].z)) : mid(o);
+      const ref = o => im.ref === "foot1" ? o.an[1].clone() : im.ref === "ankles" ? o.an[0].clone().add(o.an[1]).multiplyScalar(0.5) : im.ref === "knees" ? V(0, 0, Math.abs(o.kn[1].z - o.kn[0].z)) : mid(o);
       const r0 = ref(o0);
       ups.push(o => { if (stacks[0]) stacks[0].rise(ref(o).distanceTo(r0) * (im.k || 1)); });
     } else if (im.t === "platform") {
@@ -1543,7 +1608,7 @@ function showExercise(ex) {
   ex.p.forEach(n => (H.muscles[n] || []).forEach(m => { m.material = MAT.primary; }));
   ex.s.forEach(n => (H.muscles[n] || []).forEach(m => { if (m.material !== MAT.primary) m.material = MAT.secondary; }));
   const o0 = solve(ex, 0);
-  view.update = buildImplements(ex, g, stacks, o0);
+  view.update = buildImplements(ex, g, stacks, o0, P);
   // cadrage automatique : mannequin aux deux extrémités du mouvement, plus le matériel
   const box = new THREE.Box3(), body = new THREE.Box3();
   for (const s of ex.keys ? [0, 0.2, 0.4, 0.6, 0.8, 1] : [0, 0.5, 1]) { const o = solve(ex, s); applyPose(H, o); view.update(o, s); H.man.updateMatrixWorld(true); body.expandByObject(H.man); }
@@ -1669,34 +1734,37 @@ function varsHtml(ex) {
 const chipM = (mm, c) => '<span class="exo-mu ' + c + '">' + esc(MUSCLES[mm][0]) + "</span>";
 function detailHtml(ex) {
   const back = api && api.back ? '<a class="back" href="' + esc(api.back.href) + '">‹ ' + esc(api.back.label) + "</a>" : '<a class="back" href="#/exercices">‹ Exercices</a>';
+  const seq = seqForEx(ex), k = seq.indexOf(ex);
   return back +
     '<div class="exo-main">' + stageHtml(false) +
-    '<article class="card exo-fiche"><div><h1 class="exo-title">' + esc(ex.n) + '</h1><div class="exo-tags"><span>' + esc(ex.gear) + "</span><span>" + esc(ex.lvl) + "</span><span>" + (ex.time ? "Temps" : ex.dist ? esc(ex.dist >= 1000 ? (ex.dist / 1000).toString().replace(".", ",") + " km" : ex.dist + " m") + (ex.load ? " · charge" : "") : esc(ex.reps) + " reps") + "</span></div></div>" +
+    '<article class="card exo-fiche' + slideCls() + '" id="exo-fiche">' + swipeHint(k, seq.length, "exercice") + '<div><h1 class="exo-title">' + esc(ex.n) + '</h1><div class="exo-tags"><span>' + esc(ex.gear) + "</span><span>" + esc(ex.lvl) + "</span><span>" + (ex.time ? "Temps" : ex.dist ? esc(ex.dist >= 1000 ? (ex.dist / 1000).toString().replace(".", ",") + " km" : ex.dist + " m") + (ex.load ? " · charge" : "") : esc(ex.reps) + " reps") + "</span></div></div>" +
     '<div><h3>Muscles travaillés</h3><div class="exo-mus">' + ex.p.map(mm => chipM(mm, "p")).join("") + ex.s.map(mm => chipM(mm, "s")).join("") + "</div></div>" +
     '<div><h3>Bien l\'exécuter</h3><ul class="exo-tips">' + ex.tips.map(t => "<li>" + esc(t) + "</li>").join("") + "</ul></div>" +
     '<div><h3>Erreurs fréquentes</h3><ul class="exo-tips bad">' + ex.err.map(t => "<li>" + esc(t) + "</li>").join("") + "</ul></div>" +
     '<div><h3>Variantes</h3><div class="exo-vars">' + varsHtml(ex) + "</div></div>" +
     '<button class="btn primary block big" id="exo-add">Ajouter à une séance</button></article></div>';
 }
-// suite d'étirements parcourue avec Précédent / Suivant : la liste filtrée en cours, sinon la zone de l'étirement
+// fiche suivante / précédente en glissant le doigt : dans l'ordre de la liste affichée (filtres en cours), sinon le groupe de la fiche
+function seqForEx(ex) {
+  const f = MUSCU.filter(matches), pick = list => GROUPS.slice(2).flatMap(([g]) => list.filter(e => groupOf(e) === g));
+  const ordered = pick(f); return ordered.includes(ex) ? ordered : pick(MUSCU).filter(e => groupOf(e) === groupOf(ex));
+}
+const swipeHint = (k, n, what) => n > 1 ? '<div class="exo-swipe"><span aria-hidden="true">‹</span><b>' + (k + 1) + " / " + n + "</b><span>Glisse la fiche pour changer d'" + what + '</span><span aria-hidden="true">›</span></div>' : "";
+let slideDir = 0; // sens du dernier glissé : la nouvelle fiche arrive de ce côté
+const slideCls = () => { const c = slideDir > 0 ? " from-right" : slideDir < 0 ? " from-left" : ""; slideDir = 0; return c; };
+// suite d'étirements parcourue en glissant : la liste filtrée en cours, sinon la zone de l'étirement
 function seqFor(ex) {
   if (api && api.seq && api.seq.includes(ex.id)) return api.seq.map(id => STRETCHES.find(e => e.id === id)).filter(Boolean); // suite proposée après une séance
   const f = STRETCHES.filter(matchesStretch); return f.includes(ex) ? f : STRETCHES.filter(e => e.zone === ex.zone);
 }
 const BREATH = "Inspire lentement par le nez, puis expire plus longtemps que l'inspiration en relâchant la zone étirée. Ne bloque jamais ta respiration.";
-// nom court pour la barre Précédent / Suivant (« Étirement de l'épaule bras croisé » → « Épaule bras croisé »)
-const shortName = n => { const t = n.replace(/^Étirement (des |du |de l'|de la |de )/, ""); return t.charAt(0).toUpperCase() + t.slice(1); };
 function stretchDetailHtml(ex) {
   const back = api && api.back ? '<a class="back" href="' + esc(api.back.href) + '">‹ ' + esc(api.back.label) + "</a>" : '<a class="back" href="#/exercices">‹ Étirements</a>';
   const seq = seqFor(ex), k = seq.indexOf(ex), prev = seq[k - 1], next = seq[k + 1];
-  const nav = '<nav class="exo-seq" aria-label="Enchaîner les étirements">' +
-    (prev ? '<button type="button" class="btn" data-seq="' + prev.id + '" aria-label="Étirement précédent : ' + esc(prev.n) + '"><span aria-hidden="true">‹</span><span class="t">' + esc(shortName(prev.n)) + "</span></button>" : '<span class="exo-seq-gap"></span>') +
-    '<span class="n">' + (k + 1) + " / " + seq.length + "</span>" +
-    (next ? '<button type="button" class="btn primary" data-seq="' + next.id + '" aria-label="Étirement suivant : ' + esc(next.n) + '"><span class="t">' + esc(shortName(next.n)) + '</span><span aria-hidden="true">›</span></button>'
-      : '<a class="btn" href="' + esc(api && api.back ? api.back.href : "#/exercices") + '" aria-label="Fin de la série"><span class="t">Terminé</span><span aria-hidden="true">✓</span></a>') + "</nav>";
+  const nav = swipeHint(k, seq.length, "étirement");
   return back +
     '<div class="exo-main">' + stageHtml(true) +
-    '<article class="card exo-fiche" id="exo-fiche"><div><h1 class="exo-title">' + esc(ex.n) + '</h1><div class="exo-tags"><span>' + esc(zoneName(ex.zone)) + "</span><span>" + esc(ex.gear) + "</span><span>" + esc(holdTxt(ex)) + "</span></div></div>" +
+    '<article class="card exo-fiche' + slideCls() + '" id="exo-fiche">' + nav + '<div><h1 class="exo-title">' + esc(ex.n) + '</h1><div class="exo-tags"><span>' + esc(zoneName(ex.zone)) + "</span><span>" + esc(ex.gear) + "</span><span>" + esc(holdTxt(ex)) + "</span></div></div>" +
     '<div><h3>Muscles étirés</h3><div class="exo-mus">' + ex.p.map(mm => chipM(mm, "p")).join("") + ex.s.map(mm => chipM(mm, "s")).join("") + "</div></div>" +
     '<div><h3>Bien le faire</h3><ul class="exo-tips">' + ex.tips.map(t => "<li>" + esc(t) + "</li>").join("") + "</ul></div>" +
     '<div><h3>Respiration</h3><p class="exo-p">' + esc(ex.br || BREATH) + "</p></div>" +
@@ -1705,7 +1773,7 @@ function stretchDetailHtml(ex) {
     '<div><h3>Erreurs fréquentes</h3><ul class="exo-tips bad">' + ex.err.map(t => "<li>" + esc(t) + "</li>").join("") + "</ul></div>" +
     '<div><h3>Variantes</h3><div class="exo-vars">' + varsHtml(ex) + "</div></div>" +
     '<button class="btn primary block big" id="exo-add">Ajouter à une séance</button>' +
-    '<a class="exo-link" href="#/exercices/conseils-etirements">Tous les conseils pour bien s\'étirer ›</a></article></div>' + nav;
+    '<a class="exo-link" href="#/exercices/conseils-etirements">Tous les conseils pour bien s\'étirer ›</a></article></div>';
 }
 // guide : vérifié auprès des recommandations de l'ACSM et des méta-analyses citées en bas de page
 function guideHtml() {
@@ -1763,17 +1831,14 @@ export function mount(root, id, appApi, arg) {
   }
   root.querySelector("#exo-play").addEventListener("click", e => { view.playing = !view.playing; e.currentTarget.textContent = view.playing ? "Pause" : "Lecture"; e.currentTarget.setAttribute("aria-pressed", String(!view.playing)); });
   root.querySelector("#exo-slow").addEventListener("click", e => { view.speed = view.speed === 1 ? 0.4 : 1; e.currentTarget.setAttribute("aria-pressed", String(view.speed !== 1)); });
-  root.querySelector("#exo-add").addEventListener("click", () => api && api.add(st ? { name: ex.n, time: true, hold: ex.hold, sets: 2, rest: ex.rest } : { name: ex.n, time: !!ex.time, dist: ex.dist || 0, load: !!ex.load, reps: ex.reps, rest: ex.rest }));
-  if (st) {
-    // étirement suivant ou précédent sans repasser par la liste : boutons, glissé horizontal sur la fiche, flèches du clavier
-    const goTo = nid => { if (nid) location.replace("#/exercices/" + nid); };
-    root.querySelectorAll("[data-seq]").forEach(b => b.addEventListener("click", () => goTo(b.dataset.seq)));
-    const seq = seqFor(ex), k = seq.indexOf(ex), step = d => { const t = seq[k + d]; if (t) goTo(t.id); };
-    const fiche = root.querySelector("#exo-fiche"); let t0 = null;
-    fiche.addEventListener("touchstart", e => { const t = e.touches[0]; t0 = e.touches.length === 1 ? { x: t.clientX, y: t.clientY } : null; }, { passive: true });
-    fiche.addEventListener("touchend", e => { if (!t0) return; const t = e.changedTouches[0], dx = t.clientX - t0.x, dy = t.clientY - t0.y; t0 = null; if (Math.abs(dx) > 70 && Math.abs(dx) > 2 * Math.abs(dy)) step(dx < 0 ? 1 : -1); }, { passive: true });
-    keyStep = step;
-  } else keyStep = null;
+  root.querySelector("#exo-add").addEventListener("click", () => api && api.add(st ? { name: ex.n, time: true, hold: ex.hold, sets: 2, rest: ex.rest } : { name: ex.n, time: !!ex.time, dist: ex.dist || 0, load: !!ex.load, reps: ex.reps, rest: ex.rest, bw: atHome(ex) }));
+  // fiche suivante ou précédente sans repasser par la liste : glisser le doigt (hors de l'image 3D), flèches du clavier
+  const seq = st ? seqFor(ex) : seqForEx(ex), k = seq.indexOf(ex);
+  const step = d => { const t = seq[k + d]; if (!t) return; slideDir = d; location.replace("#/exercices/" + t.id); };
+  let t0 = null;
+  root.addEventListener("touchstart", e => { const t = e.touches[0]; t0 = e.touches.length === 1 && !e.target.closest("#exo-stage") ? { x: t.clientX, y: t.clientY } : null; }, { passive: true });
+  root.addEventListener("touchend", e => { if (!t0) return; const t = e.changedTouches[0], dx = t.clientX - t0.x, dy = t.clientY - t0.y; t0 = null; if (Math.abs(dx) > 60 && Math.abs(dx) > 1.8 * Math.abs(dy)) step(dx < 0 ? 1 : -1); }, { passive: true });
+  keyStep = step;
   window.scrollTo(0, 0);
 }
 let keyStep = null;

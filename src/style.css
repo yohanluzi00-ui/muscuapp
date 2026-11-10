@@ -451,14 +451,7 @@ td .chip-mini { margin-top: 4px; }
 .exo-dose b { font-size: 14px; }
 .exo-dose span { color: var(--muted); font-size: 14px; }
 .exo-link { color: var(--accent); font-weight: 600; text-decoration: none; text-align: center; }
-.exo-seq { position: sticky; bottom: calc(var(--nav-h) + 10px + env(safe-area-inset-bottom)); z-index: 5; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; margin-top: 14px; padding: 8px; border-radius: 16px;
-  background: color-mix(in srgb, var(--card) 92%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border: 1px solid var(--line); box-shadow: 0 8px 24px rgba(0, 0, 0, .12); }
-.exo-seq .btn { min-width: 0; min-height: 46px; padding: 0 12px; display: flex; align-items: center; gap: 6px; text-decoration: none; }
-.exo-seq .btn:last-child { justify-content: flex-end; }
-.exo-seq .btn .t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
-.exo-seq .btn span[aria-hidden] { font-size: 20px; line-height: 1; flex: none; }
-.exo-seq .n { font-family: var(--display); font-weight: 700; font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
-@media (min-width: 900px) { .exo-seq { bottom: 16px; } }
+
 .guide-lead { margin: 0 0 12px; }
 .guide-two { display: grid; gap: 12px; }
 @media (min-width: 700px) { .guide-two { grid-template-columns: 1fr 1fr; } }
@@ -502,3 +495,20 @@ a.chip-btn { text-decoration: none; display: inline-flex; align-items: center; }
 .swipe-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; min-height: 56px; text-decoration: none; color: inherit; background: var(--card); position: relative; z-index: 1; touch-action: pan-y; transition: transform .22s ease; -webkit-user-drag: none; -webkit-touch-callout: none; }
 .swipe-row.swiping { transition: none; -webkit-user-select: none; user-select: none; }
 .swipe-del { position: absolute; top: 0; right: 0; bottom: 0; width: 104px; border: 0; background: #D93025; color: #fff; font: inherit; font-weight: 700; font-size: 15px; cursor: pointer; }
+
+/* fiches : repère « 2 / 8 · glisse » et arrivée de la fiche du côté du glissé */
+.exo-swipe { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); margin: -4px 0 -6px; }
+.exo-swipe b { font-family: var(--display); color: var(--ink); font-variant-numeric: tabular-nums; }
+.exo-swipe span[aria-hidden] { font-size: 18px; line-height: 1; color: var(--accent); }
+.exo-swipe span:not([aria-hidden]) { flex: 1; }
+@media (hover: hover) and (pointer: fine) { .exo-swipe span:not([aria-hidden])::after { content: " (ou flèches ← →)"; } }
+.exo-fiche.from-right { animation: fiche-in-r .28s ease both; }
+.exo-fiche.from-left { animation: fiche-in-l .28s ease both; }
+@keyframes fiche-in-r { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: none; } }
+@keyframes fiche-in-l { from { opacity: 0; transform: translateX(-40px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .exo-fiche.from-right, .exo-fiche.from-left { animation: none; } }
+/* temps rempli par le chrono (gainage, étirements) : affiché, pas modifiable */
+input.ro { background: var(--soft) !important; color: var(--ink); pointer-events: none; caret-color: transparent; }
+/* accueil : tuile « + Nouvelle séance » dans le bloc d'un programme */
+.variant.add { border-style: dashed; border-color: color-mix(in srgb, var(--accent) 50%, var(--in-line)); background: transparent; cursor: pointer; }
+.variant.add b { color: var(--accent); }

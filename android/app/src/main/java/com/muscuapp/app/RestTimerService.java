@@ -9,8 +9,12 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.media.AudioAttributes;
+import android.media.Ringtone;
 import android.media.RingtoneManager;
+import android.net.Uri;
 import android.os.Build;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
@@ -29,6 +33,7 @@ public class RestTimerService extends Service {
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable fire = this::onRestEnd;
+    private final Runnable stopper = this::stopSelf;
     private long end = 0;
     private String mode = "vibration";
 
@@ -61,6 +66,7 @@ public class RestTimerService extends Service {
             return START_NOT_STICKY;
         }
         handler.removeCallbacks(fire);
+        handler.removeCallbacks(stopper); // un nouveau repos annule l'arrêt prévu après le son précédent
         long d = end - System.currentTimeMillis();
         if (d <= 0) onRestEnd();
         else handler.postDelayed(fire, d);
@@ -77,13 +83,16 @@ public class RestTimerService extends Service {
     }
 
     private void onRestEnd() {
+        boolean played = false;
         if (!MainActivity.visible && !"aucune".equals(mode)) {
-            alert();
+            played = alert();
             alertedEnd = end;
         }
         if (Build.VERSION.SDK_INT >= 24) stopForeground(STOP_FOREGROUND_REMOVE);
         else stopForeground(true);
-        stopSelf();
+        // le son joue encore quelques secondes : le service s'arrête juste après
+        if (played) handler.postDelayed(stopper, 4000);
+        else stopSelf();
     }
 
     private PendingIntent openApp() {
@@ -119,22 +128,27 @@ public class RestTimerService extends Service {
         return b.build();
     }
 
-    private void alert() {
+    /**
+     * Fin du repos hors de l'appli : notification « Pause terminée », et le son / la vibration joués directement par le service.
+     * Le son passe par le flux « alarme » : il se fait entendre même écran verrouillé (le son d'une notification peut y être coupé).
+     * @return vrai si un son a été lancé (le service doit rester actif le temps qu'il joue)
+     */
+    private boolean alert() {
         boolean sound = mode.equals("son") || mode.equals("les deux");
         boolean vib = mode.equals("vibration") || mode.equals("les deux");
-        String ch = sound && vib ? "repos_deux" : sound ? "repos_son" : "repos_vib";
         long[] pattern = new long[]{0, 350, 150, 350};
         NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        if (nm == null) return;
-        if (Build.VERSION.SDK_INT >= 26 && nm.getNotificationChannel(ch) == null) {
-            String label = sound && vib ? "son et vibration" : sound ? "son" : "vibration";
-            NotificationChannel nc = new NotificationChannel(ch, "Fin du repos (" + label + ")", NotificationManager.IMPORTANCE_HIGH);
-            if (sound) nc.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
-                    new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION).build());
-            else nc.setSound(null, null);
-            nc.enableVibration(vib);
-            if (vib) nc.setVibrationPattern(pattern);
-            nm.createNotificationChannel(nc);
+        if (nm == null) return false;
+        String ch = "repos_fin";
+        if (Build.VERSION.SDK_INT >= 26) {
+            // anciens canaux (le son y dépendait des réglages de notification du téléphone)
+            for (String old : new String[]{"repos_deux", "repos_son", "repos_vib"}) { try { nm.deleteNotificationChannel(old); } catch (Exception ignored) { } }
+            if (nm.getNotificationChannel(ch) == null) {
+                NotificationChannel nc = new NotificationChannel(ch, "Fin du repos", NotificationManager.IMPORTANCE_HIGH);
+                nc.setSound(null, null);
+                nc.enableVibration(false);
+                nm.createNotificationChannel(nc);
+            }
         }
         Notification.Builder b = builder(ch)
                 .setSmallIcon(R.drawable.ic_stat)
@@ -143,12 +157,29 @@ public class RestTimerService extends Service {
                 .setAutoCancel(true)
                 .setContentIntent(openApp())
                 .setCategory(Notification.CATEGORY_REMINDER);
-        if (Build.VERSION.SDK_INT < 26) {
-            b.setPriority(Notification.PRIORITY_HIGH);
-            if (sound) b.setDefaults(Notification.DEFAULT_SOUND);
-            if (vib) b.setVibrate(pattern);
-        }
+        if (Build.VERSION.SDK_INT < 26) b.setPriority(Notification.PRIORITY_HIGH);
         try { nm.notify(ALERT_ID, b.build()); } catch (SecurityException ignored) { }
+        if (vib) {
+            try {
+                Vibrator v = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+                if (v != null && v.hasVibrator()) {
+                    if (Build.VERSION.SDK_INT >= 26) v.vibrate(VibrationEffect.createWaveform(pattern, -1),
+                            new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM).build());
+                    else v.vibrate(pattern, -1);
+                }
+            } catch (Exception ignored) { }
+        }
+        if (!sound) return false;
+        try {
+            Uri u = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+            if (u == null) u = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+            final Ringtone r = RingtoneManager.getRingtone(this, u);
+            if (r == null) return false;
+            r.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
+            r.play();
+            handler.postDelayed(() -> { try { r.stop(); } catch (Exception ignored) { } }, 3500);
+            return true;
+        } catch (Exception e) { return false; }
     }
 
     @Override

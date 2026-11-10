@@ -16,7 +16,8 @@ language sql stable security definer set search_path = '' as $$
   select s.data from public.shares s where s.code = p_code
 $$;
 revoke all on function public.get_share(text) from public;
-grant execute on function public.get_share(text) to anon, authenticated;
+revoke execute on function public.get_share(text) from anon;
+grant execute on function public.get_share(text) to authenticated; -- import une fois connecté
 
 create or replace function public.delete_my_account() returns void
 language plpgsql security definer set search_path = '' as $$

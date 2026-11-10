@@ -16,8 +16,9 @@ const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&a
 const num = v => { const n = parseFloat(String(v == null ? "" : v).replace(",", ".")); return isNaN(n) ? null : n; };
 const fmtNum = n => String(Math.round(n * 100) / 100).replace(".", ",");
 const pad = n => String(n).padStart(2, "0");
-function fmtDur(ms) {
-  const s = Math.max(0, Math.round(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+// rnd : "down" pour un chrono qui monte (0:01 affiché après 1 s pleine), "up" pour un compte à rebours (0:00 seulement à la fin)
+function fmtDur(ms, rnd) {
+  const s = Math.max(0, rnd === "down" ? Math.floor(ms / 1000 + 1e-6) : rnd === "up" ? Math.ceil(ms / 1000 - 1e-6) : Math.round(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
   return h ? h + ":" + pad(m) + ":" + pad(x) : m + ":" + pad(x);
 }
 // formateurs de dates créés une seule fois (bien plus rapide qu'un toLocaleDateString par ligne)
@@ -130,7 +131,7 @@ function setSetting(k, v) { const s = settings(); s[k] = v; put("settings", s); 
 // réglages de départ d'un exercice de la bibliothèque (type, cible, repos, charge)
 const libDefaults = lib => lib.kind === "time" ? Object.assign({ type: "time", target: String(lib.hold || 45), rest: lib.rest || 60 }, lib.hold ? { sets: 2 } : {})
   : lib.kind === "dist" ? { type: "dist", target: String(lib.dist || 1000), rest: lib.rest || 120, load: !!lib.load }
-  : { type: "reps", target: (String(lib.reps || "").match(/^\d+(-\d+)?/) || ["8-10"])[0], rest: lib.rest || 90 };
+  : { type: /^Poids du corps/.test(lib.gear || "") ? "rep" : "reps", target: (String(lib.reps || "").match(/^\d+(-\d+)?/) || ["8-10"])[0], rest: lib.rest || 90 };
 const newExercise = () => ({ id: "e-" + uid(), name: "Nouvel exercice", type: "reps", sets: 3, target: "8-10", rest: 90, note: "" });
 const blankSet = drops => ({ kg: "", reps: "", sec: "", done: false, drops: Array.from({ length: Math.max(0, num(drops) || 0) }, () => ({ kg: "", reps: "" })) });
 // baisses d'une série en dégressif : toutes les séries, ou seulement la dernière (dropScope "last")
@@ -506,7 +507,7 @@ async function addLibraryExercise(x) {
   const c = await choose("Ajouter « " + x.name + " » à…", opts); if (!c) return;
   const [, tid, vid] = c.split(":"); const t = getItem(tid); const v = t && t.variants.find(y => y.id === vid); if (!v) return;
   const reps = (String(x.reps || "").match(/^\d+(-\d+)?/) || [""])[0];
-  const e = Object.assign(newExercise(), { name: String(x.name).slice(0, 80) }, x.time ? Object.assign({ type: "time", target: String(num(x.hold) || 45), rest: x.hold ? Math.max(0, Math.min(600, num(x.rest) || 15)) : 60 }, x.hold ? { sets: 2 } : {}) : x.dist ? { type: "dist", target: String(x.dist), rest: Math.max(0, Math.min(600, num(x.rest) || 120)), load: !!x.load } : { target: reps || "8-10", rest: Math.max(0, Math.min(600, num(x.rest) || 90)) });
+  const e = Object.assign(newExercise(), { name: String(x.name).slice(0, 80) }, x.time ? Object.assign({ type: "time", target: String(num(x.hold) || 45), rest: x.hold ? Math.max(0, Math.min(600, num(x.rest) || 15)) : 60 }, x.hold ? { sets: 2 } : {}) : x.dist ? { type: "dist", target: String(x.dist), rest: Math.max(0, Math.min(600, num(x.rest) || 120)), load: !!x.load } : Object.assign({ target: reps || "8-10", rest: Math.max(0, Math.min(600, num(x.rest) || 90)) }, x.bw ? { type: "rep" } : {}));
   v.exercises.push(e); put("template", t);
   toast("Ajouté à « " + t.name + " · " + vLabel(v.name) + " »");
 }
@@ -662,7 +663,7 @@ function viewHome() {
         return '<button class="variant' + (x.v.id === sugg ? " sugg" : "") + '" data-act="start" data-t="' + t.id + '" data-v="' + x.v.id + '"><b>' + esc(vLabel(x.v.name)) + "</b>" +
           "<span>" + (n ? n + " exercice" + (n > 1 ? "s" : "") : "vide — à remplir") + "</span>" +
           "<span>" + (x.v.id === sugg ? '<span class="tag">Suggérée</span> · ' : "") + (x.last ? esc(ago(x.last.startedAt)) : "jamais faite") + "</span></button>";
-      }).join("") + "</div></div>";
+      }).join("") + '<button class="variant add" data-act="homeaddvar" data-t="' + t.id + '" aria-label="Nouvelle séance dans ' + esc(t.name) + '"><b>+ Nouvelle séance</b><span>Ajouter une séance à ce programme</span></button></div></div>';
   }
   h += "</div>";
   h += '<div class="section-title">Découvrir</div><div class="home-more"><a class="card" href="#/exercices/etirements"><b>Étirements</b><span class="muted small">Haut, milieu et bas du corps, avec les conseils</span></a>' +
@@ -688,11 +689,13 @@ function startChoice(t, v) {
     });
   });
 }
-async function startWorkout(tid, vid) {
+// « Lancer la séance 1 » (nom par défaut) ou « Lancer « Push A » »
+const launchLabel = v => { const n = vLabel(v.name); return /^séance\b/i.test(n) ? "la " + n.charAt(0).toLowerCase() + n.slice(1) : "« " + n + " »"; };
+async function startWorkout(tid, vid, direct) {
   const t = getItem(tid); if (!t) return;
   const v = t.variants.find(x => x.id === vid); if (!v) return;
   if (!v.exercises.length) { toast("Ajoute d'abord des exercices à cette séance"); go("program/" + tid + "/" + vid); return; }
-  const choice = await startChoice(t, v);
+  const choice = direct ? "go" : await startChoice(t, v);
   if (choice === "edit") { go("program/" + tid + "/" + vid); return; }
   if (choice !== "go") return;
   const act = activeWorkout();
@@ -725,7 +728,8 @@ function phOf(w, e, s, d) {
 function inputsHtml(w, e, i, k, d, label) {
   const s = e.sets[k], v = d == null ? s : ((s.drops || [])[d] || {}), ph = phOf(w, e, k, d);
   const a = ' data-i="' + i + '" data-s="' + k + '"' + (d == null ? "" : ' data-d="' + d + '"');
-  if (e.type === "time") return '<input inputmode="numeric" aria-label="Temps ' + label + '" data-f="sec"' + a + ' value="' + esc(v.sec) + '" placeholder="' + esc(ph.sec) + '">';
+  if (e.type === "time") return '<input class="ro" readonly tabindex="-1" aria-readonly="true" aria-label="Temps ' + label + ' (rempli par le chrono)" data-f="sec"' + a + ' value="' + esc(v.sec) + '" placeholder="' + esc(ph.sec) + '">';
+  if (e.type === "rep") return '<input inputmode="numeric" aria-label="Répétitions ' + label + '" data-f="reps"' + a + ' value="' + esc(v.reps) + '" placeholder="' + esc(ph.reps) + '">';
   if (e.type === "dist") return (e.load ? '<input inputmode="decimal" aria-label="Kilos ' + label + '" data-f="kg"' + a + ' value="' + esc(v.kg) + '" placeholder="' + esc(ph.kg) + '">' : "") +
     '<input inputmode="numeric" aria-label="Temps ' + label + ' (minutes:secondes)" data-f="clock"' + a + ' value="' + (num(v.sec) != null ? fmtClock(v.sec) : "") + '" placeholder="' + esc(ph.clock) + '">';
   return '<input inputmode="decimal" aria-label="Kilos ' + label + '" data-f="kg"' + a + ' value="' + esc(v.kg) + '" placeholder="' + esc(ph.kg) + '">' +
@@ -775,7 +779,7 @@ function noteBox(w, e, i, letter) {
   return '<textarea class="f" data-f="note" data-i="' + i + '" placeholder="Notes' + (letter ? " " + letter + " · " + esc(e.name) : " (réglages, sensations…)") + '" aria-label="Notes ' + esc(e.name) + '">' + esc(note) + "</textarea>";
 }
 function exCard(w, e, i) {
-  let rows = '<div class="h">Série</div><div class="h hdr">' + (e.type === "time" ? "<span>Temps (s)</span>" : e.type === "dist" ? (e.load ? "<span>Kg</span>" : "") + "<span>Temps</span>" : "<span>Kg</span><span>Reps</span>") + '</div><div class="h"></div>';
+  let rows = '<div class="h">Série</div><div class="h hdr">' + (e.type === "time" ? "<span>Temps (s)</span>" : e.type === "rep" ? "<span>Reps</span>" : e.type === "dist" ? (e.load ? "<span>Kg</span>" : "") + "<span>Temps</span>" : "<span>Kg</span><span>Reps</span>") + '</div><div class="h"></div>';
   e.sets.forEach((s, k) => { rows += setRows(w, e, i, k, k + 1); });
   return '<section class="card ex">' + exHead(w, e, i, "") + '<div class="sets">' + rows + "</div>" + setActions([i], e.sets.length, "Série") + noteBox(w, e, i, "") + "</section>";
 }
@@ -805,7 +809,7 @@ function viewSession(id) {
     '<div class="page-head"><div><div class="muted small">' + esc(vLabel(w.variantName)) + " · " + esc(fmtDateLong(w.startedAt)) + "</div><h1>" + esc(w.templateName) + "</h1></div>" +
     '<div class="row"><span class="num" style="font-size:18px;font-weight:700" data-tick="elapsed" data-id="' + w.id + '"></span>' +
     (active ? '<button class="btn sm" data-act="cancel">Annuler</button>' : "") + "</div></div>";
-  if (!active) h += '<div class="banner">Séance terminée. Tu peux encore corriger les valeurs.</div>' + stretchCard(w, false);
+  if (!active) h += '<div class="banner">Séance terminée. Tu peux encore corriger les valeurs.</div>';
   h += wide ? sessionTable(w) : sessionCards(w);
   h += '<div class="add-row" style="margin-top:16px"><button class="btn" data-act="addex">+ Ajouter un exercice</button><button class="btn" data-act="sessstretch">+ Ajouter un étirement</button></div>';
   if (active) h += '<div class="restpop" data-restpop hidden><div class="rp-box" role="timer" aria-label="Minuteur de repos"><div class="rp-label">Repos</div>' +
@@ -856,7 +860,7 @@ function sessionTable(w) {
 function currentWorkout() { const r = route(); return r.name === "session" ? getItem(r.args[0]) : null; }
 function fillFrom(set, src, type) {
   if (!src) return;
-  for (const f of type === "time" ? ["sec"] : type === "dist" ? ["sec", "kg"] : ["kg", "reps"]) if ((set[f] === "" || set[f] == null) && src[f] !== "" && src[f] != null) set[f] = src[f];
+  for (const f of type === "time" ? ["sec"] : type === "dist" ? ["sec", "kg"] : type === "rep" ? ["reps"] : ["kg", "reps"]) if ((set[f] === "" || set[f] == null) && src[f] !== "" && src[f] != null) set[f] = src[f];
 }
 function markDone(w, i, s) {
   const e = w.exercises[i], set = e.sets[s];
@@ -934,7 +938,7 @@ function stopChrono(w) {
 function startRest(sec, label) {
   sec = num(sec) || 0;
   if (sec <= 0) return;
-  db.live.restEnd = Date.now() + sec * 1000; db.live.restTotal = sec * 1000; db.live.restAlerted = false; db.live.restMin = false; db.live.restLabel = label || ""; save();
+  db.live.restEnd = Date.now() + sec * 1000; db.live.restTotal = sec * 1000; db.live.restAlerted = false; db.live.restMin = false; db.live.restLabel = label || ""; save(); setTimeout(armEdge, 0);
 }
 
 /* ================= Écran : programmes ================= */
@@ -946,26 +950,27 @@ function viewPrograms() {
     '<p class="muted small">Tes propres programmes se créent et se modifient depuis l\'<a href="#/home">Accueil</a> : touche une séance, puis «&nbsp;Modifier&nbsp;».</p>';
 }
 function exFields(e, k, letter, inGroup) {
-  const time = e.type === "time", dist = e.type === "dist", d = dropsOf(e);
+  const time = e.type === "time", dist = e.type === "dist", rep = e.type === "rep", d = dropsOf(e);
   return (inGroup ? '<div class="spread"><b><span class="letter">' + letter + '</span><span data-title="' + k + '">' + esc(e.name) + '</span></b><button class="btn sm danger" data-act="delex" data-e="' + k + '">Retirer</button></div>' : "") +
     '<div class="ed-grid"><label class="fl full">Nom<input class="f" data-suggest autocomplete="off" maxlength="80" data-p="name" data-e="' + k + '" value="' + esc(e.name) + '"><div class="sugg" hidden></div></label>' +
     (libFor(e.name) ? '<div class="full" data-exolink="' + k + '"><button type="button" class="chip-mini" data-act="exoview" data-id="' + libFor(e.name).id + '">' + ICON.play + "Voir le mouvement</button></div>" : '<div class="full" data-exolink="' + k + '" hidden></div>') +
-    '<label class="fl">Type<select class="f" data-p="type" data-e="' + k + '"><option value="reps"' + (!time && !dist ? " selected" : "") + '>Poids × reps</option><option value="time"' + (time ? " selected" : "") + '>Temps (gainage)</option><option value="dist"' + (dist ? " selected" : "") + ">Distance (course, Hyrox)</option></select></label>" +
+    '<label class="fl">Type<select class="f" data-p="type" data-e="' + k + '"><option value="reps"' + (!time && !dist && !rep ? " selected" : "") + '>Poids × reps</option><option value="rep"' + (rep ? " selected" : "") + '>Reps uniquement</option><option value="time"' + (time ? " selected" : "") + '>Temps (gainage)</option><option value="dist"' + (dist ? " selected" : "") + ">Distance (course, Hyrox)</option></select></label>" +
     (inGroup ? "" : '<label class="fl">Séries<input class="f" type="number" min="1" max="20" inputmode="numeric" data-p="sets" data-e="' + k + '" value="' + esc(e.sets) + '"></label>') +
     (dist ? '<label class="fl">Distance (m)<input class="f" type="number" min="1" max="100000" inputmode="numeric" data-p="target" data-e="' + k + '" value="' + esc(e.target) + '" placeholder="1000"></label>' +
       '<label class="fl">Charge<select class="f" data-p="load" data-e="' + k + '"><option value="0"' + (!e.load ? " selected" : "") + '>Sans charge</option><option value="1"' + (e.load ? " selected" : "") + ">Avec charge (kg)</option></select></label>"
     : time ? '<div class="fl"><span>Temps cible</span><button type="button" class="f pick" data-act="picksec" data-sf="target" data-e="' + k + '">' + fmtSecs(num(e.target) || 0) + "</button></div>"
       : '<label class="fl">Reps cible<input class="f" data-p="target" data-e="' + k + '" value="' + esc(e.target) + '" placeholder="8-10"></label>') +
     (inGroup ? "" : '<div class="fl"><span>Repos</span><button type="button" class="f pick" data-act="picksec" data-sf="rest" data-e="' + k + '">' + fmtSecs(num(e.rest) || 0) + "</button></div>") +
-    (time || dist ? "" : '<label class="fl">Dégressif<select class="f" data-p="drops" data-e="' + k + '">' + [0, 1, 2, 3].map(n => '<option value="' + n + '"' + (d === n ? " selected" : "") + ">" + (n ? "Oui · " + n + " baisse" + (n > 1 ? "s" : "") : "Non") + "</option>").join("") + "</select></label>") +
-    (time || dist || !d ? "" : '<label class="fl">Dégressif sur<select class="f" data-p="dscope" data-e="' + k + '"><option value="all"' + (e.dropScope !== "last" ? " selected" : "") + '>Toutes les séries</option><option value="last"' + (e.dropScope === "last" ? " selected" : "") + ">La dernière série</option></select></label>") +
+    (time || dist || rep ? "" : '<label class="fl">Dégressif<select class="f" data-p="drops" data-e="' + k + '">' + [0, 1, 2, 3].map(n => '<option value="' + n + '"' + (d === n ? " selected" : "") + ">" + (n ? "Oui · " + n + " baisse" + (n > 1 ? "s" : "") : "Non") + "</option>").join("") + "</select></label>") +
+    (time || dist || rep || !d ? "" : '<label class="fl">Dégressif sur<select class="f" data-p="dscope" data-e="' + k + '"><option value="all"' + (e.dropScope !== "last" ? " selected" : "") + '>Toutes les séries</option><option value="last"' + (e.dropScope === "last" ? " selected" : "") + ">La dernière série</option></select></label>") +
     '<label class="fl full">Notes<textarea class="f" data-p="note" data-e="' + k + '" placeholder="Réglages de la machine, consignes…">' + esc(e.note) + "</textarea></label></div>";
 }
 function viewProgram(tid, vid) {
   const t = getItem(tid);
   if (!t) return '<a class="back" href="#/home">‹ Accueil</a><div class="card empty">Programme introuvable.</div>';
   const v = t.variants.find(x => x.id === vid) || t.variants[0];
-  let h = '<a class="back" href="#/home">‹ Accueil</a>' +
+  const launch = v ? '<button class="btn sm primary" data-act="launchvar" data-t="' + t.id + '" data-v="' + v.id + '">Lancer ' + esc(launchLabel(v)) + "</button>" : "";
+  let h = '<div class="spread"><a class="back" href="#/home">‹ Accueil</a>' + launch + "</div>" +
     '<label class="fl" style="margin-top:8px">Nom du programme<input class="f" data-p="tname" maxlength="60" value="' + esc(t.name) + '" style="font-size:20px;font-weight:700"></label>' +
     '<div class="section-title">Séances</div><div class="tabs" data-sortable="var" data-axis="x">' +
     t.variants.map(x => '<button class="' + (v && x.id === v.id ? "on" : "") + '" data-act="tab" data-v="' + x.id + '" data-sort-id="' + x.id + '">' +
@@ -1002,7 +1007,7 @@ function viewProgram(tid, vid) {
         (bi < bl.length - 1 && !bl[bi + 1].groupId ? '<button class="link" style="margin-top:6px" data-act="link" data-b="' + bi + '">Enchaîner avec l\'exercice suivant (superset / biset)</button>' : "") + "</div>";
     }
   });
-  h += '<div class="add-row"><button class="btn primary" data-act="addtplex">+ Ajouter un exercice</button><button class="btn" data-act="addstretch">+ Ajouter un étirement</button></div></div>' +
+  h += '<div class="add-row"><button class="btn" data-act="addtplex">+ Ajouter un exercice</button><button class="btn" data-act="addstretch">+ Ajouter un étirement</button></div></div>' +
     '<div style="margin-top:32px"><button class="btn danger" data-act="deltpl">Supprimer le programme « ' + esc(t.name) + " »</button></div>";
   return h;
 }
@@ -1225,10 +1230,10 @@ function progressData() {
     for (const e of w.exercises) {
       if (!exHasData(e)) continue;
       const key = norm(e.name) + "|" + e.type;
-      const D = e.type === "dist", T = e.type === "time" || D, vs = e.sets.map(s => num(T ? s.sec : s.kg)).filter(x => x != null && (!D || x > 0));
+      const D = e.type === "dist", T = e.type === "time" || D, RO = e.type === "rep", vs = e.sets.map(s => num(T ? s.sec : RO ? s.reps : s.kg)).filter(x => x != null && (!D || x > 0));
       const best = vs.length ? (D ? Math.min(...vs) : Math.max(...vs)) : -Infinity;
       const reps = T ? null : Math.max(...e.sets.map(s => num(s.reps)).filter(x => x != null), -Infinity);
-      const orm = T ? null : Math.max(...e.sets.map(s => e1rm(num(s.kg), num(s.reps))).filter(x => x != null), -Infinity);
+      const orm = T || RO ? null : Math.max(...e.sets.map(s => e1rm(num(s.kg), num(s.reps))).filter(x => x != null), -Infinity);
       const kgs = e.sets.map(s => num(s.kg)).filter(x => x != null && x > 0), kg = kgs.length ? Math.max(...kgs) : null;
       const sec = T && vs.length ? (D ? Math.min(...vs) : Math.max(...vs)) : null;
       (map[key] = map[key] || { key, name: e.name, type: e.type, entries: [] }).entries.push({ w, e, best: best === -Infinity ? null : best, reps: reps === -Infinity ? null : reps, orm: orm === -Infinity ? null : orm, kg, sec });
@@ -1237,10 +1242,10 @@ function progressData() {
   }
   return Object.values(map).sort((a, b) => a.name.localeCompare(b.name, "fr"));
 }
-const unitOf = p => p.type === "time" ? " s" : p.type === "dist" ? "" : " kg";
+const unitOf = p => p.type === "time" ? " s" : p.type === "dist" ? "" : p.type === "rep" ? " reps" : " kg";
 const bestOf = (p, vs) => (vs.length ? (p.type === "dist" ? Math.min(...vs) : Math.max(...vs)) : null);
 const fmtVal = (p, v) => (p.type === "dist" ? fmtClock(v) : fmtNum(v) + unitOf(p));
-const noRM = p => p.type === "time" || p.type === "dist";
+const noRM = p => p.type === "time" || p.type === "dist" || p.type === "rep";
 function weekStart(t) { const d = new Date(t); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); }
 function prevWeek(t) { const d = new Date(t); d.setDate(d.getDate() - 7); return d.getTime(); }
 function viewProgress() {
@@ -1300,6 +1305,7 @@ function evoMetrics(p) {
   const has = f => p.entries.some(x => evoVal(x, f) != null);
   if (p.type === "time") return ["sec"];
   if (p.type === "dist") return ["run"].concat(has("kg") ? ["kg"] : []);
+  if (p.type === "rep") return ["reps"];
   const out = []; if (has("kg")) out.push("kg", "orm"); if (has("reps")) out.push("reps");
   return out.length ? out : ["reps"];
 }
@@ -1479,7 +1485,7 @@ const TROPHY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strok
 // record = la série qu'on vient de valider donne le meilleur 1RM estimé jamais atteint sur cet exercice
 function checkRecord(w, i, s) {
   const e = w.exercises[i], set = e.sets[s], n = norm(e.name);
-  if (e.type === "time" || e.type === "dist") return null;
+  if (e.type === "time" || e.type === "dist" || e.type === "rep") return null;
   const cur = e1rm(num(set.kg), num(set.reps));
   if (cur == null) return null;
   let best = null;
@@ -1546,6 +1552,7 @@ const SHARE_BASE = "https://fiitday.com/#/import/";
 const SHARE_SHORT = "https://fiitday.com/#/s/";
 // récupère une séance partagée par son code court (lisible sans compte, uniquement si on connaît le code)
 async function fetchShare(code) {
+  if (!db.auth) { const e = new Error("connexion"); e.login = true; throw e; } // l'import d'un lien court demande d'être connecté
   const headers = { apikey: SUPABASE_KEY, "Content-Type": "application/json" };
   if (db.auth) { try { await ensureToken(); headers.Authorization = "Bearer " + db.auth.access_token; } catch (e) { } }
   const r = await fetch(SUPABASE_URL + "/rest/v1/rpc/get_share", { method: "POST", headers, body: JSON.stringify({ p_code: code }) });
@@ -1578,7 +1585,7 @@ async function importShared(code) {
     const short = str.match(/(?:#\/s\/|^)([A-Za-z0-9]{6,12})$/);
     if (short) {
       try { data = await fetchShare(short[1]); }
-      catch (e) { toast(navigator.onLine === false ? "Pas de connexion internet" : "Impossible de récupérer la séance, réessaie"); return; }
+      catch (e) { toast(e && e.login ? "Connecte-toi à ton compte pour importer cette séance" : navigator.onLine === false ? "Pas de connexion internet" : "Impossible de récupérer la séance, réessaie"); return; }
       if (!data) { toast("Cette séance partagée n'existe plus"); return; }
     } else {
       const m = str.match(/import\/([A-Za-z0-9_-]+)/);
@@ -1591,7 +1598,7 @@ async function importShared(code) {
   if (!dest) return;
   const gmap = {};
   const exercises = data.ex.map(x => {
-    const e = { id: "e-" + uid(), name: String(x.n || "Exercice").slice(0, 80), type: x.t === "time" ? "time" : x.t === "dist" ? "dist" : "reps", load: x.t === "dist" && !!x.l, sets: Math.max(1, Math.min(20, num(x.s) || 3)), target: String(x.c == null ? "" : x.c).slice(0, 20), rest: Math.max(0, num(x.r) || 0), restNext: Math.max(0, Math.min(600, num(x.rn) || num(data.rb) || 0)), note: String(x.no || "").slice(0, 500), drops: x.t === "time" || x.t === "dist" ? 0 : Math.max(0, Math.min(3, num(x.d) || 0)), dropScope: x.ds === "last" ? "last" : "all" };
+    const e = { id: "e-" + uid(), name: String(x.n || "Exercice").slice(0, 80), type: x.t === "time" ? "time" : x.t === "dist" ? "dist" : x.t === "rep" ? "rep" : "reps", load: x.t === "dist" && !!x.l, sets: Math.max(1, Math.min(20, num(x.s) || 3)), target: String(x.c == null ? "" : x.c).slice(0, 20), rest: Math.max(0, num(x.r) || 0), restNext: Math.max(0, Math.min(600, num(x.rn) || num(data.rb) || 0)), note: String(x.no || "").slice(0, 500), drops: x.t === "time" || x.t === "dist" ? 0 : Math.max(0, Math.min(3, num(x.d) || 0)), dropScope: x.ds === "last" ? "last" : "all" };
     if (x.g && GROUP_LABEL[x.k]) { gmap[x.g] = gmap[x.g] || "g-" + uid(); e.groupId = gmap[x.g]; e.groupKind = x.k; }
     return e;
   });
@@ -1770,6 +1777,16 @@ document.addEventListener("pointerdown", e => {
 });
 
 /* ================= Sauvegarde compressée ================= */
+// séances : seules les valeurs remplies sont gardées dans la sauvegarde (texte plus court), et remises à l'identique à la restauration
+function slimData(x) {
+  if (x.kind !== "workout" || !x.data || !Array.isArray(x.data.exercises)) return x.data;
+  const clean = o => { const r = {}; for (const k in o) { const v = o[k]; if (v === "" || v === null || v === false || (Array.isArray(v) && !v.length)) continue; r[k] = v; } return r; };
+  return Object.assign({}, x.data, { exercises: x.data.exercises.map(e => Object.assign(clean(e), { sets: (e.sets || []).map(st => Object.assign(clean(st), st.drops && st.drops.length ? { drops: st.drops.map(clean) } : {})) })) });
+}
+function fatWorkout(d) {
+  if (!d || !Array.isArray(d.exercises)) return d;
+  return Object.assign({}, d, { exercises: d.exercises.map(e => Object.assign({ groupId: null, groupKind: null, note: "" }, e, { sets: (Array.isArray(e.sets) ? e.sets : []).map(st => Object.assign({ kg: "", reps: "", sec: "", done: false }, st, { drops: (st.drops || []).map(dr => Object.assign({ kg: "", reps: "" }, dr)) })) })) });
+}
 // « FIITDAY1: » + données compressées en base64 : bien plus court que le texte brut
 async function packBackup(str) {
   if (!window.CompressionStream) return str;
@@ -1818,7 +1835,7 @@ function viewSettings() {
 function chronoKind(w, c) { const ex = w && w.exercises[c.i], lb = ex && libFor(ex.name); return lb && lb.cat === "etirement" ? "Étirement" : c.dist || (ex && ex.type === "dist") ? "Chrono" : "Gainage"; }
 function tick() {
   const now = Date.now(), L = db.live || {};
-  document.querySelectorAll('[data-tick="elapsed"]').forEach(el => { const w = getItem(el.dataset.id); if (w) el.textContent = fmtDur((w.endedAt || now) - w.startedAt); });
+  document.querySelectorAll('[data-tick="elapsed"]').forEach(el => { const w = getItem(el.dataset.id); if (w) el.textContent = fmtDur((w.endedAt || now) - w.startedAt, "down"); });
   // repos
   if (L.restEnd && now >= L.restEnd && !L.restAlerted) {
     // déjà signalé par la notification Android (appli en arrière-plan) : pas de deuxième alerte en revenant
@@ -1834,7 +1851,7 @@ function tick() {
     pop.hidden = !on || !!L.restMin;
     if (pill) pill.hidden = !on || !L.restMin;
     if (on) {
-      const left = fmtDur(L.restEnd - now);
+      const left = fmtDur(L.restEnd - now, "up");
       pop.querySelector("[data-rptime]").textContent = left;
       const lab = pop.querySelector(".rp-label"); if (lab) lab.textContent = L.restLabel || "Repos";
       pop.querySelector("[data-rpbar]").style.width = Math.max(0, Math.min(100, 100 * (L.restEnd - now) / (L.restTotal || 1))) + "%";
@@ -1850,7 +1867,7 @@ function tick() {
     // décompte de préparation : bip à 3, 2, 1 puis au départ
     if (prep && left !== c.count) { c.count = left; if (left <= 3) prepBeep(false); }
     if (!prep && !c.go) { c.go = true; save(); prepBeep(true); }
-    if (el) el.textContent = prep ? "Prêt · " + left : fmtDur(ms);
+    if (el) el.textContent = prep ? "Prêt · " + left : fmtDur(ms, "down");
     if (!c.alerted && c.target && ms >= c.target * 1000) { c.alerted = true; save(); signal(); }
     const w = currentWorkout(), here = w && w.id === c.wid;
     if (cpop) {
@@ -1859,20 +1876,31 @@ function tick() {
         const ex = w.exercises[c.i];
         cpop.querySelector("[data-cpname]").textContent = ex && norm(ex.name) !== "gainage" ? ex.name + " · série " + (c.s + 1) : "Série " + (c.s + 1);
         const lab = cpop.querySelector(".rp-label"), kind = chronoKind(w, c); if (lab.textContent !== kind) lab.textContent = kind;
-        cpop.querySelector("[data-cptime]").textContent = prep ? String(left) : fmtDur(ms);
+        cpop.querySelector("[data-cptime]").textContent = prep ? String(left) : fmtDur(ms, "down");
         cpop.querySelector("[data-cpbar]").style.width = (c.target && !prep ? Math.min(100, 100 * ms / (c.target * 1000)) : 0) + "%";
         cpop.querySelector("[data-cpgoal]").textContent = prep ? "Mets-toi en position…" : c.target ? (c.alerted ? "Objectif atteint !" : "Objectif " + fmtNum(c.target) + " s") : c.dist ? "Distance : " + fmtNum(c.dist) + " m · touche Terminer à l'arrivée" : "";
         cpop.querySelector(".gain-box").classList.toggle("prep", prep);
         cpop.querySelector(".gain-box").classList.toggle("reached", !!c.alerted);
       }
     }
-    if (cpill) { cpill.hidden = !here || !c.min; cpill.textContent = (prep ? "Départ dans " + left : (here ? chronoKind(w, c) : c.dist ? "Chrono" : "Gainage") + " " + fmtDur(ms)) + " · Agrandir"; }
+    if (cpill) { cpill.hidden = !here || !c.min; cpill.textContent = (prep ? "Départ dans " + left : (here ? chronoKind(w, c) : c.dist ? "Chrono" : "Gainage") + " " + fmtDur(ms, "down")) + " · Agrandir"; }
   } else {
     if (cpop) cpop.hidden = true;
     if (cpill) cpill.hidden = true;
   }
 }
 setInterval(tick, 250);
+// en plus : un rafraîchissement pile au changement de seconde (repos qui descend, chrono qui monte), sans attendre le prochain quart de seconde
+let edgeTimer = null;
+function armEdge() {
+  clearTimeout(edgeTimer); edgeTimer = null;
+  const L = db.live || {}, now = Date.now();
+  let wait = null;
+  if (L.restEnd && L.restEnd > now) wait = (L.restEnd - now) % 1000 || 1000;
+  if (L.chrono) { const ms = now - L.chrono.start, w2 = ms < 0 ? (-ms) % 1000 || 1000 : 1000 - (ms % 1000); wait = wait == null ? w2 : Math.min(wait, w2); }
+  if (wait != null) edgeTimer = setTimeout(() => { tick(); armEdge(); }, wait + 2);
+}
+setInterval(() => { if (!edgeTimer) armEdge(); }, 1000);
 // fin du repos : l'appli clignote (sombre / clair) pendant 5 s avec un message au centre
 function restDone() {
   document.querySelectorAll(".restpop.done").forEach(x => x.remove());
@@ -2001,7 +2029,7 @@ $app.addEventListener("click", async e => {
       const n = await ask({ title: "Nouvel exercice", input: "", ok: "Suivant", suggest: true });
       if (!n) return;
       const lib = libFor(n);
-      const type = lib ? lib.kind : await choose("Type d'exercice", [["reps", "Poids × reps", "Charge et nombre de répétitions"], ["time", "Temps", "Gainage, chaise… avec chrono"], ["dist", "Distance", "Course, rameur, Hyrox… avec chrono"]]);
+      const type = lib ? lib.kind : await choose("Type d'exercice", [["reps", "Poids × reps", "Charge et nombre de répétitions"], ["rep", "Reps uniquement", "Pompes, tractions… sans charge"], ["time", "Temps", "Gainage, chaise… avec chrono"], ["dist", "Distance", "Course, rameur, Hyrox… avec chrono"]]);
       if (!type) return;
       const te = Object.assign(newExercise(), { name: n.slice(0, 80), type }, lib ? libDefaults(lib) : type === "time" ? { target: "45", rest: 60 } : type === "dist" ? { target: "1000", rest: 120 } : {});
       const add = await ask({ title: "L'ajouter au programme ?", text: "L'ajouter aussi à « " + w.templateName + " · " + vLabel(w.variantName) + " » pour les prochaines fois ?", ok: "Oui", cancel: "Juste aujourd'hui" });
@@ -2029,7 +2057,7 @@ $app.addEventListener("click", async e => {
         // 5 s de préparation avant que le chrono de gainage ne démarre (pas pour le repos)
         const cx = w.exercises[i], isD = cx.type === "dist";
         db.live.chrono = { wid: w.id, i, s, start: Date.now() + CHRONO_PREP * 1000, target: isD ? 0 : num(cx.target), dist: isD ? num(cx.target) : 0, alerted: false, count: CHRONO_PREP + 1, go: false };
-        db.live.restEnd = null;
+        db.live.restEnd = null; setTimeout(armEdge, 0);
       }
       save(); render();
     } break;
@@ -2076,6 +2104,7 @@ $app.addEventListener("click", async e => {
       put("template", t); render();
     } break;
     case "tab": { const { t } = currentProgram(); if (t) go("program/" + t.id + "/" + b.dataset.v); } break;
+    case "homeaddvar": { const t = getItem(b.dataset.t); if (!t) return; const v = { id: "v" + uid(), name: "Séance " + (t.variants.length + 1), exercises: [] }; t.variants.push(v); put("template", t); go("program/" + t.id + "/" + v.id); } break;
     case "addvar": { const { t } = currentProgram(); if (!t) return; const v = { id: "v" + uid(), name: "Séance " + (t.variants.length + 1), exercises: [] }; t.variants.push(v); put("template", t); go("program/" + t.id + "/" + v.id); } break;
     case "dupvar": {
       const { t, v } = currentProgram(); if (!v) return;
@@ -2145,7 +2174,10 @@ $app.addEventListener("click", async e => {
     case "delex": { const { t, v } = currentProgram(); if (!v) return; const ex = v.exercises[+b.dataset.e]; if (!await ask({ title: (ex.groupId ? "Retirer" : "Supprimer") + " « " + ex.name + " » ?", ok: ex.groupId ? "Retirer" : "Supprimer", danger: true })) return; v.exercises.splice(+b.dataset.e, 1); cleanGroups(v); put("template", t); render(); } break;
     case "up": case "down": { const { t, v } = currentProgram(); if (!v) return; if (moveBlock(v, +b.dataset.b, a === "up" ? -1 : 1)) { put("template", t); render(); } } break;
     case "sharevar": { const { t, v } = currentProgram(); if (v) shareVariant(t, v); } break;
-    case "importvar": { const code = await ask({ title: "Importer une séance", text: "Colle le lien de la séance qu'on t'a envoyé.", input: "", ok: "Continuer" }); if (code) importShared(code); } break;
+    case "importvar": { const code = await ask({ title: "Importer une séance", text: "Colle le lien de la séance qu'on t'a envoyé.", input: "", ok: "Continuer" }); if (!code) return;
+      if (/^\s*FIITDAY\d:/.test(code)) { if (await ask({ title: "C'est une sauvegarde", text: "Ce texte est une sauvegarde complète (programmes, séances, réglages), pas un lien de séance. La restaurer dans ce compte ?", ok: "Restaurer" })) restoreBackup(code); return; }
+      importShared(code); } break;
+    case "launchvar": flushPending(); startWorkout(b.dataset.t, b.dataset.v, true); break;
     case "deltpl": { const { t } = currentProgram(); if (!t) return; if (!await ask({ title: "Supprimer « " + t.name + " » ?", text: "Ses séances et exercices seront supprimés. L'historique des séances déjà faites est conservé.", ok: "Supprimer", danger: true })) return; remove(t.id); go("home"); } break;
 
     /* réglages */
@@ -2160,22 +2192,26 @@ $app.addEventListener("click", async e => {
     } break;
     case "export": {
       flushPending();
-      const data = await packBackup(JSON.stringify({ app: "muscuapp", v: 1, at: Date.now(), items: Object.values(db.items).filter(x => !x.deleted).map(x => ({ id: x.id, kind: x.kind, data: x.data, updated_at: x.updated_at })) }));
-      try { await navigator.clipboard.writeText(data); toast("Sauvegarde copiée : colle-la dans une note"); }
+      const data = await packBackup(JSON.stringify({ app: "muscuapp", v: 2, at: Date.now(), items: Object.values(db.items).filter(x => !x.deleted).map(x => ({ id: x.id, kind: x.kind, data: slimData(x), updated_at: x.updated_at })) }));
+      try { await navigator.clipboard.writeText(data); toast("Sauvegarde copiée : colle-la dans une note, puis dans Réglages › Restaurer pour la récupérer"); }
       catch (err) { await ask({ title: "Sauvegarde", text: "Copie ce texte :", input: data, multiline: true, cancel: false, ok: "Fermer" }); }
     } break;
     case "import": {
       const txt = await ask({ title: "Restaurer une sauvegarde", text: "Colle le texte de la sauvegarde. Les éléments plus récents de la sauvegarde remplacent ceux de l'appli.", input: "", multiline: true, ok: "Restaurer" });
-      if (!txt) return;
-      try {
-        const j = JSON.parse(await unpackBackup(txt)); if (!j || j.app !== "muscuapp" || !Array.isArray(j.items)) throw new Error();
-        let n = 0, bad = 0;
-        for (const it of j.items) { if (!validItem(it) || typeof it.updated_at !== "number") { bad++; continue; } const cur = db.items[it.id]; if (!cur || it.updated_at > cur.updated_at) { db.items[it.id] = { id: it.id, kind: it.kind, data: it.data, updated_at: Math.max(it.updated_at, (cur && cur.updated_at + 1) || 0), deleted: false, dirty: true }; n++; } }
-        dataRev++; localFixed = false; saveNow(); scheduleSync(); render(); toast(n + " élément" + (n > 1 ? "s" : "") + " restauré" + (n > 1 ? "s" : "") + (bad ? " (" + bad + " ignoré" + (bad > 1 ? "s" : "") + ")" : ""));
-      } catch (err) { toast("Ce texte n'est pas une sauvegarde valide"); }
+      if (txt) restoreBackup(txt);
     } break;
   }
 });
+async function restoreBackup(txt) {
+  {
+      try {
+        const j = JSON.parse(await unpackBackup(txt)); if (!j || j.app !== "muscuapp" || !Array.isArray(j.items)) throw new Error();
+        let n = 0, bad = 0;
+        for (const it of j.items) { if (it && it.kind === "workout" && it.data) it.data = fatWorkout(it.data); if (!validItem(it) || typeof it.updated_at !== "number") { bad++; continue; } const cur = db.items[it.id]; if (!cur || it.updated_at > cur.updated_at) { db.items[it.id] = { id: it.id, kind: it.kind, data: it.data, updated_at: Math.max(it.updated_at, (cur && cur.updated_at + 1) || 0), deleted: false, dirty: true }; n++; } }
+        dataRev++; localFixed = false; saveNow(); scheduleSync(); render(); toast(n + " élément" + (n > 1 ? "s" : "") + " restauré" + (n > 1 ? "s" : "") + (bad ? " (" + bad + " ignoré" + (bad > 1 ? "s" : "") + ")" : ""));
+      } catch (err) { toast("Ce texte n'est pas une sauvegarde valide"); }
+  }
+}
 
 /* Saisie au clavier : enregistre sans redessiner l'écran (on garde le focus) */
 $app.addEventListener("input", e => {
@@ -2226,7 +2262,7 @@ $app.addEventListener("change", e => {
     const ex = v.exercises[+el.dataset.e]; ex.type = el.value;
     if (ex.type === "time" && !/^\d+$/.test(String(ex.target))) ex.target = "45";
     if (ex.type === "dist" && !(num(ex.target) >= 10)) ex.target = "1000";
-    if (ex.type === "reps" && !/^\d+(-\d+)?$/.test(String(ex.target))) ex.target = "8-10";
+    if ((ex.type === "reps" || ex.type === "rep") && !/^\d+(-\d+)?$/.test(String(ex.target))) ex.target = "8-10";
     if (ex.type !== "reps") ex.drops = 0;
     put("template", t); render();
   } else if (el.dataset.p === "load") {
