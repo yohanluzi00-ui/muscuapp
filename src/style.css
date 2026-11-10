@@ -399,7 +399,7 @@ div.fl { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color
 a.exo-var { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
 a.exo-var::after { content: " ›"; color: var(--accent); }
 .exo-fallback { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px; color: var(--muted); }
-@media (max-width: 899px) { .nav a { font-size: 10px; } }
+
 
 /* Séance et éditeur : voir le mouvement, repos / objectif modifiables */
 .ex-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
@@ -439,3 +439,47 @@ td .chip-mini { margin-top: 4px; }
 .evo-svg .xhair { stroke: var(--muted); stroke-width: 1; opacity: .6; pointer-events: none; }
 .evo-svg .focus { fill: var(--card); stroke: var(--chart); stroke-width: 3; pointer-events: none; }
 .stat .v.up { color: var(--ok-ink); }
+
+/* Exercices : Musculation | Étirements, enchaînement des étirements, guide */
+.exo-mode { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; margin: 4px 0 12px; background: var(--soft); border: 1px solid var(--line); border-radius: 14px; }
+.exo-mode button { font: inherit; font-size: 15px; min-height: 42px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); cursor: pointer; }
+.exo-mode button[aria-pressed="true"] { background: var(--grad); color: var(--on-grad); font-weight: 700; box-shadow: var(--glow); }
+.exo-guide { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; margin-bottom: 10px; text-decoration: none; border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+.exo-p { margin: 0; }
+.exo-dose { display: grid; gap: 8px; }
+.exo-dose > div { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 12px; background: var(--soft); border: 1px solid var(--line); }
+.exo-dose b { font-size: 14px; }
+.exo-dose span { color: var(--muted); font-size: 14px; }
+.exo-link { color: var(--accent); font-weight: 600; text-decoration: none; text-align: center; }
+.exo-seq { position: sticky; bottom: calc(var(--nav-h) + 10px + env(safe-area-inset-bottom)); z-index: 5; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; margin-top: 14px; padding: 8px; border-radius: 16px;
+  background: color-mix(in srgb, var(--card) 92%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border: 1px solid var(--line); box-shadow: 0 8px 24px rgba(0, 0, 0, .12); }
+.exo-seq .btn { min-width: 0; min-height: 46px; padding: 0 12px; display: flex; align-items: center; gap: 6px; text-decoration: none; }
+.exo-seq .btn:last-child { justify-content: flex-end; }
+.exo-seq .btn .t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.exo-seq .btn span[aria-hidden] { font-size: 20px; line-height: 1; flex: none; }
+.exo-seq .n { font-family: var(--display); font-weight: 700; font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+@media (min-width: 900px) { .exo-seq { bottom: 16px; } }
+.guide-lead { margin: 0 0 12px; }
+.guide-two { display: grid; gap: 12px; }
+@media (min-width: 700px) { .guide-two { grid-template-columns: 1fr 1fr; } }
+.guide-c { padding: 16px 18px; margin-bottom: 12px; }
+.guide-two .guide-c { margin-bottom: 0; }
+.guide-two { margin-bottom: 12px; }
+.guide-c h2 { font-family: var(--display); font-size: 18px; margin: 0 0 10px; }
+.guide-src { margin-top: 18px; }
+a.chip-btn { text-decoration: none; display: inline-flex; align-items: center; }
+
+/* Stats : 4 onglets sur une ligne ; accueil : Découvrir ; carte d'étirements conseillés */
+.tabs.stabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 4px; background: var(--soft); border: 1px solid var(--line); border-radius: 14px; }
+.tabs.stabs a.tab { justify-content: center; padding: 0 4px; min-height: 38px; border: 0; background: transparent; font-size: 13.5px; color: var(--muted); border-radius: 10px; white-space: nowrap; }
+.tabs.stabs a.tab.on { color: var(--on-grad); }
+@media (min-width: 700px) { .tabs.stabs { display: inline-grid; grid-template-columns: repeat(4, auto); } .tabs.stabs a.tab { padding: 0 16px; font-size: 14px; } }
+.home-more { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.home-more .card { display: flex; flex-direction: column; gap: 4px; padding: 14px; text-decoration: none; min-height: 92px; }
+.home-more .card b { font-family: var(--display); font-size: 16px; }
+.home-more .tag { margin-right: 4px; color: var(--accent); font-weight: 700; }
+.stretch-card { margin-top: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px; border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+.stretch-card h2 { font-family: var(--display); font-size: 18px; margin: 0; }
+.sc-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--soft); border: 1px solid var(--line); }
+.sc-row > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sc-row .btn { flex: none; }

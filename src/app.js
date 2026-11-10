@@ -128,7 +128,7 @@ const activeWorkout = () => workouts().find(w => !w.endedAt) || null;
 function settings() { return Object.assign({ id: "settings", theme: "auto", alert: "vibration", goal: "5" }, getItem("settings") || {}); }
 function setSetting(k, v) { const s = settings(); s[k] = v; put("settings", s); applyTheme(); render(); }
 // réglages de départ d'un exercice de la bibliothèque (type, cible, repos, charge)
-const libDefaults = lib => lib.kind === "time" ? { type: "time", target: "45", rest: lib.rest || 60 }
+const libDefaults = lib => lib.kind === "time" ? Object.assign({ type: "time", target: String(lib.hold || 45), rest: lib.rest || 60 }, lib.hold ? { sets: 2 } : {})
   : lib.kind === "dist" ? { type: "dist", target: String(lib.dist || 1000), rest: lib.rest || 120, load: !!lib.load }
   : { type: "reps", target: (String(lib.reps || "").match(/^\d+(-\d+)?/) || ["8-10"])[0], rest: lib.rest || 90 };
 const newExercise = () => ({ id: "e-" + uid(), name: "Nouvel exercice", type: "reps", sets: 3, target: "8-10", rest: 90, note: "" });
@@ -435,7 +435,8 @@ async function askConsentIfNeeded() {
   if (!ok) return;
   const st = settings(); st.consentAt = new Date().toISOString(); st.consentVersion = LEGAL.version; put("settings", st);
 }
-const NAV = [["home", "Accueil", "home"], ["programs", "Programmes", "list"], ["exercices", "Exercices", "dumbbell"], ["history", "Historique", "clock"], ["progress", "Stats", "chart"], ["settings", "Réglages", "gear"]];
+// menu : 4 onglets ; l'historique est dans Stats, les programmes Fiitday (bientôt) en carte sur l'accueil
+const NAV = [["home", "Accueil", "home"], ["exercices", "Exercices", "dumbbell"], ["progress", "Stats", "chart"], ["settings", "Réglages", "gear"]];
 // Remplacer l'écran retire le champ actif : son « blur »/« change » peut redemander un rendu pendant celui-ci.
 let rendering = false;
 function render() {
@@ -477,24 +478,24 @@ function renderNow() {
     case "exercices": body = '<div id="exo-root"><div class="page-head"><h1>Exercices</h1></div><div class="card empty">Chargement des exercices…</div></div>'; break;
     default: body = viewHome();
   }
-  const tab = { session: "home", program: "home", import: "home", s: "home", calendar: "progress", evolution: "progress", body: "progress" }[r.name] || (NAV.some(n => n[0] === r.name) ? r.name : "home");
+  const tab = { session: "home", program: "home", import: "home", s: "home", calendar: "progress", evolution: "progress", history: "progress", programs: "home", body: "progress" }[r.name] || (NAV.some(n => n[0] === r.name) ? r.name : "home");
   $app.innerHTML = '<div class="shell' + (immersive ? " hide-nav" : "") + '"><nav class="nav" aria-label="Navigation"><div class="brand">Fiitday</div>' +
     NAV.map(n => '<a href="#/' + n[0] + '" class="' + (n[0] === tab ? "on" : "") + '"' + (n[0] === tab ? ' aria-current="page"' : "") + ">" + ICON[n[2]] + "<span>" + n[1] + "</span></a>").join("") +
     '</nav><main class="main' + (wide ? " wide" : "") + '">' + body + "</main></div>";
   keepScreen(immersive);
-  if (r.name === "exercices") mountExercises(r.args[0]);
+  if (r.name === "exercices") mountExercises(r.args[0], r.args[1]);
   tick();
   setTimeout(() => askConsentIfNeeded().then(askNameIfNeeded), 800);
 }
 
 /* ================= Écran : exercices (bibliothèque 3D, chargée à la demande) ================= */
 let exoMod = null, exoReturn = null;
-function mountExercises(id) {
+function mountExercises(id, arg) {
   const root = document.getElementById("exo-root"); if (!root) return;
-  if (!id) exoReturn = null; // onglet ouvert directement : retour normal vers la liste
-  const back = id && exoReturn ? { href: exoReturn, label: /^#\/session/.test(exoReturn) ? "Retour à la séance" : "Retour au programme" } : null;
+  if (!id || id === "etirements") exoReturn = null; // liste ouverte directement : retour normal
+  const back = id && exoReturn ? { href: exoReturn, label: /^#\/session/.test(exoReturn) ? "Retour à la séance" : /^#\/(home)?$/.test(exoReturn) ? "Accueil" : "Retour au programme" } : null;
   const ready = exoMod ? Promise.resolve(exoMod) : import("./exercices.js?v=" + encodeURIComponent(window.APP_BUILD || "")).then(m => (exoMod = m));
-  ready.then(m => { if (root.isConnected) m.mount(root, id && /^[a-z0-9-]{1,60}$/.test(id) ? id : null, { add: addLibraryExercise, back }); })
+  ready.then(m => { if (root.isConnected) m.mount(root, id && /^[a-z0-9-]{1,60}$/.test(id) ? id : null, { add: addLibraryExercise, back }, /^[a-z]{1,12}$/.test(arg || "") ? arg : null); })
     .catch(err => { console.error(err); if (root.isConnected) root.innerHTML = '<div class="page-head"><h1>Exercices</h1></div><div class="card empty">Impossible de charger les exercices' + (navigator.onLine === false ? " sans connexion la première fois" : "") + '. Réessaie dans un instant.</div>'; });
 }
 // « Ajouter à une séance » depuis la fiche d'un exercice
@@ -505,7 +506,7 @@ async function addLibraryExercise(x) {
   const c = await choose("Ajouter « " + x.name + " » à…", opts); if (!c) return;
   const [, tid, vid] = c.split(":"); const t = getItem(tid); const v = t && t.variants.find(y => y.id === vid); if (!v) return;
   const reps = (String(x.reps || "").match(/^\d+(-\d+)?/) || [""])[0];
-  const e = Object.assign(newExercise(), { name: String(x.name).slice(0, 80) }, x.time ? { type: "time", target: "45", rest: 60 } : x.dist ? { type: "dist", target: String(x.dist), rest: Math.max(0, Math.min(600, num(x.rest) || 120)), load: !!x.load } : { target: reps || "8-10", rest: Math.max(0, Math.min(600, num(x.rest) || 90)) });
+  const e = Object.assign(newExercise(), { name: String(x.name).slice(0, 80) }, x.time ? Object.assign({ type: "time", target: String(num(x.hold) || 45), rest: x.hold ? Math.max(0, Math.min(600, num(x.rest) || 15)) : 60 }, x.hold ? { sets: 2 } : {}) : x.dist ? { type: "dist", target: String(x.dist), rest: Math.max(0, Math.min(600, num(x.rest) || 120)), load: !!x.load } : { target: reps || "8-10", rest: Math.max(0, Math.min(600, num(x.rest) || 90)) });
   v.exercises.push(e); put("template", t);
   toast("Ajouté à « " + t.name + " · " + vLabel(v.name) + " »");
 }
@@ -663,6 +664,10 @@ function viewHome() {
       }).join("") + "</div></div>";
   }
   h += "</div>";
+  const lastW = finished()[0];
+  if (!act && lastW && Date.now() - lastW.endedAt < 3 * 3600000 && !stretchDismissed(lastW.id)) h += stretchCard(lastW, true);
+  h += '<div class="section-title">Découvrir</div><div class="home-more"><a class="card" href="#/exercices/etirements"><b>Étirements</b><span class="muted small">Haut, milieu et bas du corps, avec les conseils</span></a>' +
+    '<a class="card" href="#/programs"><b>Programmes Fiitday</b><span class="muted small"><span class="tag">Bientôt</span> Programmes prêts à l\'emploi et cardio</span></a></div>';
   const recent = finished().slice(0, 3);
   if (recent.length) {
     h += '<div class="section-title">Dernières séances</div><div class="list">' + recent.map(historyRow).join("") + "</div>";
@@ -801,7 +806,7 @@ function viewSession(id) {
     '<div class="page-head"><div><div class="muted small">' + esc(vLabel(w.variantName)) + " · " + esc(fmtDateLong(w.startedAt)) + "</div><h1>" + esc(w.templateName) + "</h1></div>" +
     '<div class="row"><span class="num" style="font-size:18px;font-weight:700" data-tick="elapsed" data-id="' + w.id + '"></span>' +
     (active ? '<button class="btn sm" data-act="cancel">Annuler</button>' : "") + "</div></div>";
-  if (!active) h += '<div class="banner">Séance terminée. Tu peux encore corriger les valeurs.</div>';
+  if (!active) h += '<div class="banner">Séance terminée. Tu peux encore corriger les valeurs.</div>' + stretchCard(w, false);
   h += wide ? sessionTable(w) : sessionCards(w);
   h += '<div style="margin-top:16px" class="row"><button class="btn" data-act="addex">+ Ajouter un exercice à cette séance</button></div>';
   if (active) h += '<div class="restpop" data-restpop hidden><div class="rp-box" role="timer" aria-label="Minuteur de repos"><div class="rp-label">Repos</div>' +
@@ -1060,6 +1065,40 @@ function currentProgram() {
   return { t, v };
 }
 
+/* ================= Étirements conseillés après une séance ================= */
+// zone travaillée d'après les muscles principaux des exercices de la bibliothèque, sinon d'après le nom
+const ZONE_OF = { pectoraux: "haut", deltoides: "haut", trapezes: "haut", dorsaux: "haut", biceps: "haut", triceps: "haut", "avant-bras": "haut",
+  abdominaux: "milieu", obliques: "milieu", lombaires: "milieu", quadriceps: "bas", "ischio-jambiers": "bas", fessiers: "bas", adducteurs: "bas", abducteurs: "bas", mollets: "bas" };
+const ZONE_NAMES = { haut: "Haut du corps", milieu: "Milieu du corps", bas: "Bas du corps" };
+function zonesOf(e) {
+  const lib = libFor(e.name), out = new Set();
+  if (lib && lib.cat === "etirement") return out;
+  if (lib) words(lib.mus).forEach(m => { const z = ZONE_OF[m] || (/^deltoide/.test(m) ? "haut" : /^ischio/.test(m) ? "bas" : /^avant/.test(m) ? "haut" : null); if (z) out.add(z); });
+  if (!out.size) { const n = norm(e.name);
+    if (/squat|fente|jambe|leg|mollet|cuisse|fessier|hip thrust|soulev|presse|ischio|adduc|course|velo|rameur/.test(n)) out.add("bas");
+    if (/abdo|gainage|crunch|planche|oblique|lombaire|russian/.test(n)) out.add("milieu");
+    if (/develop|pompe|curl|tirage|rowing|traction|dips|epaule|biceps|triceps|pec|oiseau|elevation|face pull/.test(n)) out.add("haut"); }
+  return out;
+}
+function stretchDismissed(id) { try { return localStorage.getItem("fiitday-stretch-ok") === id; } catch (e) { return false; } }
+const firstStretch = z => EXO_LIB.find(x => x.cat === "etirement" && x.zone === z);
+function stretchCard(w, onHome) {
+  const count = { haut: 0, milieu: 0, bas: 0 };
+  w.exercises.forEach(e => { if (exHasData(e) || !onHome) zonesOf(e).forEach(z => { count[z]++; }); });
+  const worked = Object.keys(count).filter(z => count[z]).sort((a, b) => count[b] - count[a]), rested = Object.keys(count).filter(z => !count[z]);
+  if (!firstStretch("haut")) return "";
+  const go = (z, label) => '<button type="button" class="btn sm" data-act="stretchgo" data-z="' + z + '">' + esc(label) + " ›</button>";
+  const row = (title, z, txt) => '<div class="sc-row"><div><b>' + esc(title) + '</b><span class="muted small">' + esc(txt) + "</span></div>" + go(z, ZONE_NAMES[z]) + "</div>";
+  let rows = "";
+  if (worked.length) rows += row("Maintenant, en douceur", worked[0], "Retour au calme : 1 à 2 fois 20 à 30 s par étirement, sans forcer" + (worked.length > 1 ? " (" + worked.slice(1).map(z => ZONE_NAMES[z].toLowerCase()).join(", ") + " aussi)" : ""));
+  if (rested.length && worked.length) rows += row("Pour gagner en souplesse", rested[0], "Ces muscles sont chauds et reposés : 2 à 4 fois 30 s");
+  else if (worked.length) rows += '<p class="muted small" style="margin:0">Tout le corps a travaillé : pour gagner en souplesse, fais plutôt une séance d\'étirements plus tard ou un jour de repos.</p>';
+  if (!worked.length) rows += row("Retour au calme", "haut", "Quelques étirements doux de 20 à 30 s pour finir");
+  return '<div class="card stretch-card"><div class="spread"><h2>Étirements conseillés</h2>' + (onHome ? '<button type="button" class="linkbtn" data-act="stretchok" data-id="' + esc(w.id) + '" aria-label="Masquer">Masquer</button>' : "") + "</div>" +
+    (worked.length ? '<p class="muted small" style="margin:2px 0 8px">' + (onHome ? "Après ta séance " + esc(w.templateName) + " : " : "Cette séance : ") + "surtout le " + esc(ZONE_NAMES[worked[0]].toLowerCase()) + ".</p>" : "") + rows +
+    '<a class="exo-link small" href="#/exercices/conseils-etirements" data-act="stretchtips">Conseils pour bien s\'étirer ›</a></div>';
+}
+
 /* ================= Écran : historique ================= */
 function historyRow(w) {
   const done = w.exercises.reduce((n, e) => n + e.sets.filter(s => s.done || setHasData(s, e.type)).length, 0);
@@ -1068,8 +1107,9 @@ function historyRow(w) {
 }
 function viewHistory() {
   const ws = finished();
-  if (!ws.length) return '<div class="page-head"><h1>Historique</h1></div><div class="card empty">Aucune séance terminée pour l\'instant.</div>';
-  let h = '<div class="page-head"><h1>Historique</h1><span class="muted small">' + ws.length + " séance" + (ws.length > 1 ? "s" : "") + "</span></div>", month = "";
+  const head = '<div class="page-head"><h1>Stats</h1></div>' + statsTabs("history");
+  if (!ws.length) return head + '<div class="card empty">Aucune séance terminée pour l\'instant.</div>';
+  let h = head + '<p class="muted small" style="margin:0 2px 4px">' + ws.length + " séance" + (ws.length > 1 ? "s" : "") + " terminée" + (ws.length > 1 ? "s" : "") + ". Touche une séance pour la voir ou la corriger.</p>", month = "";
   ws.slice(0, histLimit).forEach(w => {
     const m = dfMonth.format(w.startedAt);
     if (m !== month) { if (month) h += "</div>"; month = m; h += '<div class="section-title">' + esc(m) + '</div><div class="list">'; }
@@ -1366,7 +1406,7 @@ function celebrate(rec) {
 
 /* ================= Stats : onglets ================= */
 function statsTabs(on) {
-  return '<div class="tabs" role="tablist">' + [["progress", "Séances"], ["evolution", "Évolution"], ["calendar", "Calendrier"]].map(t =>
+  return '<div class="tabs stabs" role="tablist">' + [["progress", "Séances"], ["evolution", "Évolution"], ["calendar", "Calendrier"], ["history", "Historique"]].map(t =>
     '<a href="#/' + t[0] + '" class="tab' + (t[0] === on ? " on" : "") + '"' + (t[0] === on ? ' aria-current="page"' : "") + ">" + t[1] + "</a>").join("") + "</div>";
 }
 
@@ -1560,7 +1600,7 @@ function pickSeconds(title, value, min, max) {
 
 /* ================= Propositions de noms d'exercices (recherche intelligente) ================= */
 // bibliothèque de l'onglet Exercices (index léger inclus dans la page) : [id, nom, muscles, matériel, temps ?, reps, repos]
-const EXO_LIB = (window.EXO_INDEX || []).map(([id, n, mus, gear, kind, reps, rest, dist, load, cat, al], k) => ({ id, n, mus, gear, kind: ["reps", "time", "dist"][kind] || "reps", reps, rest, dist, load: !!load, cat: cat || "", al: al || [], nn: norm(n), k }));
+const EXO_LIB = (window.EXO_INDEX || []).map(([id, n, mus, gear, kind, reps, rest, dist, load, cat, al, hold, zone], k) => ({ id, n, mus, gear, kind: ["reps", "time", "dist"][kind] || "reps", reps, rest, dist, load: !!load, cat: cat || "", al: al || [], hold: hold || 0, zone: zone || "", nn: norm(n), k }));
 const words = t => norm(t).split(/[^a-z0-9]+/).filter(Boolean);
 EXO_LIB.forEach(x => { x.w = words(x.n); x.a = words(x.al.join(" ")); x.o = words(x.mus + " " + x.gear + " " + x.cat); });
 const libByName = {}; EXO_LIB.forEach(x => { libByName[x.nn] = x; x.al.forEach(a => { libByName[norm(a)] = x; }); }); // anciens noms reconnus aussi
@@ -1768,6 +1808,9 @@ $app.addEventListener("click", async e => {
   switch (a) {
     case "reload": location.hash = "#/home"; location.reload(); break;
     case "histmore": histLimit += 100; render(); break;
+    case "stretchgo": { const f = firstStretch(b.dataset.z); if (f) { exoReturn = location.hash || "#/home"; go("exercices/" + f.id + "/" + b.dataset.z); } break; }
+    case "stretchtips": exoReturn = location.hash || "#/home"; break;
+    case "stretchok": try { localStorage.setItem("fiitday-stretch-ok", b.dataset.id); } catch (err) { } render(); break;
     case "evometric": evo.m[b.dataset.k] = b.dataset.v; render(); break;
     case "evoper": evo.per = b.dataset.v; render(); break;
     case "exoview": exoReturn = location.hash; go("exercices/" + b.dataset.id); break;

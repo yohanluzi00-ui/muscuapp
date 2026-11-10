@@ -40,6 +40,33 @@ const PUSHUP_A = { pc: [-0.458, 0.403], th: 70.7, foot: [-1.32, 0.205, 0.10], fd
 const PUSHUP_B = { pc: [-0.398, 0.166], th: 85.9 };
 const m = (o, p) => Object.assign({}, o, p);
 
+// Étirements : mise en place → étirement tenu en respirant → relâche.
+// side : true = un côté puis l'autre (pose miroir), "one" = un seul côté montré, false = les deux côtés en même temps
+const MIR = { cl: 1, hl: 1, cy: 1, roll: 1 };
+const isPair = v => Array.isArray(v) && v.length === 2 && typeof v[0] !== "number";
+function mirrorPose(p) {
+  const o = {};
+  for (const k in p) { const v = p[k]; o[k] = MIR[k] ? -v : k === "pc" && v.length > 2 ? [v[0], v[1], -v[2]] : isPair(v) ? [v[1], v[0]] : v; }
+  return o;
+}
+function STR(a, b, side, mid) {
+  a = Object.assign({ hpose: "flat" }, a.pc || a.hipAt || a.shAt ? {} : ST({}), a); // debout par défaut
+  for (const q of [b, mid || {}]) for (const k in q) if (isPair(q[k]) && !isPair(a[k])) a[k] = [a[k], a[k]]; // mêmes formes au départ : transitions sans saut
+  const M = mid ? [mid] : [];
+  const tag = (o, lab) => Object.assign({}, o, { lab });
+  let keys;
+  if (side === true) {
+    const hold = "tiens et respire lentement";
+    keys = [{ at: 0, lab: "Mise en place" }, ...M.map(x => tag(Object.assign({ at: 0.06 }, x), "Mise en place")), Object.assign({ at: 0.13, lab: "Côté gauche · " + hold }, b), { at: 0.42, lab: "Relâche doucement" },
+      ...M.map(x => tag(Object.assign({ at: 0.46 }, x), "Relâche doucement")), { at: 0.5, back: true, lab: "Change de côté" },
+      ...M.map(x => tag(Object.assign({ at: 0.56 }, mirrorPose(x)), "Change de côté")), Object.assign({ at: 0.63, lab: "Côté droit · " + hold }, mirrorPose(b)), { at: 0.92, lab: "Relâche doucement" },
+      ...M.map(x => tag(Object.assign({ at: 0.96 }, mirrorPose(x)), "Relâche doucement")), { at: 1, back: true }];
+  } else {
+    keys = [{ at: 0, lab: "Mise en place" }, ...M.map(x => tag(Object.assign({ at: 0.1 }, x), "Mise en place")), Object.assign({ at: 0.2, lab: side === "one" ? "Tiens et respire, puis change de côté" : "Étirement · tiens et respire lentement" }, b),
+      { at: 0.8, lab: "Relâche doucement" }, ...M.map(x => tag(Object.assign({ at: 0.9 }, x), "Relâche doucement")), { at: 1, back: true }];
+  }
+  return { order: "loop", dur: side === true ? 13 : 8, a, keys };
+}
 export const EXOS = [
   /* ---------------- Pectoraux ---------------- */
   { id: "developpe-couche", n: "Développé couché", gear: "Barre et banc plat", lvl: "Débutant à confirmé", p: ["pectoraux"], s: ["triceps", "deltoides_ant"], reps: "6-10", rest: 120,
@@ -705,6 +732,182 @@ export const EXOS = [
     keys: [{ at: 0, lab: "Squat" }, { at: 0.3, lab: "Lancer", pc: [-0.03, 0.985], th: 0, hp: 0, hand: { t: [0.28, 0.45, 0.13] }, elbow: { t: [0.3, -0.5, 1] } },
       { at: 0.5, ball: 1.05 }, { at: 0.72, lab: "Réception", ball: 0 }, { at: 1, back: true }],
     props: P => { P.box([0.08, 3.4, 1.0], [0.62, 1.7, 0], "frame"); P.target(0.57, 3.05); }, imp: [{ t: "ball" }], view: [0.08, 0.25, 1] },
+  /* ---------------- Étirements (haut, milieu et bas du corps) ---------------- */
+  // Haut du corps
+  { id: "etirement-cou", n: "Étirement du cou", gear: "Sans matériel", lvl: "Débutant", zone: "haut", cat: "etirement", p: ["trapezes"], s: [], time: true, hold: 30, side: true, rest: 15,
+    tips: ["Debout ou assis, dos droit, épaules relâchées", "Penche doucement la tête sur le côté, l'oreille vers l'épaule", "Pose la main sur la tête sans tirer : son poids suffit", "Laisse descendre l'épaule opposée vers le sol"],
+    err: ["Tirer fort sur la tête", "Hausser l'épaule du côté étiré", "Tourner le menton en même temps"],
+    br: "Expire lentement en laissant l'épaule descendre : la tension doit rester douce, jamais de douleur dans la nuque.",
+    vars: ["Étirement de l'épaule bras croisé", "Étirement du haut du dos"],
+    ...STR({ hand: [{ t: [0, -0.6, 0.235] }, { t: [0, -0.6, 0.235] }], elbow: [[-1, 0, 0.2], [-1, 0, 0.2]], palm: [[0, 0, -1], [0, 0, -1]], hdir: [[0, -1, 0], [0, -1, 0]] },
+      { hl: 32, shrug: -0.01, hand: [{ t: [0, -0.63, 0.24] }, { t: [0.03, 0.28, 0.05] }], elbow: [[-1, 0, 0.2], [0.2, 0.6, 1]], palm: [[0, 0, -1], [0, -0.7, 0.7]], hdir: [[0, -1, 0], [0, -0.6, -0.8]] }, true,
+      { hand: [{ t: [0, -0.6, 0.235] }, { t: [0.15, -0.05, 0.45] }], elbow: [[-1, 0, 0.2], [0, -0.3, 1]] }), view: [1, 0.15, 0.3] },
+  { id: "etirement-epaule-bras-croise", n: "Étirement de l'épaule bras croisé", gear: "Sans matériel", lvl: "Débutant", zone: "haut", cat: "etirement", p: ["deltoides_post"], s: ["trapezes", "triceps"], time: true, hold: 30, side: true, rest: 15,
+    tips: ["Debout, passe un bras tendu devant la poitrine, à hauteur d'épaule", "Avec l'autre main, ramène-le vers toi juste au-dessus du coude", "Garde les épaules basses et le buste face à l'avant", "Tu sens l'étirement à l'arrière de l'épaule"],
+    err: ["Tirer sur le coude (l'articulation) plutôt qu'au-dessus", "Tourner le buste pour aller plus loin", "Hausser l'épaule"],
+    vars: ["Étirement des triceps", "Étirement du haut du dos"],
+    ...STR({ hand: [{ t: [0, -0.6, 0.235] }, { t: [0, -0.6, 0.235] }], elbow: [[-1, 0, 0.2], [-1, 0, 0.2]], palm: [[0, 0, -1], [0, 0, -1]] },
+      { hand: [{ t: [0.27, -0.1, -0.33] }, { t: [0.25, -0.13, 0.03] }], elbow: [[0, -1, 0], [0.2, -1, 0.5]], palm: [[-1, 0, 0], [-1, 0.2, 0]] }, true,
+      { hand: [{ t: [0.45, -0.25, 0.1] }, { t: [0.15, -0.4, 0.2] }], elbow: [[0, -1, 0.2], [-0.4, -1, 0.3]] }), view: [1, 0.25, 0.55] },
+  { id: "etirement-pectoraux-porte", n: "Étirement des pectoraux dans l'encadrement d'une porte", al: ["Étirement des pectoraux au mur"], gear: "Encadrement de porte ou mur", lvl: "Débutant", zone: "haut", cat: "etirement", p: ["pectoraux"], s: ["deltoides_ant", "biceps"], time: true, hold: 30, side: false, rest: 15,
+    tips: ["Avant-bras posés de chaque côté de l'encadrement, coudes à hauteur d'épaules", "Un pied devant l'autre, abdos serrés", "Avance doucement le buste à travers la porte", "Tu sens l'étirement sur la poitrine et le devant des épaules"],
+    err: ["Coudes plus hauts que les épaules (épaules coincées)", "Cambrer le bas du dos", "Avancer trop fort d'un coup"],
+    br: "À chaque expiration, avance de quelques millimètres en gardant les épaules basses.",
+    vars: ["Étirement des biceps et des épaules", "Étirement de l'épaule bras croisé"],
+    ...STR({ pc: [-0.2, 0.975], th: 0, hand: [-0.025, 1.7, 0.47], hdir: [0, 1, 0], palm: [1, 0, 0], elbow: [0, -0.3, 1], foot: [[0.02, 0.085, 0.13], [-0.42, 0.085, 0.13]], knee: [1, 0, 0.1], fdir: [1, 0, 0.15] },
+      { pc: [0.0, 0.965], th: 9, cp: -4, foot: [[0.02, 0.085, 0.13], [-0.42, 0.085, 0.13]] }, false),
+    props: P => P.door(0.0), view: [1, 0.25, 0.3] },
+  { id: "etirement-triceps", n: "Étirement des triceps", gear: "Sans matériel", lvl: "Débutant", zone: "haut", cat: "etirement", p: ["triceps"], s: ["dorsaux"], time: true, hold: 30, side: true, rest: 15,
+    tips: ["Lève un bras et plie le coude : la main descend derrière la tête, entre les omoplates", "Avec l'autre main, pousse doucement le coude vers l'arrière de la tête", "Garde la tête droite et le dos sans te cambrer", "Tu sens l'étirement à l'arrière du bras"],
+    err: ["Pencher la tête en avant", "Cambrer le dos", "Forcer sur le coude"],
+    vars: ["Étirement de l'épaule bras croisé", "Étirement des dorsaux en appui"],
+    ...STR({ hand: [{ c: { el: [0.03, -1, 0.04] }, r: L.fa, d: [0.15, -1, 0.04] }, { t: [0, -0.6, 0.235] }], elbow: [[-1, 0, 0.2], [-1, 0, 0.2]], palm: [[0, 0, -1], [0, 0, -1]] },
+      { hp: 4, hand: [{ c: { el: [-0.12, 0.96, -0.22] }, r: L.fa, d: [-0.35, -0.93, -0.08] }, { t: [0.01, 0.28, -0.07] }], elbow: [[-1, 0, 0.2], [1, 0.2, 0.4]], palm: [[1, 0, 0], [0, -1, 0]] }, true,
+      { hand: [{ c: { el: [0.85, 0.5, 0.15] }, r: L.fa, d: [0.3, 0.9, 0.1] }, { t: [0.12, -0.2, 0.3] }], elbow: [[-1, 0, 0.2], [0, -1, 0.4]] }), view: [0.75, 0.3, 1] },
+  { id: "etirement-biceps", n: "Étirement des biceps et des épaules", gear: "Sans matériel", lvl: "Débutant", zone: "haut", cat: "etirement", p: ["biceps", "deltoides_ant"], s: ["pectoraux"], time: true, hold: 30, side: false, rest: 15,
+    tips: ["Debout, entrelace les doigts dans le dos, bras tendus", "Ouvre la poitrine et serre légèrement les omoplates", "Monte doucement les mains vers l'arrière sans te pencher", "Tu sens l'étirement à l'avant des épaules et des bras"],
+    err: ["Pencher le buste en avant pour monter plus haut", "Plier les coudes", "Hausser les épaules"],
+    vars: ["Étirement des pectoraux dans l'encadrement d'une porte", "Étirement des avant-bras"],
+    ...STR({ hand: { t: [-0.2, -0.58, 0.07] }, palm: [0, 0, -1], hpose: "grip", elbow: [-0.2, 0, 1] },
+      { cp: -7, hp: -3, hand: { t: [-0.35, -0.49, 0.07] } }, false), view: [-0.55, 0.3, 1] },
+  { id: "etirement-avant-bras", n: "Étirement des avant-bras", gear: "Sans matériel", lvl: "Débutant", zone: "haut", cat: "etirement", p: ["avantbras"], s: ["biceps"], time: true, hold: 30, side: true, rest: 15,
+    tips: ["Tends un bras devant toi, paume vers l'avant, doigts vers le bas", "Avec l'autre main, ramène doucement les doigts vers toi", "Garde le coude tendu sans le bloquer", "Idéal après les exercices de tirage et de préhension"],
+    err: ["Plier le coude", "Tirer d'un coup sur les doigts", "Hausser l'épaule"],
+    br: "Respire calmement ; relâche la main tirée à chaque expiration.",
+    vars: ["Étirement des biceps et des épaules", "Étirement des triceps"],
+    ...STR({ cy: 0, th: 0, hand: [{ t: [0, -0.6, 0.235] }, { t: [0, -0.6, 0.235] }], elbow: [[-1, 0, 0.2], [-1, 0, 0.2]], palm: [[0, 0, -1], [0, 0, -1]], hdir: [[0, -1, 0], [0, -1, 0]] },
+      { cy: -9, th: 3, hand: [{ t: [0.52, -0.2, 0.07] }, { t: [0.48, -0.25, -0.02] }], elbow: [[0, -1, 0.3], [-0.2, -1, 0.6]], palm: [[1, 0.1, 0], [-1, 0, 0]], hdir: [[0.15, -1, 0.05], [0.25, -0.5, -1]] }, true), view: [0.55, 0.2, 1] },
+  { id: "etirement-dorsaux-appui", n: "Étirement des dorsaux en appui", gear: "Support à hauteur de hanches (table, dossier)", lvl: "Débutant", zone: "haut", cat: "etirement", p: ["dorsaux"], s: ["triceps", "deltoides_post"], time: true, hold: 30, side: false, rest: 15,
+    tips: ["Mains posées sur un support à hauteur de hanches, bras tendus", "Recule les pieds et penche le buste jusqu'à l'horizontale", "Laisse descendre la poitrine entre les bras, dos plat", "Tu sens l'étirement sous les aisselles et le long du dos"],
+    err: ["Arrondir le dos", "Plier les bras", "Tête relevée (nuque cassée)"],
+    vars: ["Posture de l'enfant", "Étirement du haut du dos"],
+    ...STR({ pc: [0.1, 0.96], th: 72, hp: 0, hand: [0.93, 0.775, 0.2], hdir: [1, 0, -0.05], palm: [0, -1, 0], elbow: [-0.6, -0.3, 0.6], foot: [-0.08, 0.085, 0.13], knee: [1, 0, 0.1], fdir: [1, 0, 0.15] },
+      { pc: [-0.12, 0.95], th: 96, cp: -6, hp: 6 }, false),
+    props: P => P.table(1.05, 0.76), view: [0.1, 0.25, 1] },
+  { id: "etirement-haut-du-dos", n: "Étirement du haut du dos", gear: "Sans matériel", lvl: "Débutant", zone: "haut", cat: "etirement", p: ["trapezes", "deltoides_post"], s: ["dorsaux"], time: true, hold: 30, side: false, rest: 15,
+    tips: ["Debout, genoux légèrement fléchis, bras tendus devant toi, mains jointes", "Arrondis le haut du dos en poussant les mains loin devant", "Rentre le menton et écarte les omoplates", "Tu sens l'étirement entre les omoplates"],
+    err: ["Cambrer le bas du dos", "Hausser les épaules", "Bloquer la respiration"],
+    br: "Inspire en gonflant le haut du dos, expire en poussant encore un peu les mains vers l'avant.",
+    vars: ["Étirement de l'épaule bras croisé", "Dos rond à quatre pattes (chat)"],
+    ...STR({ pc: [-0.04, 0.965], hand: { t: [0.5, -0.12, 0.05] }, palm: [0, 0, -1], hpose: "grip", elbow: [0, -1, 0.3] },
+      { pc: [-0.07, 0.94], th: -3, cp: 24, hp: 22, hand: { t: [0.53, -0.16, 0.05] }, elbow: [0, -1, 0.5] }, false), view: [0.55, 0.25, 1] },
+
+  // Milieu du corps
+  { id: "cobra", n: "Cobra (étirement des abdos)", al: ["Étirement des abdominaux"], gear: "Tapis", lvl: "Débutant", zone: "milieu", cat: "etirement", p: ["abdos"], s: ["obliques", "quadriceps"], time: true, hold: 30, side: false, rest: 15,
+    tips: ["Allongé sur le ventre, mains sous les épaules, jambes tendues", "Pousse doucement sur les mains pour soulever la poitrine", "Le bassin reste collé au sol, épaules basses", "Monte seulement tant que le bas du dos est confortable"],
+    err: ["Décoller le bassin", "Bloquer les coudes et forcer sur le bas du dos", "Rentrer la tête dans les épaules"],
+    br: "Inspire en soulevant la poitrine, puis respire calmement par le ventre pendant le maintien.",
+    vars: ["Posture de l'enfant", "Fente basse (fléchisseurs de hanche)"],
+    ...STR({ pc: [0, 0.11], th: 90, cp: 0, hp: 5, hand: [0.36, 0.022, 0.27], hdir: [1, 0, -0.1], palm: [0, -1, 0], elbow: [-0.6, 1, 0.6], foot: [-0.92, 0.07, 0.1], knee: [0, -1, 0], fdir: [-1, -0.1, 0.05] },
+      { th: 64, cp: -34, hp: -8, elbow: [-1, 0.2, 0.4] }, false),
+    props: P => P.mat(-1.1, 0.75), view: [0.35, 0.3, 1] },
+  { id: "posture-enfant", n: "Posture de l'enfant", al: ["Child pose"], gear: "Tapis", lvl: "Débutant", zone: "milieu", cat: "etirement", p: ["lombaires", "dorsaux"], s: ["fessiers"], time: true, hold: 45, side: false, rest: 15,
+    tips: ["À genoux, assieds-toi sur les talons, genoux un peu écartés", "Allonge le buste vers l'avant, front vers le sol", "Bras tendus loin devant, paumes au sol", "Relâche complètement le dos et les épaules"],
+    err: ["Fesses qui décollent des talons", "Épaules crispées vers les oreilles", "Forcer si les genoux font mal (place un coussin)"],
+    br: "Respire lentement dans le dos : à l'inspiration le dos s'élargit, à l'expiration il se relâche vers le sol.",
+    vars: ["Dos rond à quatre pattes (chat)", "Étirement des dorsaux en appui"],
+    ...STR({ hipAt: { c: [0.2, 0.06, 0.14], r: 0.44, d: [-0.55, 0.835, 0] }, th: 45, cp: 0, hp: 0, hand: [0.45, 0.022, 0.24], hdir: [1, 0, -0.05], palm: [0, -1, 0], elbow: [-1, 0.5, 0.4], foot: [-0.22, 0.065, 0.14], knee: [1, -0.4, 0.3], fdir: [-1, -0.12, 0] },
+      { hipAt: { c: [0.2, 0.06, 0.14], r: 0.44, d: [-0.866, 0.5, 0] }, th: 70, cp: 55, hp: 0, hand: [0.78, 0.022, 0.24], elbow: [-0.2, 1, 0.3] }, false),
+    props: P => P.mat(-0.6, 1.3), view: [0.3, 0.35, 1] },
+  { id: "torsion-allongee", n: "Torsion allongée", gear: "Tapis", lvl: "Débutant", zone: "milieu", cat: "etirement", p: ["obliques", "lombaires"], s: ["fessiers", "pectoraux"], time: true, hold: 30, side: true, rest: 15,
+    tips: ["Allongé sur le dos, bras en croix", "Plie une jambe et fais-la passer de l'autre côté, genou vers le sol", "Les deux épaules restent au sol", "Tu sens l'étirement sur le côté du tronc et dans le bas du dos"],
+    err: ["Décoller l'épaule opposée", "Forcer le genou au sol avec la main", "Retenir sa respiration"],
+    br: "Chaque expiration laisse le genou descendre un peu plus, sans forcer.",
+    vars: ["Genoux à la poitrine", "Étirement des fessiers allongé"],
+    ...STR({ pc: [0, 0.12], th: -90, roll: 0, cy: 0, hand: { c: "sh", r: 0.6, d: [0.05, -0.05, 1] }, palm: [0, 1, 0], elbow: [0, 1, 0.2], foot: [[0.9, 0.085, 0.1], [0.9, 0.085, 0.1]], knee: [[0, 1, 0], [0, 1, 0]], fdir: [[0.15, 1, 0.05], [0.15, 1, 0.05]] },
+      { roll: 40, cy: -38, foot: [[0.7, 0.17, 0.0], [0.92, 0.085, 0.1]], knee: [[0.2, 0.1, -1], [0, 1, 0]], fdir: [[0.7, 0.2, 0.6], [0.3, 0.9, 0.3]] }, true,
+      { foot: [[0.42, 0.36, 0.1], [0.9, 0.085, 0.1]], knee: [[0.4, 1, 0], [0, 1, 0]] }),
+    props: P => P.mat(-1.0, 1.1), view: [0.25, 1, 0.45] },
+  { id: "genoux-poitrine", n: "Genoux à la poitrine", gear: "Tapis", lvl: "Débutant", zone: "milieu", cat: "etirement", p: ["lombaires"], s: ["fessiers", "ischios"], time: true, hold: 30, side: false, rest: 15,
+    tips: ["Allongé sur le dos, ramène les deux genoux vers la poitrine", "Tiens les jambes sous les genoux", "Laisse le bas du dos s'arrondir et se poser au sol", "Tête et épaules restent posées"],
+    err: ["Décoller la tête", "Tirer sur les genoux avec les bras crispés", "Retenir sa respiration"],
+    br: "Respire par le ventre : à chaque expiration, les genoux se rapprochent un peu de la poitrine.",
+    vars: ["Torsion allongée", "Posture de l'enfant"],
+    ...STR({ pc: [0, 0.12], th: -90, cp: 0, hand: { t: [0, -0.6, 0.235] }, palm: [0, 0, -1], elbow: [0, 1, 0.3], foot: [0.42, 0.085, 0.13], knee: [0, 1, 0.1], fdir: [1, 0, 0.12] },
+      { cp: 6, hand: { t: [0.4, -0.38, 0.13] }, palm: [0, -1, -0.4], hpose: "grip", elbow: [0, -0.2, 1], foot: [0.07, 0.43, 0.11], knee: [-1, 0.6, 0.1], fdir: [0.3, 0.95, 0.05] }, false),
+    props: P => P.mat(-1.0, 0.7), view: [0.35, 0.5, 1] },
+  { id: "inclinaison-laterale", n: "Inclinaison latérale debout", gear: "Sans matériel", lvl: "Débutant", zone: "milieu", cat: "etirement", p: ["obliques", "dorsaux"], s: ["abdos"], time: true, hold: 30, side: true, rest: 15,
+    tips: ["Debout, pieds un peu plus écartés que les hanches", "Lève un bras au-dessus de la tête", "Penche-toi de l'autre côté, comme entre deux vitres", "L'autre main glisse le long de la cuisse"],
+    err: ["Pencher le buste en avant ou en arrière", "Plier les genoux", "Hausser l'épaule du bras levé"],
+    vars: ["Torsion allongée", "Étirement des dorsaux en appui"],
+    ...STR({ cl: 0, hl: 0, hand: [{ t: [0, -0.6, 0.235] }, { t: [0, -0.6, 0.235] }], elbow: [[-1, 0, 0.2], [-1, 0, 0.2]], palm: [[0, 0, -1], [0, 0, -1]], foot: [0, 0.085, 0.19] },
+      { cl: 24, hl: 8, hand: [{ t: [0.02, 0.5, 0.03] }, { t: [0.02, -0.64, 0.26] }], elbow: [[0, 0.2, 1], [-1, 0, 0.2]], palm: [[0, -0.3, 1], [0, 0, -1]] }, true,
+      { hand: [{ t: [0.05, -0.05, 0.62] }, { t: [0, -0.6, 0.235] }], elbow: [[0, -1, 0.3], [-1, 0, 0.2]] }), view: [1, 0.2, 0.2] },
+  { id: "fente-basse", n: "Fente basse (fléchisseurs de hanche)", al: ["Étirement du psoas"], gear: "Tapis", lvl: "Débutant", zone: "milieu", cat: "etirement", p: ["quadriceps"], s: ["abdos"], time: true, hold: 30, side: "one", rest: 15,
+    tips: ["Un genou au sol, l'autre pied devant, genou avant au-dessus de la cheville", "Buste droit, rentre légèrement le bassin (serre le fessier arrière)", "Avance doucement le bassin vers l'avant et le bas", "Tu sens l'étirement à l'avant de la hanche et de la cuisse arrière"],
+    err: ["Cambrer le bas du dos", "Genou avant qui dépasse beaucoup les orteils", "Genou arrière douloureux (mets un coussin)"],
+    br: "Expire en avançant le bassin, sans te cambrer ; garde une respiration ample.",
+    vars: ["Étirement des quadriceps debout", "Cobra (étirement des abdos)"],
+    ...STR({ pc: [-0.06, 0.47], th: 0, hand: { t: [0.1, -0.45, 0.24] }, palm: [0, -1, -0.3], elbow: [-1, 0, 0.3], foot: [{ c: { kn: [-0.6, -0.8, 0.02] }, r: L.sh, d: [-1, 0.03, 0] }, [0.42, 0.085, 0.13]], knee: [[0, -1, 0], [1, 0, 0.1]], fdir: [[-1, -0.15, 0], [1, 0, 0.12]] },
+      { pc: [0.06, 0.43], th: -3, foot: [{ c: { kn: [-0.74, -0.67, 0.02] }, r: L.sh, d: [-1, 0.03, 0] }, [0.42, 0.085, 0.13]] }, "one"),
+    props: P => P.mat(-0.9, 0.7), view: [0.15, 0.25, 1] },
+  { id: "chat", n: "Dos rond à quatre pattes (chat)", al: ["Chat-vache"], gear: "Tapis", lvl: "Débutant", zone: "milieu", cat: "etirement", p: ["lombaires", "trapezes"], s: ["dorsaux"], time: true, hold: 20, side: false, rest: 15,
+    tips: ["À quatre pattes, mains sous les épaules, genoux sous les hanches", "Arrondis le dos vers le plafond en rentrant le menton", "Pousse le sol avec les mains, rentre le ventre", "Tiens, puis creuse doucement le dos dans l'autre sens"],
+    err: ["Bouger les mains ou les genoux", "Aller trop vite", "Creuser fort le bas du dos"],
+    br: "Expire en arrondissant le dos, inspire en le creusant : le mouvement suit la respiration.",
+    vars: ["Posture de l'enfant", "Étirement du haut du dos"], order: "loop", dur: 7,
+    a: { pc: [-0.3, 0.54], th: 84, cp: 0, hp: 5, hand: [0.2, 0.022, 0.2], hdir: [1, 0, -0.1], hpose: "flat", palm: [0, -1, 0], elbow: [-1, 0, 0.3], foot: { c: { kn: [0, -1, 0.04] }, r: L.sh, d: [-1, 0.03, 0] }, knee: [1, 0, 0], fdir: [-1, -0.15, 0] },
+    keys: [{ at: 0, lab: "Dos plat" }, { at: 0.14, lab: "Dos rond · tiens et expire", th: 74, cp: 34, hp: 28 }, { at: 0.5, lab: "Retour" }, { at: 0.62, lab: "Dos creux · inspire", th: 94, cp: -18, hp: -14 }, { at: 0.86, lab: "Retour" }, { at: 1, back: true }],
+    props: P => P.mat(-0.9, 0.6), view: [0.15, 0.3, 1] },
+
+  // Bas du corps
+  { id: "quadriceps-debout", n: "Étirement des quadriceps debout", gear: "Sans matériel (mur pour l'équilibre)", lvl: "Débutant", zone: "bas", cat: "etirement", p: ["quadriceps"], s: [], time: true, hold: 30, side: true, rest: 15,
+    tips: ["Debout sur une jambe, attrape la cheville de l'autre", "Ramène le talon vers la fesse, genoux côte à côte", "Rentre légèrement le bassin pour sentir l'avant de la cuisse", "Tiens-toi à un mur si besoin"],
+    err: ["Genou qui part sur le côté ou vers l'avant", "Cambrer le dos", "Tirer le pied sur le côté"],
+    vars: ["Fente basse (fléchisseurs de hanche)", "Étirement des ischios debout"],
+    ...STR({ pc: [-0.02, 1.0], th: 0, hand: [{ t: [0, -0.6, 0.235] }, { t: [0, -0.6, 0.235] }], elbow: [[-1, 0, 0.2], [-1, 0, 0.2]], palm: [[0, 0, -1], [0, 0, -1]], foot: [{ c: { kn: [0.03, -1, 0.0] }, r: L.sh, d: [0, -1, 0.01] }, { c: { kn: [0.03, -1, 0.0] }, r: L.sh, d: [0, -1, 0.01] }], knee: [[1, 0, 0], [1, 0, 0]], fdir: [[1, 0, 0.12], [1, 0, 0.12]] },
+      { th: -2, hand: [{ t: [-0.2, -0.53, 0.14] }, { t: [0.08, -0.22, 0.6] }], elbow: [[-0.3, -1, 0.3], [0, -1, 0.3]], palm: [[1, 0, 0], [0, -1, 0]], foot: [{ c: { kn: [-0.06, -1, 0.0] }, r: L.sh, d: [-0.3, 0.95, 0.0] }, { c: { kn: [0.03, -1, 0.0] }, r: L.sh, d: [0, -1, 0.01] }], fdir: [[-0.95, -0.2, 0], [1, 0, 0.12]] }, true), view: [-0.5, 0.25, 1] },
+  { id: "ischios-assis", n: "Étirement des ischios assis", gear: "Tapis", lvl: "Débutant", zone: "bas", cat: "etirement", p: ["ischios"], s: ["mollets", "lombaires"], time: true, hold: 30, side: true, rest: 15,
+    tips: ["Assis, une jambe tendue devant, l'autre pliée, pied contre la cuisse", "Penche le buste vers la jambe tendue en partant des hanches", "Garde le dos le plus plat possible", "Les mains glissent le long du tibia, sans chercher à toucher le pied"],
+    err: ["Arrondir le dos pour aller plus loin", "Plier la jambe tendue", "Faire des rebonds"],
+    br: "Inspire en grandissant le dos, expire en te penchant un peu plus depuis les hanches.",
+    vars: ["Étirement des ischios debout", "Papillon (adducteurs)"],
+    ...STR({ pc: [0, 0.16], th: 4, cp: 0, hp: 0, hand: [[0.05, 0.03, 0.26], [0.05, 0.03, 0.26]], hdir: [1, 0, 0], palm: [0, -1, 0], elbow: [-1, 0, 0.3], foot: [[0.86, 0.085, 0.1], [0.86, 0.085, 0.1]], knee: [[0, 1, 0], [0, 1, 0]], fdir: [[0.15, 1, 0.05], [0.15, 1, 0.05]] },
+      { th: 48, cp: 8, hp: 8, hand: [[0.6, 0.16, 0.13], [0.56, 0.165, -0.05]], palm: [0, -1, -0.2], foot: [[0.86, 0.085, 0.1], [0.36, 0.08, -0.02]], knee: [[0, 1, 0], [0.33, -0.05, 0.94]], fdir: [[0.15, 1, 0.05], [0.6, 0, -0.8]] }, true),
+    props: P => P.mat(-0.5, 1.05), view: [0.35, 0.35, 1] },
+  { id: "ischios-debout", n: "Étirement des ischios debout", al: ["Étirement des ischios talon sur un support"], gear: "Banc ou marche", lvl: "Débutant", zone: "bas", cat: "etirement", p: ["ischios"], s: ["mollets"], time: true, hold: 30, side: true, rest: 15,
+    tips: ["Pose un talon sur un banc ou une marche, jambe tendue, pointe vers le haut", "Jambe d'appui légèrement fléchie", "Penche le buste en avant en gardant le dos plat", "Tu sens l'étirement derrière la cuisse"],
+    err: ["Arrondir le dos", "Support trop haut", "Bloquer le genou de la jambe tendue"],
+    vars: ["Étirement des ischios assis", "Étirement des mollets au mur"],
+    ...STR({ pc: [-0.05, 0.965], th: 0, hp: 0, hand: [{ t: [0, -0.6, 0.235] }, { t: [0, -0.6, 0.235] }], elbow: [[-1, 0, 0.2], [-1, 0, 0.2]], palm: [[0, 0, -1], [0, 0, -1]], foot: [[-0.05, 0.085, 0.13], [-0.05, 0.085, 0.13]], knee: [[1, 0, 0.1], [1, 0, 0.1]], fdir: [[1, 0, 0.15], [1, 0, 0.15]] },
+      { pc: [-0.12, 0.93], th: 46, hp: 6, hand: [{ t: [0.42, -0.42, 0.13] }, { t: [0.42, -0.45, 0.03] }], elbow: [[-0.5, -1, 0.3], [-0.5, -1, 0.3]], palm: [[0, -1, 0], [0, -1, 0]], foot: [[0.62, 0.53, 0.11], [-0.1, 0.085, 0.13]], knee: [[0, 1, 0], [1, 0, 0.1]], fdir: [[0.2, 1, 0.05], [1, 0, 0.15]] }, true,
+      { pc: [-0.08, 0.95], th: 6, foot: [[0.62, 0.53, 0.11], [-0.1, 0.085, 0.13]], knee: [[0, 1, 0], [1, 0, 0.1]], fdir: [[0.2, 1, 0.05], [1, 0, 0.15]] }),
+    props: P => P.benchZ(0.65, 0.45), view: [0.2, 0.25, 1] },
+  { id: "fessiers-allonge", n: "Étirement des fessiers allongé", al: ["Figure 4", "Étirement du piriforme"], gear: "Tapis", lvl: "Débutant", zone: "bas", cat: "etirement", p: ["fessiers"], s: ["abducteurs"], time: true, hold: 30, side: true, rest: 15,
+    tips: ["Allongé sur le dos, genoux pliés", "Pose une cheville sur le genou opposé (forme d'un 4)", "Attrape l'arrière de la cuisse d'appui et ramène-la vers toi", "Tu sens l'étirement dans la fesse de la jambe croisée"],
+    err: ["Décoller la tête et les épaules", "Tirer avec les bras crispés", "Pied croisé qui glisse sur le tibia"],
+    vars: ["Posture du pigeon", "Genoux à la poitrine"],
+    ...STR({ pc: [0, 0.12], th: -90, cp: 0, hand: [{ t: [0, -0.6, 0.235] }, { t: [0, -0.6, 0.235] }], palm: [[0, 0, -1], [0, 0, -1]], elbow: [[0, 1, 0.3], [0, 1, 0.3]], foot: [[0.42, 0.085, 0.13], [0.42, 0.085, 0.13]], knee: [[0, 1, 0.1], [0, 1, 0.1]], fdir: [[1, 0, 0.12], [1, 0, 0.12]] },
+      { cp: 5, hand: [{ t: [0.3, -0.45, -0.03] }, { t: [0.3, -0.45, 0.14] }], palm: [[0, 0, -1], [0, 0, 1]], hpose: "grip", elbow: [[0, -0.3, 1], [0, -0.3, 1]], foot: [[0.07, 0.5, -0.12], [0.42, 0.55, 0.12]], knee: [[0.6, 0.2, 1], [-0.3, 1, 0.05]], fdir: [[0.3, 0.3, -1], [0.15, 1, 0.05]] }, true),
+    props: P => P.mat(-1.0, 0.7), view: [0.45, 0.55, 1] },
+  { id: "pigeon", n: "Posture du pigeon", gear: "Tapis", lvl: "Intermédiaire", zone: "bas", cat: "etirement", p: ["fessiers"], s: ["abducteurs", "quadriceps"], time: true, hold: 30, side: "one", rest: 15,
+    tips: ["Une jambe pliée devant toi, tibia en travers, l'autre tendue en arrière", "Bassin face à l'avant, posé le plus bas possible", "Penche le buste au-dessus de la jambe avant, avant-bras au sol", "Tu sens l'étirement dans la fesse de la jambe avant"],
+    err: ["Bassin qui bascule sur le côté", "Douleur dans le genou avant (passe à l'étirement allongé)", "Forcer pour descendre"],
+    br: "Laisse le poids du corps descendre à chaque expiration ; si la respiration se bloque, remonte un peu.",
+    vars: ["Étirement des fessiers allongé", "Fente basse (fléchisseurs de hanche)"],
+    ...STR({ pc: [0, 0.22], th: 45, cp: 0, hp: 0, hand: [0.55, 0.022, 0.3], hdir: [1, 0, -0.1], palm: [0, -1, 0], elbow: [-1, 0, 0.4], foot: [{ c: { kn: [0.84, -0.24, 0.48] }, r: L.sh, d: [-0.38, 0, -0.925] }, [-0.88, 0.07, 0.14]], knee: [[0, -1, 0], [0, 1, 0]], fdir: [[-0.3, -0.2, -0.93], [-1, -0.1, 0.05]] },
+      { th: 75, cp: 10, hp: 8, hand: [0.78, 0.022, 0.2], elbow: [-0.6, 1, 0.5] }, "one"),
+    props: P => P.mat(-1.0, 1.0), view: [0.55, 0.4, 1] },
+  { id: "papillon", n: "Papillon (adducteurs)", al: ["Étirement des adducteurs assis"], gear: "Tapis", lvl: "Débutant", zone: "bas", cat: "etirement", p: ["adducteurs"], s: ["lombaires"], time: true, hold: 30, side: false, rest: 15,
+    tips: ["Assis, plantes de pieds collées, talons près du bassin", "Tiens les pieds avec les mains, dos droit", "Laisse les genoux descendre vers le sol", "Pour aller plus loin, penche le buste en avant, dos plat"],
+    err: ["Arrondir le dos", "Appuyer fort sur les genoux", "Faire des rebonds avec les jambes"],
+    vars: ["Étirement des adducteurs en fente latérale", "Étirement des ischios assis"],
+    ...STR({ pc: [0, 0.16], th: 16, cp: 0, hp: 0, hand: [0.31, 0.12, 0.08], hdir: [0.3, -1, 0], palm: [0, 0, -1], hpose: "grip", elbow: [0, -0.4, 1], foot: [0.37, 0.075, 0.05], knee: [0.4, 0.1, 1], fdir: [1, 0.1, -0.15] },
+      { th: 34, cp: 6, hp: 8, hand: [0.36, 0.1, 0.07], elbow: [0.2, -1, 0.8], knee: [0.3, -0.15, 1] }, false),
+    props: P => P.mat(-0.5, 0.8), view: [1, 0.55, 0.35] },
+  { id: "adducteurs-fente-laterale", n: "Étirement des adducteurs en fente latérale", gear: "Sans matériel", lvl: "Débutant", zone: "bas", cat: "etirement", p: ["adducteurs"], s: ["ischios"], time: true, hold: 30, side: true, rest: 15,
+    tips: ["Pieds très écartés, pointes légèrement vers l'extérieur", "Plie une jambe en descendant les fesses vers l'arrière", "L'autre jambe reste tendue, pied à plat", "Tu sens l'étirement à l'intérieur de la cuisse tendue"],
+    err: ["Genou plié qui rentre vers l'intérieur", "Dos rond", "Talon de la jambe tendue qui décolle"],
+    vars: ["Papillon (adducteurs)", "Étirement des ischios debout"],
+    ...STR({ pc: [-0.02, 0.89, 0], th: 6, hand: { t: [0.33, -0.36, 0.08] }, palm: [0, 0, -1], hpose: "grip", elbow: [0, -1, 0.5], foot: [[0.02, 0.085, 0.49], [0.02, 0.085, 0.49]], knee: [[1, 0, 0.3], [1, 0, 0.3]], fdir: [[1, 0, 0.4], [1, 0, 0.4]] },
+      { pc: [-0.08, 0.63, 0.29], th: 26, knee: [[0, 1, 0], [1, 0, 0.5]] }, true), view: [1, 0.25, 0.12] },
+  { id: "mollets-mur", n: "Étirement des mollets au mur", gear: "Un mur", lvl: "Débutant", zone: "bas", cat: "etirement", p: ["mollets"], s: [], time: true, hold: 30, side: "one", rest: 15,
+    tips: ["Mains au mur, un pied devant l'autre", "Jambe arrière tendue, talon bien au sol, pied droit", "Plie la jambe avant et avance le bassin vers le mur", "Variante genou arrière plié : étire le bas du mollet (soléaire)"],
+    err: ["Talon arrière qui décolle", "Pied arrière tourné vers l'extérieur", "Cambrer le dos"],
+    vars: ["Étirement des ischios debout", "Étirement des quadriceps debout"],
+    ...STR({ pc: [-0.04, 0.9], th: 13, hand: [0.67, 1.33, 0.2], hdir: [0, 1, 0], palm: [1, 0, 0], elbow: [-0.3, -1, 0.6], foot: [[-0.42, 0.085, 0.12], [0.3, 0.085, 0.12]], knee: [[1, 0, 0.1], [1, 0, 0.1]], fdir: [[1, 0, 0.08], [1, 0, 0.12]] },
+      { pc: [0.06, 0.88], th: 22 }, "one"),
+    props: P => P.box([0.1, 2.3, 1.6], [0.75, 1.15, 0], "wall"), view: [0.05, 0.2, 1] },
 ];
 
 /* =====================================================================
@@ -728,6 +931,7 @@ function materials() {
     mat: new THREE.MeshStandardMaterial({ color: 0x3a3546, roughness: 0.95 }),
     bag: new THREE.MeshStandardMaterial({ color: 0x3d4a3a, roughness: 0.9 }), ball: new THREE.MeshStandardMaterial({ color: 0x2b2f3a, roughness: 0.7 }),
     belt: new THREE.MeshStandardMaterial({ color: 0x18171d, roughness: 0.9 }),
+    wall: new THREE.MeshStandardMaterial({ color: 0xb8b0c4, roughness: 0.95 }),
   });
 }
 const SPH = () => G.geo.sph;
@@ -866,7 +1070,7 @@ function slerp(a, b, t) {
 const isPt = v => Array.isArray(v) && typeof v[0] === "number";
 const side = (v, i) => (Array.isArray(v) && v.length === 2 && !isPt(v)) ? v[i] : v;
 // pose complète d'un exercice à l'instant s (0 → 1)
-const BASE = { th: 0, cp: 0, hp: 0, shrug: 0, roll: 0, cy: 0, ball: 0 };
+const BASE = { th: 0, cp: 0, hp: 0, shrug: 0, roll: 0, cy: 0, cl: 0, hl: 0, ball: 0 };
 function keyAt(ex, s) {
   if (ex.keys) { // images clés successives : chacune complète la précédente ; « back » revient à la première
     if (!ex._k) { let acc = Object.assign({}, BASE, ex.a); ex._k = ex.keys.map(kf => (acc = kf.back ? Object.assign({}, ex._k0, { at: kf.at, lab: kf.lab || ex._k0.lab }) : Object.assign({}, acc, kf), ex._k0 = ex._k0 || acc, acc)); }
@@ -881,17 +1085,22 @@ function keyAt(ex, s) {
 }
 function solve(ex, s) {
   const k = keyAt(ex, s);
-  const th = (k.th || 0) * D2R, cp = (k.cp || 0) * D2R, hp = (k.hp || 0) * D2R, rl = (k.roll || 0) * D2R, cy = (k.cy || 0) * D2R;
-  // th : inclinaison avant/arrière ; roll : corps tourné sur le côté ; cy : torsion du buste
+  const th = (k.th || 0) * D2R, cp = (k.cp || 0) * D2R, hp = (k.hp || 0) * D2R, rl = (k.roll || 0) * D2R, cy = (k.cy || 0) * D2R, cl = (k.cl || 0) * D2R, hl = (k.hl || 0) * D2R;
+  // th : inclinaison avant/arrière ; roll : corps tourné sur le côté ; cy : torsion du buste ; cl / hl : buste / tête penchés sur le côté (vers le côté droit si positif)
   const U = V(Math.sin(th), Math.cos(th), 0), F0 = V(Math.cos(th), -Math.sin(th), 0), R0 = V(0, 0, 1);
   const F = F0.clone().multiplyScalar(Math.cos(rl)).addScaledVector(R0, Math.sin(rl)), R = R0.clone().multiplyScalar(Math.cos(rl)).addScaledVector(F0, -Math.sin(rl));
   const Uc = U.clone().multiplyScalar(Math.cos(cp)).addScaledVector(F, Math.sin(cp)), Fc0 = F.clone().multiplyScalar(Math.cos(cp)).addScaledVector(U, -Math.sin(cp));
-  const Fc = Fc0.clone().multiplyScalar(Math.cos(cy)).addScaledVector(R, Math.sin(cy)), Rc = R.clone().multiplyScalar(Math.cos(cy)).addScaledVector(Fc0, -Math.sin(cy));
+  const Fc = Fc0.clone().multiplyScalar(Math.cos(cy)).addScaledVector(R, Math.sin(cy)), Rc1 = R.clone().multiplyScalar(Math.cos(cy)).addScaledVector(Fc0, -Math.sin(cy));
+  // inclinaison latérale du buste (autour de l'axe avant-arrière de la poitrine)
+  const Uc1 = Uc.clone(); Uc.multiplyScalar(Math.cos(cl)).addScaledVector(Rc1, Math.sin(cl));
+  const Rc = Rc1.clone().multiplyScalar(Math.cos(cl)).addScaledVector(Uc1, -Math.sin(cl));
   const Fa = F.clone().multiplyScalar(Math.cos(cy / 2)).addScaledVector(R, Math.sin(cy / 2));
-  const Uh = Uc.clone().multiplyScalar(Math.cos(hp)).addScaledVector(Fc, Math.sin(hp)), Fh = Fc.clone().multiplyScalar(Math.cos(hp)).addScaledVector(Uc, -Math.sin(hp));
+  const Ua = U.clone().multiplyScalar(Math.cos(cl / 2)).addScaledVector(R, Math.sin(cl / 2));
+  const Uh0 = Uc.clone().multiplyScalar(Math.cos(hp)).addScaledVector(Fc, Math.sin(hp)), Fh = Fc.clone().multiplyScalar(Math.cos(hp)).addScaledVector(Uc, -Math.sin(hp));
+  const Uh = Uh0.clone().multiplyScalar(Math.cos(hl)).addScaledVector(Rc, Math.sin(hl));
   const sg = i => (i === 0 ? -1 : 1);
   const W = (a, i) => V(a[0], a[1], sg(i) * (a[2] || 0));
-  const ctx = { U, F, R, Rc, Fa, Uc, Fc, Uh, Fh, sh: [], hip: [], key: k };
+  const ctx = { U, F, R, Rc, Fa, Ua, Uc, Fc, Uh, Fh, sh: [], hip: [], key: k };
   const tor = (t, i) => ctx.neckBase.clone().addScaledVector(Fc, t[0]).addScaledVector(Uc, t[1]).addScaledVector(Rc, sg(i) * t[2]);
   const center = (c, i) => {
     if (c === "sh") return ctx.sh[i].clone();
@@ -910,7 +1119,7 @@ function solve(ex, s) {
   };
   const dir = (d, i) => (isPt(d) ? W(d, i) : Fc.clone().multiplyScalar(d.t[0]).addScaledVector(Uc, d.t[1]).addScaledVector(Rc, sg(i) * d.t[2])).normalize();
   let pc;
-  if (k.pc) pc = V(k.pc[0], k.pc[1], 0);
+  if (k.pc) pc = V(k.pc[0], k.pc[1], k.pc[2] || 0);
   else if (k.hipAt) pc = point(k.hipAt, 1).setZ(0).addScaledVector(U, L.hipDrop);
   else pc = point(k.shAt, 1).setZ(0).addScaledVector(U, -L.lumbar).addScaledVector(Uc, -(L.thorax - L.shDrop)).addScaledVector(Fc, 0.01);
   ctx.pc = pc;
@@ -955,7 +1164,7 @@ function solve(ex, s) {
 }
 function applyPose(H, o) {
   const { P, J } = H;
-  orient(P.pelvis, o.pc, o.U, o.F); orient(P.abdomen, o.pc, o.U, o.Fa); orient(P.chest, o.chestBase, o.Uc, o.Fc);
+  orient(P.pelvis, o.pc, o.U, o.F); orient(P.abdomen, o.pc, o.Ua || o.U, o.Fa); orient(P.chest, o.chestBase, o.Uc, o.Fc);
   orient(P.neck, o.neckBase, o.Uh, o.Fh); orient(P.head, o.neckBase.clone().addScaledVector(o.Uh, L.neck), o.Uh, o.Fh);
   for (let i = 0; i < 2; i++) {
     const front = o.bendA[i].clone().negate();
@@ -1043,6 +1252,9 @@ function kitBuilder(g) {
     pullup(h) { cyl(0.016, 1.3, [0, h, 0], [Math.PI / 2, 0, 0], "steel"); [1, -1].forEach(s => { box([0.07, h + 0.06, 0.07], [0, (h + 0.06) / 2, 0.65 * s]); box([0.7, 0.04, 0.08], [0, 0.02, 0.65 * s]); }); },
     dips(h, w) { [1, -1].forEach(s => { cyl(0.022, 0.8, [0.02, h, w * s], [0, 0, Math.PI / 2], "steel"); [-0.36, 0.4].forEach(x => box([0.06, h, 0.06], [x, h / 2, w * s])); box([0.9, 0.04, 0.08], [0.02, 0.02, w * s]); }); },
     mat(x0, x1) { box([x1 - x0, 0.012, 0.7], [(x0 + x1) / 2, 0.006, 0], "mat"); },
+    // encadrement de porte (mur face au mannequin, ouverture de 0,84 m) et table / dossier à hauteur de hanches
+    door(x) { [1, -1].forEach(z => box([0.1, 2.25, 0.36], [x + 0.05, 1.125, z * 0.6], "wall")); box([0.1, 0.25, 1.56], [x + 0.05, 2.25 + 0.125, 0], "wall"); },
+    table(x, h) { box([0.5, 0.05, 0.8], [x, h - 0.025, 0], "dark"); [[-0.2, -0.35], [-0.2, 0.35], [0.2, -0.35], [0.2, 0.35]].forEach(([dx, dz]) => box([0.05, h - 0.05, 0.05], [x + dx, (h - 0.05) / 2, dz])); },
     hyperBench(hx, hy) {
       const n = V(0.707, -0.707), c = V(hx, hy).addScaledVector(n, 0.13).addScaledVector(V(-0.707, -0.707), 0.13);
       padAt(c.x, c.y, 45, 0.34, 0.08, 0.36); box([0.07, c.y, 0.07], [c.x + 0.08, c.y / 2, 0]); box([1.1, 0.04, 0.5], [hx - 0.25, 0.02, 0]);
@@ -1353,11 +1565,16 @@ let ro = null;
 /* =====================================================================
    Interface (montée dans #exo-root par app.js)
    ===================================================================== */
-const ui = { q: "", group: "tous" };
+const ui = { q: "", group: "tous", mode: "muscu", zone: "tous", qe: "" };
 const norm = s => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const groupOf = ex => ex.g || MUSCLES[ex.p[0]][1];
-const byName = {}; EXOS.forEach(e => { byName[norm(e.n)] = e; });
+const byName = {}; EXOS.forEach(e => { byName[norm(e.n)] = e; (e.al || []).forEach(a => { byName[norm(a)] = byName[norm(a)] || e; }); });
+const isStretch = ex => ex.cat === "etirement";
+const STRETCHES = EXOS.filter(isStretch), MUSCU = EXOS.filter(ex => !isStretch(ex));
+const ZONES = [["tous", "Tous"], ["haut", "Haut du corps"], ["milieu", "Milieu du corps"], ["bas", "Bas du corps"]];
+const zoneName = z => (ZONES.find(x => x[0] === z) || ["", ""])[1];
+const holdTxt = ex => ex.hold + " s" + (ex.side ? " de chaque côté" : "");
 function matches(ex) {
   const mus = ex.p.concat(ex.s);
   if (ui.group === "maison") { if (!atHome(ex)) return false; }
@@ -1365,8 +1582,13 @@ function matches(ex) {
   if (!ui.q) return true;
   return norm([ex.n, ex.gear, (ex.al || []).join(" "), ex.cat || "", mus.map(mm => MUSCLES[mm][0]).join(" ")].join(" ")).includes(norm(ui.q));
 }
+function matchesStretch(ex) {
+  if (ui.zone !== "tous" && ex.zone !== ui.zone) return false;
+  if (!ui.qe) return true;
+  return norm([ex.n, ex.gear, (ex.al || []).join(" "), zoneName(ex.zone), ex.p.concat(ex.s).map(mm => MUSCLES[mm][0]).join(" ")].join(" ")).includes(norm(ui.qe));
+}
 function listHtml() {
-  const v = EXOS.filter(matches);
+  const v = MUSCU.filter(matches);
   if (!v.length) return '<div class="card empty">Aucun exercice ne correspond à ta recherche.</div>';
   let h = "";
   for (const [gid, gname] of GROUPS.slice(2)) {
@@ -1376,38 +1598,127 @@ function listHtml() {
   }
   return h;
 }
+function stretchListHtml() {
+  const v = STRETCHES.filter(matchesStretch);
+  if (!v.length) return '<div class="card empty">Aucun étirement ne correspond à ta recherche.</div>';
+  let h = "";
+  for (const [z, zn] of ZONES.slice(1)) {
+    const items = v.filter(e => e.zone === z); if (!items.length) continue;
+    h += '<div class="section-title">' + zn + '</div><div class="list">' + items.map(e => '<a href="#/exercices/' + e.id + '"><div><b>' + esc(e.n) + '</b><div class="muted small">' +
+      esc(e.p.map(mm => MUSCLES[mm][0]).join(", ")) + " · " + esc(holdTxt(e)) + '</div></div><span class="exo-go" aria-hidden="true">›</span></a>').join("") + "</div>";
+  }
+  return h;
+}
+function renderList(root) {
+  const et = ui.mode === "etir";
+  root.innerHTML = '<div class="page-head"><h1>Exercices</h1><span class="muted small">' + (et ? STRETCHES.length + " étirements" : MUSCU.length + " exercices") + "</span></div>" +
+    '<div class="exo-mode" role="group" aria-label="Type d\'exercices"><button type="button" data-exo-m="muscu" aria-pressed="' + !et + '">Musculation</button><button type="button" data-exo-m="etir" aria-pressed="' + et + '">Étirements</button></div>' +
+    (et ? '<a class="card exo-guide" href="#/exercices/conseils-etirements"><div><b>Bien s\'étirer : les conseils</b><div class="muted small">Souplesse ou retour au calme, durée, respiration, erreurs à éviter</div></div><span class="exo-go" aria-hidden="true">›</span></a>' +
+      '<input class="f exo-q" id="exo-q" type="search" placeholder="Rechercher un étirement, un muscle" autocomplete="off" aria-label="Rechercher un étirement" value="' + esc(ui.qe) + '">' +
+      '<div class="exo-chips" role="group" aria-label="Filtrer par zone">' + ZONES.map(([z, n]) => '<button class="chip-btn" data-exo-z="' + z + '" aria-pressed="' + (ui.zone === z) + '">' + n + "</button>").join("") + "</div>" +
+      '<div id="exo-list">' + stretchListHtml() + "</div>"
+    : '<input class="f exo-q" id="exo-q" type="search" placeholder="Rechercher un exercice, un muscle, une machine" autocomplete="off" aria-label="Rechercher un exercice" value="' + esc(ui.q) + '">' +
+      '<div class="exo-chips" role="group" aria-label="Filtrer par muscle">' + GROUPS.map(([g, n]) => '<button class="chip-btn" data-exo-g="' + g + '" aria-pressed="' + (ui.group === g) + '">' + n + "</button>").join("") + "</div>" +
+      '<div id="exo-list">' + listHtml() + "</div>");
+  const list = () => { root.querySelector("#exo-list").innerHTML = et ? stretchListHtml() : listHtml(); };
+  const q = root.querySelector("#exo-q");
+  q.addEventListener("input", () => { if (et) ui.qe = q.value.trim(); else ui.q = q.value.trim(); list(); });
+  root.querySelectorAll("[data-exo-m]").forEach(b => b.addEventListener("click", () => { if (ui.mode !== b.dataset.exoM) { ui.mode = b.dataset.exoM; renderList(root); } }));
+  root.querySelectorAll("[data-exo-g],[data-exo-z]").forEach(b => b.addEventListener("click", () => {
+    if (b.dataset.exoZ) ui.zone = b.dataset.exoZ; else ui.group = b.dataset.exoG;
+    root.querySelectorAll(et ? "[data-exo-z]" : "[data-exo-g]").forEach(x => x.setAttribute("aria-pressed", String(x === b))); list();
+  }));
+}
+function stageHtml(stretch) {
+  return '<div class="exo-stage-col"><div class="exo-stage" id="exo-stage"><div class="exo-ctrl"><button class="btn sm" id="exo-slow" aria-pressed="' + (view.speed !== 1) + '">Ralenti</button><button class="btn sm" id="exo-play" aria-pressed="' + (!view.playing) + '">' + (view.playing ? "Pause" : "Lecture") + '</button></div>' +
+    '<div class="exo-phase"><span class="exo-pill" id="exo-pill"></span></div></div>' +
+    '<div class="exo-legend"><span class="p">' + (stretch ? "Muscles étirés" : "Muscles principaux") + '</span><span class="s">' + (stretch ? "Aussi étirés" : "Muscles secondaires") + "</span><em>Glisse pour tourner, pince pour zoomer, double appui pour recentrer</em></div></div>";
+}
+function varsHtml(ex) {
+  return ex.vars.map(n => { const t = byName[norm(n)]; return t ? '<a class="exo-var" href="#/exercices/' + t.id + '">' + esc(n) + "</a>" : '<span class="exo-var">' + esc(n) + "</span>"; }).join("");
+}
+const chipM = (mm, c) => '<span class="exo-mu ' + c + '">' + esc(MUSCLES[mm][0]) + "</span>";
 function detailHtml(ex) {
-  const chip = (mm, c) => '<span class="exo-mu ' + c + '">' + esc(MUSCLES[mm][0]) + "</span>";
-  const vars = ex.vars.map(n => { const t = byName[norm(n)]; return t ? '<a class="exo-var" href="#/exercices/' + t.id + '">' + esc(n) + "</a>" : '<span class="exo-var">' + esc(n) + "</span>"; }).join("");
   const back = api && api.back ? '<a class="back" href="' + esc(api.back.href) + '">‹ ' + esc(api.back.label) + "</a>" : '<a class="back" href="#/exercices">‹ Exercices</a>';
   return back +
-    '<div class="exo-main"><div class="exo-stage-col"><div class="exo-stage" id="exo-stage"><div class="exo-ctrl"><button class="btn sm" id="exo-slow" aria-pressed="' + (view.speed !== 1) + '">Ralenti</button><button class="btn sm" id="exo-play" aria-pressed="' + (!view.playing) + '">' + (view.playing ? "Pause" : "Lecture") + '</button></div>' +
-    '<div class="exo-phase"><span class="exo-pill" id="exo-pill"></span></div></div>' +
-    '<div class="exo-legend"><span class="p">Muscles principaux</span><span class="s">Muscles secondaires</span><em>Glisse pour tourner, pince pour zoomer, double appui pour recentrer</em></div></div>' +
+    '<div class="exo-main">' + stageHtml(false) +
     '<article class="card exo-fiche"><div><h1 class="exo-title">' + esc(ex.n) + '</h1><div class="exo-tags"><span>' + esc(ex.gear) + "</span><span>" + esc(ex.lvl) + "</span><span>" + (ex.time ? "Temps" : ex.dist ? esc(ex.dist >= 1000 ? (ex.dist / 1000).toString().replace(".", ",") + " km" : ex.dist + " m") + (ex.load ? " · charge" : "") : esc(ex.reps) + " reps") + "</span></div></div>" +
-    '<div><h3>Muscles travaillés</h3><div class="exo-mus">' + ex.p.map(mm => chip(mm, "p")).join("") + ex.s.map(mm => chip(mm, "s")).join("") + "</div></div>" +
+    '<div><h3>Muscles travaillés</h3><div class="exo-mus">' + ex.p.map(mm => chipM(mm, "p")).join("") + ex.s.map(mm => chipM(mm, "s")).join("") + "</div></div>" +
     '<div><h3>Bien l\'exécuter</h3><ul class="exo-tips">' + ex.tips.map(t => "<li>" + esc(t) + "</li>").join("") + "</ul></div>" +
     '<div><h3>Erreurs fréquentes</h3><ul class="exo-tips bad">' + ex.err.map(t => "<li>" + esc(t) + "</li>").join("") + "</ul></div>" +
-    '<div><h3>Variantes</h3><div class="exo-vars">' + vars + "</div></div>" +
+    '<div><h3>Variantes</h3><div class="exo-vars">' + varsHtml(ex) + "</div></div>" +
     '<button class="btn primary block big" id="exo-add">Ajouter à une séance</button></article></div>';
 }
+// suite d'étirements parcourue avec Précédent / Suivant : la liste filtrée en cours, sinon la zone de l'étirement
+function seqFor(ex) { const f = STRETCHES.filter(matchesStretch); return f.includes(ex) ? f : STRETCHES.filter(e => e.zone === ex.zone); }
+const BREATH = "Inspire lentement par le nez, puis expire plus longtemps que l'inspiration en relâchant la zone étirée. Ne bloque jamais ta respiration.";
+// nom court pour la barre Précédent / Suivant (« Étirement de l'épaule bras croisé » → « Épaule bras croisé »)
+const shortName = n => { const t = n.replace(/^Étirement (des |du |de l'|de la |de )/, ""); return t.charAt(0).toUpperCase() + t.slice(1); };
+function stretchDetailHtml(ex) {
+  const back = api && api.back ? '<a class="back" href="' + esc(api.back.href) + '">‹ ' + esc(api.back.label) + "</a>" : '<a class="back" href="#/exercices">‹ Étirements</a>';
+  const seq = seqFor(ex), k = seq.indexOf(ex), prev = seq[k - 1], next = seq[k + 1];
+  const nav = '<nav class="exo-seq" aria-label="Enchaîner les étirements">' +
+    (prev ? '<button type="button" class="btn" data-seq="' + prev.id + '" aria-label="Étirement précédent : ' + esc(prev.n) + '"><span aria-hidden="true">‹</span><span class="t">' + esc(shortName(prev.n)) + "</span></button>" : '<span class="exo-seq-gap"></span>') +
+    '<span class="n">' + (k + 1) + " / " + seq.length + "</span>" +
+    (next ? '<button type="button" class="btn primary" data-seq="' + next.id + '" aria-label="Étirement suivant : ' + esc(next.n) + '"><span class="t">' + esc(shortName(next.n)) + '</span><span aria-hidden="true">›</span></button>'
+      : '<a class="btn" href="#/exercices" aria-label="Fin de la série : retour aux étirements"><span class="t">Terminé</span><span aria-hidden="true">✓</span></a>') + "</nav>";
+  return back +
+    '<div class="exo-main">' + stageHtml(true) +
+    '<article class="card exo-fiche" id="exo-fiche"><div><h1 class="exo-title">' + esc(ex.n) + '</h1><div class="exo-tags"><span>' + esc(zoneName(ex.zone)) + "</span><span>" + esc(ex.gear) + "</span><span>" + esc(holdTxt(ex)) + "</span></div></div>" +
+    '<div><h3>Muscles étirés</h3><div class="exo-mus">' + ex.p.map(mm => chipM(mm, "p")).join("") + ex.s.map(mm => chipM(mm, "s")).join("") + "</div></div>" +
+    '<div><h3>Bien le faire</h3><ul class="exo-tips">' + ex.tips.map(t => "<li>" + esc(t) + "</li>").join("") + "</ul></div>" +
+    '<div><h3>Respiration</h3><p class="exo-p">' + esc(ex.br || BREATH) + "</p></div>" +
+    '<div><h3>Combien de temps ?</h3><div class="exo-dose"><div><b>Après une séance</b><span>1 à 2 fois 20 à 30 s' + (ex.side ? " de chaque côté" : "") + ", tout en douceur (retour au calme)</span></div>" +
+    "<div><b>Pour gagner en souplesse</b><span>2 à 4 fois 30 s" + (ex.side ? " de chaque côté" : "") + ", au moins 2 à 3 fois par semaine, sur des muscles chauds</span></div></div></div>" +
+    '<div><h3>Erreurs fréquentes</h3><ul class="exo-tips bad">' + ex.err.map(t => "<li>" + esc(t) + "</li>").join("") + "</ul></div>" +
+    '<div><h3>Variantes</h3><div class="exo-vars">' + varsHtml(ex) + "</div></div>" +
+    '<button class="btn primary block big" id="exo-add">Ajouter à une séance</button>' +
+    '<a class="exo-link" href="#/exercices/conseils-etirements">Tous les conseils pour bien s\'étirer ›</a></article></div>' + nav;
+}
+// guide : vérifié auprès des recommandations de l'ACSM et des méta-analyses citées en bas de page
+function guideHtml() {
+  const li = a => "<ul class=\"exo-tips\">" + a.map(t => "<li>" + t + "</li>").join("") + "</ul>";
+  const back = api && api.back ? '<a class="back" href="' + esc(api.back.href) + '">‹ ' + esc(api.back.label) + "</a>" : '<a class="back" href="#/exercices">‹ Étirements</a>';
+  return back + '<div class="page-head"><h1>Bien s\'étirer</h1></div>' +
+    '<p class="muted guide-lead">Il y a deux façons de s\'étirer, avec deux objectifs différents. Voici l\'essentiel, d\'après les recommandations de l\'ACSM (American College of Sports Medicine) et les études récentes.</p>' +
+    '<div class="guide-two">' +
+    '<section class="card guide-c"><h2>Après la séance : le retour au calme</h2>' + li(["<b>Court et doux</b> : 1 à 2 fois 20 à 30 s par muscle.", "But : te détendre, faire redescendre le rythme et retrouver ton amplitude.",
+      "Sur les muscles que tu viens de travailler, reste léger : ils sont fatigués.", "Ça n'évite pas les courbatures et n'accélère pas la récupération : les études ne montrent pas d'effet. C'est surtout un moment pour souffler."]) + "</section>" +
+    '<section class="card guide-c"><h2>Pour gagner en souplesse</h2>' + li(["<b>Plus long</b> : 2 à 4 fois 30 s par muscle, soit environ 1 min (jusqu'à 4 min par séance pour un effet maximal).",
+      "Au moins 2 à 3 fois par semaine ; tous les jours, c'est encore mieux. Repère : environ 10 min par muscle et par semaine.",
+      "Sur des muscles chauds : après 5 à 10 min d'activité légère, après une douche chaude, ou en fin de séance sur les muscles qui n'ont pas travaillé.",
+      "Pour les muscles que tu viens de travailler dur, attends plutôt quelques heures ou un jour de repos."]) + "</section></div>" +
+    '<section class="card guide-c"><h2>Quand s\'étirer ?</h2>' + li(["<b>Avant la musculation</b> : préfère un échauffement dynamique (mouvements amples, séries légères). Si tu tiens des étirements, reste sous 60 s par muscle : au-delà, tu perds un peu de force (environ 5 %).",
+      "<b>Juste après la séance</b> : des étirements doux pour les muscles travaillés.",
+      "<b>Après une séance jambes</b>, tu peux étirer plus profondément le haut du corps (et inversement) : ces muscles sont chauds et pas fatigués.",
+      "<b>Les autres jours</b> : une petite séance de souplesse de 10 à 15 min, par exemple le soir."]) + "</section>" +
+    '<section class="card guide-c"><h2>Respirer pendant un étirement</h2>' + li(["Respire par le nez, lentement, en gonflant le ventre.", "Fais une expiration plus longue que l'inspiration, par exemple 4 s pour inspirer et 6 s pour expirer.",
+      "À chaque expiration, relâche la zone étirée et gagne quelques millimètres.", "Ne bloque jamais ta respiration : si tu n'arrives plus à respirer calmement, tu vas trop loin."]) + "</section>" +
+    '<section class="card guide-c"><h2>Bien faire</h2>' + li(["Une tension nette mais supportable, jamais de douleur (autour de 3 à 5 sur 10).", "Entre dans l'étirement lentement, sans rebonds.",
+      "Étire les deux côtés, aussi longtemps l'un que l'autre.", "Garde le dos neutre et ne force pas sur les articulations (genoux, coudes)."]) + "</section>" +
+    '<section class="card guide-c"><h2>Comment on progresse</h2>' + li(["Une seule séance donne un gain temporaire, qui disparaît vite.", "Les vrais progrès arrivent après quelques semaines de régularité.",
+      "On gagne surtout parce que le corps tolère mieux l'étirement, plus que parce que le muscle s'allonge : la régularité compte plus que la force qu'on y met.",
+      "La musculation en grande amplitude (squat complet, développé jusqu'à la poitrine…) améliore aussi la souplesse."]) + "</section>" +
+    '<section class="card guide-c"><h2>Pour aller plus loin : contracter-relâcher</h2>' + li(["En position d'étirement, contracte le muscle étiré 3 à 6 s, sans bouger et sans forcer à fond.",
+      "Relâche, puis va un peu plus loin et tiens 10 à 30 s. Fais-le 2 à 4 fois.", "C'est aussi efficace que l'étirement classique : choisis ce que tu préfères."]) + "</section>" +
+    '<section class="card guide-c"><h2>Ce que les étirements ne font pas</h2>' + li(["Ils ne préviennent pas vraiment les blessures : c'est le renforcement musculaire qui les réduit le plus.",
+      "Ils n'évitent pas les courbatures.", "Ils restent utiles pour la mobilité, le confort et la détente."]) + "</section>" +
+    '<section class="card guide-c"><h2>Précautions</h2><ul class="exo-tips bad"><li>Douleur vive, picotements ou engourdissement : arrête l\'étirement.</li><li>Blessure récente, opération, douleur qui dure, grossesse ou hyperlaxité : demande d\'abord l\'avis d\'un médecin ou d\'un kiné.</li></ul></section>' +
+    '<div class="section-title">Commencer</div><div class="exo-chips">' + ZONES.slice(1).map(([z, n]) => '<a class="chip-btn" href="#/exercices/etirements/' + z + '">' + n + "</a>").join("") + "</div>" +
+    '<p class="muted small guide-src">Sources : ACSM, recommandations sur la souplesse (position de 2011, mise à jour 2021) · Sports Medicine 2025, dose d\'étirement et souplesse (189 études) · Behm et al. 2016, étirements avant l\'effort · Afonso et al. 2021, étirements et récupération · Lauersen et al. 2014, prévention des blessures.</p>';
+}
 let api = null, bound = false;
-export function mount(root, id, appApi) {
+export function mount(root, id, appApi, arg) {
   api = appApi;
+  const zoneArg = ZONES.some(z => z[0] === arg) ? arg : null;
+  if (id === "etirements") { ui.mode = "etir"; if (zoneArg) { ui.zone = zoneArg; ui.qe = ""; } id = null; }
+  if (id === "conseils-etirements") { ui.mode = "etir"; root.innerHTML = guideHtml(); window.scrollTo(0, 0); return; }
   const ex = id ? EXOS.find(e => e.id === id) : null;
-  if (!ex) {
-    root.innerHTML = '<div class="page-head"><h1>Exercices</h1><span class="muted small">' + EXOS.length + ' exercices</span></div>' +
-      '<input class="f exo-q" id="exo-q" type="search" placeholder="Rechercher un exercice, un muscle, une machine" autocomplete="off" aria-label="Rechercher un exercice" value="' + esc(ui.q) + '">' +
-      '<div class="exo-chips" role="group" aria-label="Filtrer par muscle">' + GROUPS.map(([g, n]) => '<button class="chip-btn" data-exo-g="' + g + '" aria-pressed="' + (ui.group === g) + '">' + n + "</button>").join("") + "</div>" +
-      '<div id="exo-list">' + listHtml() + "</div>";
-    const q = root.querySelector("#exo-q");
-    q.addEventListener("input", () => { ui.q = q.value.trim(); root.querySelector("#exo-list").innerHTML = listHtml(); });
-    root.querySelectorAll("[data-exo-g]").forEach(b => b.addEventListener("click", () => {
-      ui.group = b.dataset.exoG; root.querySelectorAll("[data-exo-g]").forEach(x => x.setAttribute("aria-pressed", String(x === b))); root.querySelector("#exo-list").innerHTML = listHtml();
-    }));
-    return;
-  }
-  root.innerHTML = detailHtml(ex);
+  if (!ex) { renderList(root); return; }
+  const st = isStretch(ex);
+  ui.mode = st ? "etir" : "muscu";
+  if (st && zoneArg) { ui.zone = zoneArg; ui.qe = ""; }
+  root.innerHTML = st ? stretchDetailHtml(ex) : detailHtml(ex);
   const stage = root.querySelector("#exo-stage"); view.stage = stage; view.pill = root.querySelector("#exo-pill"); view.phase = "";
   initScene();
   if (G.failed) { stage.insertAdjacentHTML("beforeend", '<div class="exo-fallback">L\'animation 3D n\'est pas disponible sur cet appareil.</div>'); }
@@ -1420,9 +1731,24 @@ export function mount(root, id, appApi) {
   }
   root.querySelector("#exo-play").addEventListener("click", e => { view.playing = !view.playing; e.currentTarget.textContent = view.playing ? "Pause" : "Lecture"; e.currentTarget.setAttribute("aria-pressed", String(!view.playing)); });
   root.querySelector("#exo-slow").addEventListener("click", e => { view.speed = view.speed === 1 ? 0.4 : 1; e.currentTarget.setAttribute("aria-pressed", String(view.speed !== 1)); });
-  root.querySelector("#exo-add").addEventListener("click", () => api && api.add({ name: ex.n, time: !!ex.time, dist: ex.dist || 0, load: !!ex.load, reps: ex.reps, rest: ex.rest }));
+  root.querySelector("#exo-add").addEventListener("click", () => api && api.add(st ? { name: ex.n, time: true, hold: ex.hold, sets: 2, rest: ex.rest } : { name: ex.n, time: !!ex.time, dist: ex.dist || 0, load: !!ex.load, reps: ex.reps, rest: ex.rest }));
+  if (st) {
+    // étirement suivant ou précédent sans repasser par la liste : boutons, glissé horizontal sur la fiche, flèches du clavier
+    const goTo = nid => { if (nid) location.replace("#/exercices/" + nid); };
+    root.querySelectorAll("[data-seq]").forEach(b => b.addEventListener("click", () => goTo(b.dataset.seq)));
+    const seq = seqFor(ex), k = seq.indexOf(ex), step = d => { const t = seq[k + d]; if (t) goTo(t.id); };
+    const fiche = root.querySelector("#exo-fiche"); let t0 = null;
+    fiche.addEventListener("touchstart", e => { const t = e.touches[0]; t0 = e.touches.length === 1 ? { x: t.clientX, y: t.clientY } : null; }, { passive: true });
+    fiche.addEventListener("touchend", e => { if (!t0) return; const t = e.changedTouches[0], dx = t.clientX - t0.x, dy = t.clientY - t0.y; t0 = null; if (Math.abs(dx) > 70 && Math.abs(dx) > 2 * Math.abs(dy)) step(dx < 0 ? 1 : -1); }, { passive: true });
+    keyStep = step;
+  } else keyStep = null;
   window.scrollTo(0, 0);
 }
+let keyStep = null;
+document.addEventListener("keydown", e => {
+  if (!keyStep || !document.getElementById("exo-fiche") || /INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || "")) return;
+  if (e.key === "ArrowRight") keyStep(1); else if (e.key === "ArrowLeft") keyStep(-1);
+});
 
 // outil de vérification : contacts anormaux entre le corps, le matériel et le sol
 function segDist(p1, q1, p2, q2) {

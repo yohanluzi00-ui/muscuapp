@@ -18,9 +18,10 @@ Application personnelle pour noter mes performances pendant mes séances de musc
   - l'écran reste allumé pendant la séance (appli Android).
 - Tu peux **renommer** un exercice à tout moment ; son historique est conservé.
 - Sur ordinateur, la séance s'affiche en **tableau** (Exercice, Séries, Reps cible, Repos, Série 1, Série 2…).
-- **Historique** de toutes les séances (modifiables).
-- **Stats** : séances par semaine et par programme, calendrier, et **Évolution** : on recherche un exercice déjà fait en séance et on voit sa courbe dans le temps (charge, 1RM estimé ou répétitions ; temps pour le gainage ; meilleur temps pour la course et l'Hyrox), sur 1 mois, 3 mois, 6 mois, 1 an ou tout.
+- Menu à 4 onglets : **Accueil**, **Exercices**, **Stats**, **Réglages**. Sur l'accueil, « Découvrir » mène aux étirements et aux futurs programmes Fiitday (bientôt).
+- **Stats** : séances par semaine et par programme, calendrier, **historique** de toutes les séances (modifiables), et **Évolution** : on recherche un exercice déjà fait en séance et on voit sa courbe dans le temps (charge, 1RM estimé ou répétitions ; temps pour le gainage ; meilleur temps pour la course et l'Hyrox), sur 1 mois, 3 mois, 6 mois, 1 an ou tout.
 - Onglet **Exercices** : près d'une centaine d'exercices connus (filtres par muscle, « Sans matériel » pour le circuit training à la maison, Cardio et Hyrox), chacun avec un mannequin 3D animé (mouvement complet, muscles principaux en rose et secondaires en orange), les conseils d'exécution, les erreurs fréquentes, les variantes et un bouton « Ajouter à une séance ».
+- **Étirements** (onglet Exercices › Étirements) : 23 étirements du haut, du milieu et du bas du corps, chacun avec le mannequin 3D, les conseils, la respiration et la durée (retour au calme ou souplesse) ; « Précédent / Suivant » pour enchaîner sans revenir à la liste ; un guide « Bien s'étirer » vérifié auprès des recommandations de l'ACSM et d'études récentes. Après une séance, une carte « Étirements conseillés » propose un retour au calme pour les muscles travaillés et un travail de souplesse pour les autres.
 - **Mode clair / sombre / auto**.
 - Données synchronisées entre le téléphone et l'ordinateur avec un compte (Supabase). Elles restent utilisables sans réseau et sont envoyées au retour de la connexion.
 
