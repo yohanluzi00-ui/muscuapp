@@ -139,6 +139,7 @@ const newExercise = () => ({ id: "e-" + uid(), name: "Nouvel exercice", type: "r
 const blankSet = drops => ({ kg: "", reps: "", sec: "", done: false, drops: Array.from({ length: Math.max(0, num(drops) || 0) }, () => ({ kg: "", reps: "" })) });
 // baisses d'une série en dégressif : toutes les séries, ou seulement la dernière (dropScope "last")
 // nombre de baisses en dégressif ; jamais pour un exercice en temps (d'anciennes valeurs pouvaient rester cachées)
+const restNextOf = (e, v) => (e && e.restNext != null ? num(e.restNext) || 0 : num(v && v.restBetween) || 0);
 const dropsOf = e => (e && e.type !== "time" && num(e.drops)) || 0;
 const dropsFor = (e, k, n) => (dropsOf(e) && (e.dropScope !== "last" || k === n - 1)) ? dropsOf(e) : 0;
 const GROUP_LABEL = { superset: "Superset", biset: "Biset", triset: "Triset" };
@@ -625,8 +626,8 @@ async function startWorkout(tid, vid) {
     act.endedAt = Date.now(); put("workout", act);
   }
   const w = {
-    id: "w-" + uid(), templateId: t.id, variantId: v.id, templateName: t.name, variantName: v.name, restBetween: num(v.restBetween) || 0, startedAt: Date.now(), endedAt: null,
-    exercises: v.exercises.map(e => ({ exId: e.id, name: e.name, type: e.type, target: e.target, rest: e.rest, drops: dropsOf(e), groupId: e.groupId || null, groupKind: e.groupKind || null,
+    id: "w-" + uid(), templateId: t.id, variantId: v.id, templateName: t.name, variantName: v.name, startedAt: Date.now(), endedAt: null,
+    exercises: v.exercises.map(e => ({ exId: e.id, name: e.name, type: e.type, target: e.target, rest: e.rest, restNext: restNextOf(e, v), drops: dropsOf(e), groupId: e.groupId || null, groupKind: e.groupKind || null,
       dropScope: e.dropScope === "last" ? "last" : "all",
       sets: (n => Array.from({ length: n }, (_, k) => blankSet(dropsFor(e, k, n))))(Math.max(1, num(e.sets) || 1)) })),
   };
@@ -674,6 +675,7 @@ function metaText(e, inGroup) {
   let t = inGroup ? "Cible " + esc(e.target || "—") + (time ? " s" : " reps") : e.sets.length + " × " + esc(e.target || "—") + (time ? " s" : "") + " · repos " + esc(fmtRest(e.rest));
   const d = dropsOf(e);
   if (d) t += " · dégressif (" + d + " baisse" + (d > 1 ? "s" : "") + (e.dropScope === "last" ? ", dernière série" : "") + ")";
+  if (!inGroup && num(e.restNext)) t += " · puis " + esc(fmtRest(e.restNext)) + " avant le suivant";
   return t;
 }
 function exHead(w, e, i, letter) {
@@ -799,7 +801,8 @@ function afterSet(w, i, s) {
   if (e.groupId && !mem.every(x => !x.sets[s] || x.sets[s].done)) return; // tour pas encore fini
   // exercice (ou superset / biset / triset) entièrement validé : repos entre exercices, s'il est réglé
   const exDone = mem.every(x => x.sets.every(st => st.done));
-  if (exDone && num(w.restBetween) > 0) startRest(w.restBetween, "Repos · exercice suivant");
+  const next = num(mem[mem.length - 1].restNext) || num(mem[0].restNext) || num(w.restBetween) || 0;
+  if (exDone && next > 0) startRest(next, "Repos · exercice suivant");
   else startRest(mem[0].rest);
 }
 // attend que la fenêtre « Nouveau record » soit fermée avant d'en ouvrir une autre
@@ -884,14 +887,14 @@ function viewProgram(tid, vid) {
     '<button data-act="addvar">+ Séance</button></div>';
   if (!v) return h;
   h += '<div class="card"><label class="fl">Nom de la séance<input class="f" data-p="vname" value="' + esc(vLabel(v.name)) + '"></label>' +
-    '<div class="fl" style="margin-top:10px"><span>Repos entre les exercices</span><button type="button" class="f pick" data-act="picksec" data-sf="vrest">' + fmtSecs(num(v.restBetween) || 0) + "</button></div>" +
-    '<p class="muted small" style="margin:6px 0 0">Démarre quand toutes les séries d\'un exercice (ou d\'un superset, biset, triset) sont validées. « Aucun » : le repos habituel de l\'exercice.</p>' +
     '<div class="row" style="margin-top:10px;flex-wrap:wrap">' +
     '<button class="btn sm" data-act="dupvar">Dupliquer cette séance</button><button class="btn sm" data-act="sharevar">Partager cette séance</button>' +
     (t.variants.length > 1 ? '<button class="btn sm danger" data-act="delvar">Supprimer cette séance</button>' : "") + "</div></div>";
   h += '<div class="section-title">Exercices (' + v.exercises.length + ')</div><div class="stack">';
   const bl = blocks(v.exercises);
   bl.forEach((blk, bi) => {
+    const nextField = bi < bl.length - 1 ? '<div class="fl next-rest"><span>Repos avant l\'exercice suivant</span><button type="button" class="f pick" data-act="picksec" data-sf="next" data-e="' + blk.items[0].i + '">' + fmtSecs(restNextOf(blk.items[0].e, v)) + "</button>" +
+      '<span class="small">Démarre quand toutes les séries ' + (blk.groupId ? "du groupe" : "de cet exercice") + " sont validées. « Aucun » : le repos habituel.</span></div>" : "";
     const moves = (bi > 0 ? '<button class="btn sm" data-act="up" data-b="' + bi + '" aria-label="Monter">↑</button>' : "") +
       (bi < bl.length - 1 ? '<button class="btn sm" data-act="down" data-b="' + bi + '" aria-label="Descendre">↓</button>' : "");
     if (blk.groupId) {
@@ -902,12 +905,13 @@ function viewProgram(tid, vid) {
         '<label class="fl">Tours (séries)<input class="f" type="number" min="1" max="20" inputmode="numeric" data-p="gsets" data-e="' + fi + '" value="' + esc(f.sets) + '"></label>' +
         '<div class="fl"><span>Repos après le tour</span><button type="button" class="f pick" data-act="picksec" data-sf="grest" data-e="' + fi + '">' + fmtSecs(num(f.rest) || 0) + "</button></div></div>";
       blk.items.forEach((x, n) => { h += '<div class="member">' + exFields(x.e, x.i, LETTERS[n], true) + "</div>"; });
+      h += nextField;
       h += '<div class="row" style="margin-top:12px;flex-wrap:wrap">' + (blk.items.length < 4 ? '<button class="btn sm" data-act="addmember" data-e="' + fi + '">+ Ajouter un exercice au ' + esc(label.toLowerCase()) + "</button>" : "") +
         '<button class="btn sm" data-act="ungroup" data-e="' + fi + '">Séparer</button><button class="btn sm danger" data-act="delgroup" data-e="' + fi + '">Supprimer</button></div></div>';
     } else {
       const x = blk.items[0];
       h += '<div class="card"><div class="spread"><b><span data-title="' + x.i + '">' + esc(x.e.name) + '</span></b><div class="row">' + moves +
-        '<button class="btn sm danger" data-act="delex" data-e="' + x.i + '">Supprimer</button></div></div>' + exFields(x.e, x.i, "", false) +
+        '<button class="btn sm danger" data-act="delex" data-e="' + x.i + '">Supprimer</button></div></div>' + exFields(x.e, x.i, "", false) + nextField +
         (bi < bl.length - 1 && !bl[bi + 1].groupId ? '<button class="link" style="margin-top:6px" data-act="link" data-b="' + bi + '">Enchaîner avec l\'exercice suivant (superset / biset)</button>' : "") + "</div>";
     }
   });
@@ -1174,8 +1178,8 @@ async function fetchShare(code) {
   return r.json();
 }
 async function shareVariant(t, v) {
-  const data = { app: "muscuapp-share", v: 1, prog: t.name, name: vLabel(v.name), rb: num(v.restBetween) || 0,
-    ex: v.exercises.map(e => ({ n: e.name, t: e.type, s: e.sets, c: e.target, r: e.rest, no: e.note || "", d: dropsOf(e), ds: dropsOf(e) && e.dropScope === "last" ? "last" : undefined, g: e.groupId || null, k: e.groupKind || null })) };
+  const data = { app: "muscuapp-share", v: 1, prog: t.name, name: vLabel(v.name),
+    ex: v.exercises.map(e => ({ n: e.name, t: e.type, s: e.sets, c: e.target, r: e.rest, rn: restNextOf(e, v), no: e.note || "", d: dropsOf(e), ds: dropsOf(e) && e.dropScope === "last" ? "last" : undefined, g: e.groupId || null, k: e.groupKind || null })) };
   // lien court (séance enregistrée dans Supabase avec un code) ; lien long en secours (sans compte, hors ligne…)
   let url = null;
   if (db.auth) {
@@ -1212,18 +1216,18 @@ async function importShared(code) {
   if (!dest) return;
   const gmap = {};
   const exercises = data.ex.map(x => {
-    const e = { id: "e-" + uid(), name: String(x.n || "Exercice").slice(0, 80), type: x.t === "time" ? "time" : "reps", sets: Math.max(1, Math.min(20, num(x.s) || 3)), target: String(x.c == null ? "" : x.c).slice(0, 20), rest: Math.max(0, num(x.r) || 0), note: String(x.no || "").slice(0, 500), drops: x.t === "time" ? 0 : Math.max(0, Math.min(3, num(x.d) || 0)), dropScope: x.ds === "last" ? "last" : "all" };
+    const e = { id: "e-" + uid(), name: String(x.n || "Exercice").slice(0, 80), type: x.t === "time" ? "time" : "reps", sets: Math.max(1, Math.min(20, num(x.s) || 3)), target: String(x.c == null ? "" : x.c).slice(0, 20), rest: Math.max(0, num(x.r) || 0), restNext: Math.max(0, Math.min(600, num(x.rn) || num(data.rb) || 0)), note: String(x.no || "").slice(0, 500), drops: x.t === "time" ? 0 : Math.max(0, Math.min(3, num(x.d) || 0)), dropScope: x.ds === "last" ? "last" : "all" };
     if (x.g && GROUP_LABEL[x.k]) { gmap[x.g] = gmap[x.g] || "g-" + uid(); e.groupId = gmap[x.g]; e.groupKind = x.k; }
     return e;
   });
   let t, vid = "v" + uid();
   if (dest === "new") {
-    t = { id: "tpl-" + uid(), name: String(data.prog).slice(0, 60), order: ts.length, variants: [{ id: vid, name: String(data.name).slice(0, 60), restBetween: Math.max(0, Math.min(600, num(data.rb) || 0)), exercises }] };
+    t = { id: "tpl-" + uid(), name: String(data.prog).slice(0, 60), order: ts.length, variants: [{ id: vid, name: String(data.name).slice(0, 60), exercises }] };
   } else {
     t = getItem(dest.slice(2)); if (!t) return;
     let name = String(data.name).slice(0, 60);
     if (t.variants.some(v => vLabel(v.name) === name)) name += " (partagée)";
-    t.variants.push({ id: vid, name, restBetween: Math.max(0, Math.min(600, num(data.rb) || 0)), exercises });
+    t.variants.push({ id: vid, name, exercises });
   }
   put("template", t); toast("Séance importée"); go("program/" + t.id + "/" + vid);
 }
@@ -1595,12 +1599,13 @@ $app.addEventListener("click", async e => {
     } break;
     case "picksec": {
       const { t, v } = currentProgram(); if (!v) return;
-      if (b.dataset.sf === "vrest") {
-        const val = await pickSeconds("Repos entre les exercices", v.restBetween, 0, 600);
-        if (val == null) return;
-        v.restBetween = val; put("template", t); render(); return;
-      }
       const ex = v.exercises[+b.dataset.e]; if (!ex) return;
+      if (b.dataset.sf === "next") {
+        const val = await pickSeconds("Repos avant l'exercice suivant", restNextOf(ex, v), 0, 600);
+        if (val == null) return;
+        v.exercises.forEach(x => { if (x === ex || (ex.groupId && x.groupId === ex.groupId)) x.restNext = val; });
+        put("template", t); render(); return;
+      }
       const sf = b.dataset.sf, isTarget = sf === "target";
       const val = await pickSeconds(isTarget ? "Temps cible" : sf === "grest" ? "Repos après le tour" : "Temps de repos", isTarget ? ex.target : ex.rest, isTarget ? 5 : 0, 600);
       if (val == null) return;

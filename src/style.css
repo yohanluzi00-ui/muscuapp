@@ -335,7 +335,7 @@ h1, .page-head h1, .ex-name, .tpl h2, .rp-time, .rp-end, .stat .v, .nav .brand, 
 
 /* ---------- Choix d'un temps */
 div.fl { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
-.f.pick { text-align: left; color: var(--ink); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
+.f.pick { width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid var(--in-line); border-radius: 10px; background: var(--in-bg); font: inherit; text-align: left; color: var(--ink); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
 .f.pick::after { content: "▾"; color: var(--muted); font-size: 13px; margin-left: 8px; }
 .modal.sheet { align-items: flex-end; padding: 0; }
 .modal.sheet .modal-box { max-width: 520px; border-radius: 20px 20px 0 0; padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
@@ -348,3 +348,5 @@ div.fl { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color
 .wheel-band { position: absolute; z-index: 0; left: 0; right: 0; top: 88px; height: 44px; border-radius: 12px; background: var(--soft); border: 1px solid var(--line); pointer-events: none; }
 .wheel:focus-visible + .wheel-band, .wheel-wrap:focus-within .wheel-band { border-color: var(--accent); }
 .rp-end2 { display: block; font-size: 22px; font-weight: 600; margin-top: 6px; }
+.next-rest { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
+.next-rest .small { color: var(--muted); }
