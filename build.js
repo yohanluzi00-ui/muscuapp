@@ -11,7 +11,19 @@ const SUPABASE = "https://krszgabjpswqjtypalsn.supabase.co";
 
 // Les deux scripts de la page ; leur empreinte est inscrite dans la politique de sécurité (CSP) :
 // le navigateur refuse tout autre script, même si un texte malveillant arrivait à s'insérer dans la page.
-const bootJs = `window.APP_BUILD = ${JSON.stringify(VERSION)}; window.APP_VERSION = ${JSON.stringify(process.env.VERSION_NAME || "")};`;
+// index léger de la bibliothèque d'exercices (nom, muscles, matériel…) pour la recherche intelligente,
+// lu dans src/exercices.js sans charger la 3D : [id, nom, muscles principaux, matériel, temps ?, reps, repos]
+const exoSrc = src("exercices.js");
+const MUS = {}, musBlock = exoSrc.slice(exoSrc.indexOf("export const MUSCLES"), exoSrc.indexOf("const GROUPS"));
+for (const m of musBlock.matchAll(/(\w+): \["([^"]+)", "\w+"\]/g)) MUS[m[1]] = m[2];
+const EXO_INDEX = [];
+for (const m of exoSrc.matchAll(/\{ id: "([a-z0-9-]+)", n: "([^"]+)", gear: "([^"]+)", lvl: "[^"]*",(?: g: "\w+",)? p: \[([^\]]*)\], s: \[[^\]]*\],([^\n]*)/g)) {
+  const prim = m[4].match(/\w+/g) || [], rest = m[5];
+  const reps = (rest.match(/reps: "([^"]+)"/) || [])[1] || "", rst = +((rest.match(/rest: (\d+)/) || [])[1] || 90);
+  EXO_INDEX.push([m[1], m[2], prim.map(k => MUS[k] || k).join(", "), m[3], /time: true/.test(rest) ? 1 : 0, reps, rst]);
+}
+if (EXO_INDEX.length < 50) throw new Error("Index des exercices incomplet (" + EXO_INDEX.length + ") : vérifier le format de src/exercices.js");
+const bootJs = `window.APP_BUILD = ${JSON.stringify(VERSION)}; window.APP_VERSION = ${JSON.stringify(process.env.VERSION_NAME || "")}; window.EXO_INDEX = ${JSON.stringify(EXO_INDEX)};`;
 const appJs = "\n" + src("app.js") + "\n";
 if (!src("app.js").includes(SUPABASE)) throw new Error("Adresse Supabase différente dans app.js : mettre à jour SUPABASE dans build.js");
 const CSP = [

@@ -1016,7 +1016,8 @@ function listHtml() {
 function detailHtml(ex) {
   const chip = (mm, c) => '<span class="exo-mu ' + c + '">' + esc(MUSCLES[mm][0]) + "</span>";
   const vars = ex.vars.map(n => { const t = byName[norm(n)]; return t ? '<a class="exo-var" href="#/exercices/' + t.id + '">' + esc(n) + "</a>" : '<span class="exo-var">' + esc(n) + "</span>"; }).join("");
-  return '<a class="back" href="#/exercices">‹ Exercices</a>' +
+  const back = api && api.back ? '<a class="back" href="' + esc(api.back.href) + '">‹ ' + esc(api.back.label) + "</a>" : '<a class="back" href="#/exercices">‹ Exercices</a>';
+  return back +
     '<div class="exo-main"><div class="exo-stage-col"><div class="exo-stage" id="exo-stage"><div class="exo-ctrl"><button class="btn sm" id="exo-slow" aria-pressed="' + (view.speed !== 1) + '">Ralenti</button><button class="btn sm" id="exo-play" aria-pressed="' + (!view.playing) + '">' + (view.playing ? "Pause" : "Lecture") + '</button></div>' +
     '<div class="exo-phase"><span class="exo-pill" id="exo-pill"></span></div></div>' +
     '<div class="exo-legend"><span class="p">Muscles principaux</span><span class="s">Muscles secondaires</span><em>Fais glisser l\'image pour tourner autour</em></div></div>' +
