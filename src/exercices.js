@@ -31,11 +31,11 @@ const GROUPS = [["tous", "Tous"], ["pectoraux", "Pectoraux"], ["dos", "Dos"], ["
    main / pied : [x, y, w] fixe, {t:[avant, haut, w]} lié au buste, {c: centre, r, d: direction} sur un arc
    ===================================================================== */
 const STAND = { foot: [0, 0.085, 0.13], knee: [1, 0, 0.1], fdir: [1, 0, 0.15] };
-const HANG = { t: [0.0, -0.6, 0.21] };
+const HANG = { t: [0.0, -0.6, 0.235] };
 const ST = (o) => Object.assign({ pc: [-0.02, 0.975], th: 0 }, STAND, o);
 const BENCH = { pc: [0, 0.565], th: -90, cp: 3, hp: -3, foot: [0.5, 0.085, 0.2], knee: [0.4, 1, 0.25], fdir: [1, 0, 0.25] };
 const SEATED = (o) => Object.assign({ pc: [0, 0.6], th: -6, foot: [0.42, 0.085, 0.2], knee: [0.3, 1, 0.2], fdir: [1, 0, 0.2] }, o);
-const PUSHUP_A = { pc: [-0.458, 0.403], th: 70.7, foot: [-1.32, 0.205, 0.10], fdir: [0.55, -0.84, 0.03], knee: [0, -1, 0], hdir: [1, 0, -0.1] };
+const PUSHUP_A = { pc: [-0.458, 0.403], th: 70.7, foot: [-1.32, 0.205, 0.10], fdir: [0.55, -0.84, 0.03], knee: [0, -1, 0], hdir: [1, 0, -0.1], hpose: "flat", palm: [0, -1, 0] };
 const PUSHUP_B = { pc: [-0.398, 0.166], th: 85.9 };
 const m = (o, p) => Object.assign({}, o, p);
 
@@ -45,62 +45,62 @@ export const EXOS = [
     tips: ["Omoplates serrées et basses, bien collées au banc", "Pieds à plat au sol, léger cambré naturel du bas du dos", "Descends la barre au bas des pectoraux, coudes à environ 45° du buste", "Pousse en soufflant, sans verrouiller brutalement les coudes"],
     err: ["Faire rebondir la barre sur la poitrine", "Décoller les fesses du banc", "Écarter les coudes à 90° (les épaules souffrent)"],
     vars: ["Développé incliné", "Développé couché haltères", "Développé à la machine", "Pompes"], order: "exc", ph: { exc: "Descente contrôlée", con: "Poussée" },
-    a: m(BENCH, { hand: [-0.445, 1.02, 0.3], elbow: [0.85, -0.5, 0.85], hdir: [0, 1, 0] }), b: { hand: [-0.34, 0.665, 0.3] },
+    a: m(BENCH, { hand: [-0.445, 1.02, 0.3], elbow: [0.85, -0.5, 0.85], hdir: [0, 1, 0], palm: [1, 0, 0] }), b: { hand: [-0.34, 0.665, 0.3] },
     props: P => { P.bench(-0.85, 0.35); P.rack(-0.82); }, imp: [{ t: "bar", r: 0.17 }] },
   { id: "developpe-incline", n: "Développé incliné", gear: "Barre et banc incliné", lvl: "Intermédiaire", p: ["pectoraux"], s: ["deltoides_ant", "triceps"], reps: "6-10", rest: 120,
     tips: ["Banc incliné à 30° environ, pas plus", "Omoplates serrées, poitrine sortie", "Descends la barre sur le haut des pectoraux", "Pousse à la verticale, au-dessus des épaules"],
     err: ["Incliner le banc trop fort (ça devient un exercice d'épaules)", "Décoller les fesses du banc", "Rebondir sur la poitrine"],
     vars: ["Développé couché", "Développé incliné haltères", "Développé à la machine"], order: "exc", ph: { exc: "Descente contrôlée", con: "Poussée" },
-    a: { pc: [0.02, 0.58], th: -60, hand: [-0.38, 1.33, 0.29], elbow: [0.9, -0.6, 0.8], hdir: [0, 1, 0], foot: [0.45, 0.085, 0.2], knee: [0.3, 1, 0.2], fdir: [1, 0, 0.2] }, b: { hand: [-0.29, 0.89, 0.29] },
+    a: { pc: [0.02, 0.58], th: -60, hand: [-0.38, 1.33, 0.29], elbow: [0.9, -0.6, 0.8], hdir: [0, 1, 0], palm: [1, 0, 0], foot: [0.45, 0.085, 0.2], knee: [0.3, 1, 0.2], fdir: [1, 0, 0.2] }, b: { hand: [-0.29, 0.89, 0.29] },
     props: P => { P.inclineBench(-60, 0.02, 0.58); P.rack(-0.66); }, imp: [{ t: "bar", r: 0.17 }] },
   { id: "developpe-couche-halteres", n: "Développé couché haltères", gear: "Haltères et banc plat", lvl: "Débutant", p: ["pectoraux"], s: ["triceps", "deltoides_ant"], reps: "8-12", rest: 90,
     tips: ["Haltères au-dessus des épaules au départ, bras presque tendus", "Descends en ouvrant les coudes à 45°, haltères au niveau de la poitrine", "Remonte en rapprochant légèrement les haltères", "Garde les omoplates serrées pendant toute la série"],
     err: ["Descendre trop bas et tirer sur les épaules", "Laisser tomber les haltères en fin de série", "Taper les haltères l'un contre l'autre en haut"],
     vars: ["Développé couché", "Développé incliné haltères", "Écarté couché haltères"], order: "exc", ph: { exc: "Descente contrôlée", con: "Poussée" },
-    a: m(BENCH, { hand: [-0.47, 1.02, 0.2], elbow: [0.85, -0.5, 0.85], hdir: [0, 1, 0] }), b: { hand: [-0.36, 0.67, 0.33] },
+    a: m(BENCH, { hand: [-0.47, 1.02, 0.2], elbow: [0.85, -0.5, 0.85], hdir: [0, 1, 0], palm: [1, 0, 0] }), b: { hand: [-0.36, 0.67, 0.33] },
     props: P => P.bench(-0.85, 0.35), imp: [{ t: "db", grip: "R" }] },
   { id: "developpe-incline-halteres", n: "Développé incliné haltères", gear: "Haltères et banc incliné", lvl: "Débutant", p: ["pectoraux"], s: ["deltoides_ant", "triceps"], reps: "8-12", rest: 90,
     tips: ["Banc à 30°, dos et fesses en appui", "Haltères au-dessus des épaules, paumes vers l'avant", "Descends jusqu'à sentir l'étirement du haut des pectoraux", "Remonte sans verrouiller les coudes"],
     err: ["Banc trop incliné", "Coudes trop écartés", "Amplitude trop courte"],
     vars: ["Développé incliné", "Développé couché haltères", "Écarté à la poulie"], order: "exc", ph: { exc: "Descente contrôlée", con: "Poussée" },
-    a: { pc: [0.02, 0.58], th: -60, hand: [-0.39, 1.32, 0.19], elbow: [0.9, -0.6, 0.8], hdir: [0, 1, 0], foot: [0.45, 0.085, 0.2], knee: [0.3, 1, 0.2], fdir: [1, 0, 0.2] }, b: { hand: [-0.32, 0.90, 0.36] },
+    a: { pc: [0.02, 0.58], th: -60, hand: [-0.39, 1.32, 0.19], elbow: [0.9, -0.6, 0.8], hdir: [0, 1, 0], palm: [1, 0, 0], foot: [0.45, 0.085, 0.2], knee: [0.3, 1, 0.2], fdir: [1, 0, 0.2] }, b: { hand: [-0.32, 0.90, 0.36] },
     props: P => P.inclineBench(-60, 0.02, 0.58), imp: [{ t: "db", grip: "R" }] },
   { id: "ecarte-couche", n: "Écarté couché haltères", gear: "Haltères et banc plat", lvl: "Débutant", p: ["pectoraux"], s: ["deltoides_ant"], reps: "10-15", rest: 60,
     tips: ["Coudes légèrement fléchis, ils restent ainsi tout le mouvement", "Ouvre les bras en arc de cercle jusqu'à l'étirement des pectoraux", "Referme comme si tu enlaçais un tronc d'arbre", "Charge légère : c'est un exercice d'étirement, pas de force"],
     err: ["Plier et tendre les coudes (ça devient un développé)", "Descendre les haltères trop bas", "Prendre trop lourd"],
     vars: ["Pec deck (butterfly)", "Écarté à la poulie", "Développé couché haltères"], order: "exc", ph: { exc: "Ouverture", con: "Fermeture" },
-    a: m(BENCH, { hand: { c: "sh", r: 0.53, d: [0.05, 1, -0.19] }, elbow: [0.25, -1, 0.3] }), b: { hand: { c: "sh", r: 0.53, d: [0.05, 0.17, 1] } },
+    a: m(BENCH, { hand: { c: "sh", r: 0.53, d: [0.05, 1, -0.19] }, elbow: [0.25, -1, 0.3], palm: [0, 0, -1] }), b: { hand: { c: "sh", r: 0.53, d: [0.05, 0.17, 1] }, palm: [0, 1, -0.3] },
     props: P => P.bench(-0.85, 0.35), imp: [{ t: "db", grip: "U" }] },
   { id: "pompes", n: "Pompes", gear: "Poids du corps", lvl: "Débutant", p: ["pectoraux"], s: ["triceps", "deltoides_ant", "abdos"], reps: "10-20", rest: 60,
     tips: ["Mains un peu plus larges que les épaules", "Corps gainé et aligné des talons à la tête", "Descends jusqu'à frôler le sol avec la poitrine", "Coudes à 45° du buste, pas complètement écartés"],
     err: ["Bassin qui s'affaisse ou qui monte", "Amplitude trop courte", "Tête qui tombe vers le sol"],
     vars: ["Pompes diamant", "Développé couché", "Dips"], order: "exc", ph: { exc: "Descente", con: "Poussée" },
-    a: m(PUSHUP_A, { hand: [0, 0.045, 0.3], elbow: [-0.8, 0.6, 0.65] }), b: PUSHUP_B, props: P => P.mat(-1.5, 0.4) },
+    a: m(PUSHUP_A, { hand: [0, 0.022, 0.3], elbow: [-0.8, 0.6, 0.65] }), b: PUSHUP_B, props: P => P.mat(-1.5, 0.4) },
   { id: "dips", n: "Dips", gear: "Barres parallèles", lvl: "Intermédiaire", p: ["pectoraux", "triceps"], s: ["deltoides_ant"], reps: "6-12", rest: 90,
     tips: ["Bras tendus au départ, épaules basses", "Penche légèrement le buste vers l'avant pour travailler les pectoraux", "Descends jusqu'à ce que les bras soient parallèles au sol", "Remonte en poussant fort, sans à-coups"],
     err: ["Descendre trop bas (épaules en danger)", "Hausser les épaules vers les oreilles", "Se balancer avec les jambes"],
     vars: ["Dips entre deux bancs", "Pompes", "Développé couché"], order: "exc", ph: { exc: "Descente", con: "Poussée" },
-    a: { pc: [-0.08, 1.392], th: 10, hand: [0, 1.34, 0.25], elbow: [-1, 0, 0.25], hdir: [1, -0.2, 0], foot: [-0.40, 0.75, 0.08], knee: [1, 0, 0.1], fdir: [-0.6, -0.8, 0.05] },
+    a: { pc: [-0.08, 1.392], th: 10, hand: [0, 1.31, 0.25], elbow: [-1, 0, 0.25], hdir: [0, 1, 0], palm: [0, 0, -1], foot: [-0.40, 0.75, 0.08], knee: [1, 0, 0.1], fdir: [-0.6, -0.8, 0.05] },
     b: { pc: [-0.094, 1.136], th: 28, elbow: [-1, 0.1, 0.25], foot: [-0.42, 0.50, 0.08] },
-    props: P => P.dips(1.30, 0.25) },
+    props: P => P.dips(1.37, 0.25) },
   { id: "pec-deck", n: "Pec deck (butterfly)", gear: "Machine", lvl: "Débutant", p: ["pectoraux"], s: ["deltoides_ant"], reps: "10-15", rest: 60,
     tips: ["Règle le siège pour avoir les poignées à hauteur de poitrine", "Dos bien plaqué contre le dossier", "Ramène les poignées devant toi en serrant les pectoraux", "Reviens lentement jusqu'à l'étirement"],
     err: ["Décoller le dos du dossier", "Laisser les poids claquer au retour", "Ouvrir trop loin derrière les épaules"],
     vars: ["Écarté couché haltères", "Écarté à la poulie", "Développé à la machine"], order: "con", ph: { con: "Fermeture", exc: "Ouverture lente" },
-    a: SEATED({ th: -3, hand: { c: "sh", r: 0.5, d: [-0.05, -0.05, 1] }, elbow: [-0.2, -1, 0.3], hdir: [0, 1, 0] }), b: { hand: { c: "sh", r: 0.5, d: [1, -0.08, -0.28] } },
+    a: SEATED({ th: -3, hand: { c: "sh", r: 0.5, d: [-0.05, -0.05, 1] }, elbow: [-0.2, -1, 0.3], palm: [1, 0, -0.2] }), b: { hand: { c: "sh", r: 0.5, d: [1, -0.08, -0.22] }, palm: [0, 0, -1] },
     props: P => { P.seat(0.02, 0.49); P.backPad(-3, 0, 0.6); P.frame(-0.42, 1.95); P.box([0.5, 0.06, 0.6], [-0.2, 1.86, 0]); P.stack(-0.62, 0); },
     imp: [{ t: "link", piv: [-0.03, 1.82, 0.22], to: "hand", pad: "grip" }, { t: "stackmove", ref: "hands", k: 0.5 }] },
   { id: "ecarte-poulie", n: "Écarté à la poulie", gear: "Poulies hautes (vis-à-vis)", lvl: "Intermédiaire", p: ["pectoraux"], s: ["deltoides_ant"], reps: "12-15", rest: 60,
     tips: ["Un pas en avant, buste légèrement penché", "Bras légèrement fléchis, ramène les poignées en arc de cercle", "Croise un peu les mains en fin de mouvement pour bien contracter", "Reviens lentement en gardant la tension"],
     err: ["Tirer avec les bras au lieu de serrer les pectoraux", "Se laisser emporter par les câbles au retour", "Hausser les épaules"],
     vars: ["Pec deck (butterfly)", "Écarté couché haltères"], order: "con", ph: { con: "Fermeture", exc: "Ouverture lente" },
-    a: ST({ pc: [-0.03, 0.97], th: 12, hand: { c: "sh", r: 0.53, d: [-0.15, 0.35, 1] }, elbow: [-0.4, 0.5, 0.8], foot: [[0.2, 0.085, 0.13], [-0.22, 0.085, 0.13]], knee: [1, 0, 0.1] }), b: { hand: { c: "sh", r: 0.53, d: [0.85, -0.45, -0.2] } },
+    a: ST({ pc: [-0.03, 0.97], th: 12, hand: { c: "sh", r: 0.53, d: [-0.15, 0.35, 1] }, elbow: [-0.4, 0.5, 0.8], palm: [1, 0, 0], foot: [[0.2, 0.085, 0.13], [-0.22, 0.085, 0.13]], knee: [1, 0, 0.1] }), b: { hand: { c: "sh", r: 0.53, d: [0.85, -0.45, -0.2] }, palm: [0.3, 0, -1] },
     props: P => { P.tower(0.05, -1.05, 1.95); P.tower(0.05, 1.05, 1.95); }, imp: [{ t: "cable", from: [0.05, 1.95, 1.05], to: "hands", handle: "d", stacks: [0, 1] }], view: [1, 0.35, 0.45] },
   { id: "developpe-machine", n: "Développé à la machine", gear: "Machine (chest press)", lvl: "Débutant", p: ["pectoraux"], s: ["triceps", "deltoides_ant"], reps: "8-12", rest: 90,
     tips: ["Poignées à hauteur du milieu de la poitrine", "Dos plaqué, omoplates serrées", "Pousse devant toi sans verrouiller les coudes", "Reviens lentement jusqu'à l'étirement"],
     err: ["Décoller le dos du dossier", "Siège mal réglé (poignées trop hautes)", "Retour trop rapide"],
     vars: ["Développé couché", "Pec deck (butterfly)"], order: "con", ph: { con: "Poussée", exc: "Retour contrôlé" },
-    a: SEATED({ th: -8, hand: [0.10, 1.03, 0.3], elbow: [-0.5, -0.6, 1] }), b: { hand: [0.45, 1.06, 0.26] },
+    a: SEATED({ th: -8, hand: [0.10, 1.03, 0.3], elbow: [-0.5, -0.6, 1], hdir: [0, 1, 0], palm: [1, 0, 0] }), b: { hand: [0.45, 1.06, 0.26] },
     props: P => { P.seat(0.02, 0.49); P.backPad(-8, 0, 0.6); P.frame(-0.5, 1.7); P.stack(-0.7, 0); },
     imp: [{ t: "link", piv: [-0.3, 1.6, 0.42], to: "hand", pad: "grip" }, { t: "stackmove", ref: "hands", k: 0.5 }] },
 
@@ -109,14 +109,14 @@ export const EXOS = [
     tips: ["Prise un peu plus large que les épaules, paumes vers l'avant", "Pars bras tendus, épaules engagées", "Tire la poitrine vers la barre en abaissant les coudes", "Redescends lentement jusqu'aux bras tendus"],
     err: ["Se balancer pour monter", "Remonter à moitié", "Lâcher la descente"],
     vars: ["Tirage vertical", "Tirage horizontal"], order: "con", ph: { con: "Tirage", exc: "Descente lente" },
-    a: { pc: [-0.02, 1.16], th: -8, hand: [0, 2.14, 0.36], elbow: [0, -1, 1], hdir: [0, 1, 0], foot: [-0.12, 0.27, 0.09], knee: [1, 0, 0], fdir: [0.3, -0.95, 0.05] },
+    a: { pc: [-0.02, 1.195], th: -8, hand: [0, 2.105, 0.36], elbow: [0, -1, 1], hdir: [0, 1, 0], palm: [1, 0, 0], foot: [-0.12, 0.305, 0.09], knee: [1, 0, 0], fdir: [0.3, -0.95, 0.05] },
     b: { pc: [-0.02, 1.62], th: -10, foot: [-0.12, 0.73, 0.09] }, props: P => P.pullup(2.17) },
   { id: "tirage-vertical", n: "Tirage vertical", gear: "Machine à poulie haute", lvl: "Débutant", p: ["dorsaux"], s: ["biceps", "trapezes", "deltoides_post"], reps: "8-12", rest: 90,
     tips: ["Cuisses bien calées sous les boudins", "Prise un peu plus large que les épaules", "Tire la barre vers le haut de la poitrine en abaissant les épaules", "Buste légèrement penché en arrière, poitrine sortie"],
     err: ["Tirer la barre derrière la nuque", "Se jeter en arrière pour tirer", "Laisser remonter la barre d'un coup"],
     vars: ["Tractions", "Tirage horizontal"], order: "con", ph: { con: "Tirage", exc: "Retour contrôlé" },
-    a: { pc: [0, 0.555], th: -10, hp: 12, hand: [0.02, 1.61, 0.36], elbow: [-0.3, -1, 0.9], hdir: [0, -1, 0], foot: [0.47, 0.085, 0.15], knee: [0.5, 1, 0.1], fdir: [1, 0, 0.15] },
-    b: { th: -17, cp: -6, hp: 4, hand: [0.11, 1.14, 0.36] },
+    a: { pc: [0, 0.555], th: -10, hp: 12, hand: [0.02, 1.52, 0.36], elbow: [-0.3, -1, 0.9], hdir: [0, 1, 0], palm: [1, 0, 0], foot: [0.47, 0.085, 0.15], knee: [0.5, 1, 0.1], fdir: [1, 0, 0.15] },
+    b: { th: -17, cp: -6, hp: 4, hand: [0.11, 1.05, 0.36] },
     props: P => { P.seat(0.02, 0.45); P.box([1.15, 0.05, 0.4], [0.45, 0.025, 0]); P.box([0.06, 0.32, 0.06], [0.44, 0.47, 0]); P.roller(0.46, 0.655, 0.115, 0.17); P.roller(0.46, 0.655, -0.115, 0.17);
       P.box([0.08, 2.38, 0.12], [0.98, 1.19, 0]); P.box([1.02, 0.08, 0.1], [0.5, 2.36, 0]); P.wheel(0.08, 2.3, 0); P.stack(1.1, 0, [1.1, 2.36, 0]); },
     imp: [{ t: "cable", from: [0.08, 2.25, 0], to: "mid", handle: "lat", stacks: [0] }] },
@@ -124,7 +124,7 @@ export const EXOS = [
     tips: ["Pieds sur les cales, genoux légèrement fléchis", "Dos droit, poitrine sortie", "Tire la poignée vers le nombril en serrant les omoplates", "Reviens bras tendus sans arrondir le dos"],
     err: ["Se balancer d'avant en arrière", "Arrondir le dos au retour", "Tirer avec les bras seulement"],
     vars: ["Tirage vertical", "Rowing barre", "Rowing haltère"], order: "con", ph: { con: "Tirage", exc: "Retour contrôlé" },
-    a: { pc: [0, 0.51], th: 18, hand: [0.62, 0.86, 0.07], elbow: [-0.5, -1, 0.3], foot: [0.80, 0.22, 0.13], knee: [0.2, 1, 0.1], fdir: [0.1, 1, 0.1] },
+    a: { pc: [0, 0.51], th: 18, hand: [0.62, 0.86, 0.07], elbow: [-0.5, -1, 0.3], palm: [0, 0, -1], foot: [0.80, 0.22, 0.13], knee: [0.2, 1, 0.1], fdir: [0.1, 1, 0.1] },
     b: { th: -6, hand: [0.17, 0.71, 0.07], elbow: [-1, -0.2, 0.25] },
     props: P => { P.bench(-0.35, 0.85, 0.4); P.box([0.03, 0.32, 0.4], [0.9, 0.24, 0]); P.tower(1.12, 0, 0.55, 0.95); },
     imp: [{ t: "cable", from: [0.95, 0.55, 0], to: "mid", handle: "v", stacks: [0] }] },
@@ -132,38 +132,38 @@ export const EXOS = [
     tips: ["Buste penché à 45°, dos bien droit", "Genoux légèrement fléchis, barre près des jambes", "Tire la barre vers le bas du ventre, coudes le long du corps", "Redescends lentement, bras tendus"],
     err: ["Arrondir le dos", "Se relever pour tirer", "Tirer la barre vers la poitrine (trop haut)"],
     vars: ["Rowing haltère", "Tirage horizontal", "Soulevé de terre"], order: "con", ph: { con: "Tirage", exc: "Descente contrôlée" },
-    a: ST({ pc: [-0.18, 0.90], th: 50, hp: -20, hand: [0.19, 0.66, 0.25], elbow: [-0.6, 1, 0.15], foot: [0, 0.085, 0.15], knee: [1, 0, 0.15] }), b: { hand: [0.0, 0.83, 0.25], elbow: [-1, 0.9, 0.12] },
+    a: ST({ pc: [-0.18, 0.90], th: 50, hp: -20, hand: [0.19, 0.66, 0.25], elbow: [-0.6, 1, 0.15], palm: [-1, 0, 0], foot: [0, 0.085, 0.15], knee: [1, 0, 0.15] }), b: { hand: [0.0, 0.83, 0.25], elbow: [-1, 0.9, 0.12] },
     imp: [{ t: "bar", r: 0.2 }] },
   { id: "rowing-haltere", n: "Rowing haltère", gear: "Haltère et banc", lvl: "Débutant", p: ["dorsaux"], s: ["biceps", "trapezes", "deltoides_post"], reps: "8-12 par bras", rest: 60,
     tips: ["Une main et un genou sur le banc, dos plat", "Bras tendu sous l'épaule au départ", "Tire l'haltère vers la hanche, coude près du corps", "Redescends lentement sans tourner le buste"],
     err: ["Tourner le buste pour monter l'haltère", "Tirer vers l'épaule au lieu de la hanche", "Dos rond"],
     vars: ["Rowing barre", "Tirage horizontal"], order: "con", ph: { con: "Tirage", exc: "Descente contrôlée" },
-    a: { pc: [-0.12, 0.85], th: 78, hand: [[0.40, 0.50, 0.20], [0.36, 0.42, 0.24]], elbow: [[0, 0, 1], [-0.3, 1, 0.3]], foot: [[-0.55, 0.53, 0.17], [-0.05, 0.085, 0.36]], knee: [[0, -1, 0], [1, 0, 0.3]], fdir: [[-1, -0.15, 0], [1, 0, 0.2]] },
-    b: { hand: [[0.40, 0.50, 0.20], [0.10, 0.80, 0.21]], elbow: [[0, 0, 1], [-0.6, 1, 0.1]] },
+    a: { pc: [-0.12, 0.85], th: 78, hand: [[0.40, 0.475, 0.20], [0.36, 0.42, 0.24]], elbow: [[0, 0, 1], [-0.3, 1, 0.3]], hdir: [[1, 0, -0.1], null], hpose: ["flat", "grip"], palm: [[0, -1, 0], [0, 0, -1]], foot: [[-0.55, 0.53, 0.17], [-0.05, 0.085, 0.36]], knee: [[0, -1, 0], [1, 0, 0.3]], fdir: [[-1, -0.15, 0], [1, 0, 0.2]] },
+    b: { hand: [[0.40, 0.475, 0.20], [0.10, 0.80, 0.21]], elbow: [[0, 0, 1], [-0.6, 1, 0.1]] },
     props: P => P.bench(-0.75, 0.6, 0.45, -0.17), imp: [{ t: "db", grip: "F", hands: [1] }] },
   { id: "souleve-de-terre", n: "Soulevé de terre", gear: "Barre", lvl: "Confirmé", g: "dos", p: ["lombaires", "fessiers", "ischios"], s: ["trapezes", "quadriceps", "avantbras", "dorsaux"], reps: "3-6", rest: 150,
     tips: ["Barre au-dessus du milieu des pieds, contre les tibias", "Dos plat, poitrine sortie, regard devant", "Pousse dans le sol avec les jambes, la barre frôle les jambes", "Finis debout, hanches en avant, sans te cambrer"],
     err: ["Dos rond au départ", "Barre qui s'éloigne des jambes", "Tirer avec les bras pliés"],
     vars: ["Soulevé de terre roumain", "Rowing barre", "Hip thrust"], order: "con", ph: { con: "Montée", exc: "Descente contrôlée" },
-    a: ST({ pc: [-0.301, 0.604], th: 61.6, hp: -30, hand: [0.10, 0.28, 0.27], elbow: [-0.3, 0, 0.3], foot: [0, 0.085, 0.13], knee: [1, 0.1, 0.08] }),
-    m: { pc: [-0.297, 0.876], th: 59, hp: -25, hand: [0.09, 0.57, 0.27] }, mt: 0.45, b: { pc: [-0.03, 0.975], th: 0, hp: 0, hand: [0.07, 0.90, 0.27] },
+    a: ST({ pc: [-0.301, 0.604], th: 61.6, hp: -30, hand: [0.12, 0.29, 0.27], elbow: [-0.3, 0, 0.3], palm: [-1, 0, 0], foot: [0, 0.085, 0.13], knee: [1, 0.1, 0.08] }),
+    m: { pc: [-0.297, 0.876], th: 59, hp: -25, hand: [0.11, 0.57, 0.27] }, mt: 0.45, b: { pc: [-0.03, 0.975], th: 0, hp: 0, hand: [0.09, 0.895, 0.27] },
     imp: [{ t: "bar", r: 0.225 }] },
   { id: "pull-over", n: "Pull-over haltère", gear: "Haltère et banc plat", lvl: "Intermédiaire", g: "dos", p: ["dorsaux", "pectoraux"], s: ["triceps"], reps: "10-12", rest: 60,
     tips: ["Allongé, un haltère tenu à deux mains au-dessus de la poitrine", "Bras légèrement fléchis, descends l'haltère derrière la tête", "Va jusqu'à sentir l'étirement sous les bras", "Remonte en arc de cercle au-dessus de la poitrine"],
     err: ["Plier et tendre les coudes", "Descendre trop bas et forcer sur les épaules", "Cambrer fortement le bas du dos"],
     vars: ["Tirage vertical", "Écarté couché haltères"], order: "exc", ph: { exc: "Descente derrière la tête", con: "Retour" },
-    a: m(BENCH, { hand: { c: "sh", r: 0.52, d: [0.02, 1, -0.2] }, elbow: [0, 0.2, 1] }), b: { hand: { c: "sh", r: 0.52, d: [-1, 0.12, -0.2] } },
+    a: m(BENCH, { hand: { c: "sh", r: 0.52, d: [0.02, 1, -0.17] }, elbow: [0, 0.2, 1], palm: [0, 0, -1] }), b: { hand: { c: "sh", r: 0.52, d: [-1, 0.12, -0.17] } },
     props: P => P.bench(-0.85, 0.35), imp: [{ t: "db1", axis: "fore" }] },
   { id: "shrugs", n: "Shrugs", gear: "Haltères", lvl: "Débutant", p: ["trapezes"], s: ["avantbras"], reps: "12-15", rest: 60,
     tips: ["Debout, haltères le long du corps", "Monte les épaules vers les oreilles, bras tendus", "Marque une pause en haut", "Redescends lentement"],
     err: ["Rouler les épaules", "Plier les bras", "Mouvement trop rapide"],
     vars: ["Rowing menton", "Soulevé de terre"], order: "con", ph: { con: "Élévation des épaules", exc: "Descente lente" },
-    a: ST({ hand: HANG }), b: { shrug: 0.06, hand: { t: [0, -0.54, 0.21] } }, imp: [{ t: "db", grip: "F" }] },
+    a: ST({ hand: HANG, palm: [0, 0, -1] }), b: { shrug: 0.06, hand: { t: [0, -0.54, 0.235] } }, imp: [{ t: "db", grip: "F" }] },
   { id: "extensions-lombaires", n: "Extensions lombaires", gear: "Banc à 45°", lvl: "Débutant", p: ["lombaires"], s: ["fessiers", "ischios"], reps: "12-15", rest: 60,
     tips: ["Bassin calé sur le boudin, pieds bloqués", "Bras croisés sur la poitrine", "Descends le buste en gardant le dos droit", "Remonte jusqu'à aligner le buste avec les jambes, pas plus"],
     err: ["Monter plus haut que l'alignement (cambrure)", "Arrondir le dos en bas", "Mouvement trop rapide"],
     vars: ["Soulevé de terre roumain", "Hip thrust"], order: "exc", ph: { exc: "Descente du buste", con: "Remontée" },
-    a: { hipAt: [0, 0.95, 0], th: 45, hp: -10, hand: [{ t: [0.12, -0.1, -0.02] }, { t: [0.21, -0.19, -0.02] }], elbow: { t: [0, -0.3, 1] }, foot: [-0.59, 0.36, 0.11], knee: [0.7, -0.7, 0], fdir: [0.7, -0.7, 0.1] }, b: { th: 135, hp: 10 },
+    a: { hipAt: [0, 0.95, 0], th: 45, hp: -10, hand: [{ t: [0.12, -0.1, -0.02] }, { t: [0.21, -0.19, -0.02] }], elbow: { t: [0, -0.3, 1] }, hpose: "flat", palm: { t: [-1, 0, 0] }, foot: [-0.59, 0.36, 0.11], knee: [0.7, -0.7, 0], fdir: [0.7, -0.7, 0.1] }, b: { th: 135, hp: 10 },
     props: P => P.hyperBench(0, 0.95) },
 
   /* ---------------- Épaules ---------------- */
@@ -171,256 +171,256 @@ export const EXOS = [
     tips: ["Debout, barre posée sur le haut de la poitrine", "Abdos et fessiers serrés pour ne pas te cambrer", "Pousse la barre à la verticale, la tête recule un peu pour la laisser passer", "Finis bras tendus, barre au-dessus de la tête"],
     err: ["Se cambrer fortement", "Pousser la barre devant soi", "Utiliser les jambes pour lancer la barre"],
     vars: ["Développé haltères assis", "Développé épaules à la machine"], order: "con", ph: { con: "Poussée", exc: "Descente contrôlée" },
-    a: ST({ pc: [-0.03, 0.975], th: -3, hand: [0.13, 1.42, 0.26], elbow: [1, -1, 0.5], hdir: [0, 1, 0] }), m: { hp: -14, hand: [0.09, 1.66, 0.25], elbow: [0.6, -0.5, 0.8] }, mt: 0.4, b: { hp: 0, hand: [-0.02, 1.99, 0.24], elbow: [0.2, 0, 1] },
+    a: ST({ pc: [-0.03, 0.975], th: -3, hand: [0.13, 1.42, 0.26], elbow: [1, -1, 0.5], hdir: [0, 1, 0], palm: [1, 0, 0] }), m: { hp: -14, hand: [0.09, 1.66, 0.25], elbow: [0.6, -0.5, 0.8] }, mt: 0.4, b: { hp: 0, hand: [-0.02, 1.99, 0.24], elbow: [0.2, 0, 1] },
     imp: [{ t: "bar", r: 0.2 }] },
   { id: "developpe-halteres-assis", n: "Développé haltères assis", gear: "Haltères et banc", lvl: "Débutant", p: ["deltoides_ant", "deltoides_lat"], s: ["triceps"], reps: "8-12", rest: 90,
     tips: ["Dossier presque vertical, dos bien en appui", "Haltères à hauteur des oreilles, paumes vers l'avant", "Pousse vers le haut en rapprochant légèrement les haltères", "Redescends jusqu'à hauteur des oreilles"],
     err: ["Cambrer le dos", "Descendre trop bas", "Taper les haltères en haut"],
     vars: ["Développé militaire", "Développé épaules à la machine", "Élévations latérales"], order: "con", ph: { con: "Poussée", exc: "Descente contrôlée" },
-    a: SEATED({ hand: [0, 1.21, 0.38], elbow: [0.1, -1, 1], hdir: [0, 1, 0] }), b: { hand: [-0.02, 1.63, 0.2], elbow: [0, -0.2, 1] },
+    a: SEATED({ hand: [0, 1.21, 0.38], elbow: [0.1, -1, 1], hdir: [0, 1, 0], palm: [1, 0, 0] }), b: { hand: [-0.02, 1.63, 0.2], elbow: [0, -0.2, 1] },
     props: P => { P.seat(0.02, 0.49); P.backPad(-6, 0, 0.6, 0.85); }, imp: [{ t: "db", grip: "R" }] },
   { id: "elevations-laterales", n: "Élévations latérales", gear: "Haltères", lvl: "Débutant", p: ["deltoides_lat"], s: ["deltoides_ant", "trapezes"], reps: "12-15", rest: 60,
     tips: ["Debout, haltères le long du corps, coudes légèrement fléchis", "Monte les bras sur les côtés jusqu'à l'horizontale", "Les coudes restent un peu plus hauts que les mains", "Redescends lentement"],
     err: ["Monter plus haut que les épaules", "Balancer le buste", "Hausser les épaules"],
     vars: ["Élévations frontales", "Oiseau", "Rowing menton"], order: "con", ph: { con: "Montée", exc: "Descente lente" },
-    a: ST({ hand: { c: "sh", r: 0.53, d: [0.12, -1, 0.18] }, elbow: [-0.3, 1, 0.2] }), b: { hand: { c: "sh", r: 0.53, d: [0.12, -0.05, 1] } },
+    a: ST({ hand: { c: "sh", r: 0.53, d: [0.12, -1, 0.18] }, elbow: [-0.3, 1, 0.2], palm: [0, 0, -1] }), b: { hand: { c: "sh", r: 0.53, d: [0.12, -0.05, 1] }, palm: [0, -1, 0] },
     imp: [{ t: "db", grip: "F" }], view: [1, 0.3, 0.3] },
   { id: "elevations-frontales", n: "Élévations frontales", gear: "Haltères", lvl: "Débutant", p: ["deltoides_ant"], s: ["deltoides_lat", "pectoraux"], reps: "12-15", rest: 60,
     tips: ["Debout, haltères devant les cuisses", "Monte les bras devant toi jusqu'à hauteur des yeux", "Coudes très légèrement fléchis", "Redescends lentement sans balancer"],
     err: ["Se pencher en arrière pour monter", "Monter trop haut", "Mouvement trop rapide"],
     vars: ["Élévations latérales", "Développé militaire"], order: "con", ph: { con: "Montée", exc: "Descente lente" },
-    a: ST({ hand: { c: "sh", r: 0.53, d: [0.33, -0.94, 0.05] }, elbow: [0, 0.4, 1] }), b: { hand: { c: "sh", r: 0.53, d: [1, 0.12, 0.05] } },
+    a: ST({ hand: { c: "sh", r: 0.53, d: [0.33, -0.94, 0.05] }, elbow: [0, 0.4, 1], palm: [-1, 0, 0] }), b: { hand: { c: "sh", r: 0.53, d: [1, 0.12, 0.05] }, palm: [0, -1, 0] },
     imp: [{ t: "db", grip: "R" }] },
   { id: "oiseau", n: "Oiseau", gear: "Haltères", lvl: "Débutant", p: ["deltoides_post"], s: ["trapezes"], reps: "12-15", rest: 60,
     tips: ["Buste penché vers l'avant, dos plat", "Bras pendants, coudes légèrement fléchis", "Écarte les bras sur les côtés en serrant les omoplates", "Redescends lentement"],
     err: ["Se redresser pendant le mouvement", "Tirer avec les bras pliés (ça devient un rowing)", "Prendre trop lourd"],
     vars: ["Face pull", "Élévations latérales"], order: "con", ph: { con: "Ouverture", exc: "Descente lente" },
-    a: ST({ pc: [-0.2, 0.88], th: 70, hp: -25, hand: { c: "sh", r: 0.53, d: [0.05, -1, 0.15] }, elbow: [0, 1, 0.5], foot: [0, 0.085, 0.14], knee: [1, 0, 0.15] }), b: { hand: { c: "sh", r: 0.53, d: [-0.05, -0.12, 1] } },
+    a: ST({ pc: [-0.2, 0.88], th: 70, hp: -25, hand: { c: "sh", r: 0.53, d: [0.05, -1, 0.15] }, elbow: [0, 1, 0.5], palm: [0, 0, -1], foot: [0, 0.085, 0.14], knee: [1, 0, 0.15] }), b: { hand: { c: "sh", r: 0.53, d: [-0.05, -0.12, 1] }, palm: [0, -1, 0] },
     imp: [{ t: "db", grip: "F" }], view: [0.9, 0.45, 0.6] },
   { id: "face-pull", n: "Face pull", gear: "Poulie haute et corde", lvl: "Débutant", p: ["deltoides_post"], s: ["trapezes", "deltoides_lat"], reps: "12-15", rest: 60,
     tips: ["Poulie à hauteur du visage, corde prise à deux mains", "Tire la corde vers le front en écartant les mains", "Coudes hauts, au niveau des épaules", "Reviens lentement bras tendus"],
     err: ["Coudes trop bas", "Se pencher en arrière", "Tirer trop lourd"],
     vars: ["Oiseau", "Tirage horizontal"], order: "con", ph: { con: "Tirage", exc: "Retour contrôlé" },
-    a: ST({ pc: [-0.05, 0.975], th: -6, hand: [0.42, 1.55, 0.08], elbow: [0, -0.3, 1] }), b: { hand: [0.14, 1.64, 0.26], elbow: [-0.4, 0.4, 1] },
+    a: ST({ pc: [-0.05, 0.975], th: -6, hand: [0.42, 1.55, 0.08], elbow: [0, -0.3, 1], palm: [0, 0, -1] }), b: { hand: [0.14, 1.64, 0.26], elbow: [-0.4, 0.4, 1] },
     props: P => P.tower(1.08, 0, 1.72, 0.95), imp: [{ t: "cable", from: [0.95, 1.72, 0], to: "mid", handle: "rope", stacks: [0] }] },
   { id: "developpe-epaules-machine", n: "Développé épaules à la machine", gear: "Machine", lvl: "Débutant", p: ["deltoides_ant", "deltoides_lat"], s: ["triceps"], reps: "8-12", rest: 90,
     tips: ["Poignées à hauteur des épaules au départ", "Dos plaqué contre le dossier", "Pousse vers le haut sans verrouiller les coudes", "Redescends lentement"],
     err: ["Siège trop bas ou trop haut", "Cambrer le dos", "Retour trop rapide"],
     vars: ["Développé haltères assis", "Développé militaire"], order: "con", ph: { con: "Poussée", exc: "Descente contrôlée" },
-    a: SEATED({ th: -8, hand: [0.06, 1.14, 0.36], elbow: [0.3, -1, 1] }), b: { hand: [0.03, 1.60, 0.30], elbow: [0, -0.3, 1] },
+    a: SEATED({ th: -8, hand: [0.06, 1.14, 0.36], elbow: [0.3, -1, 1], hdir: [0, 1, 0], palm: [1, 0, 0] }), b: { hand: [0.03, 1.60, 0.30], elbow: [0, -0.3, 1] },
     props: P => { P.seat(0.02, 0.49); P.backPad(-8, 0, 0.6, 0.85); P.frame(-0.45, 1.9); P.stack(-0.65, 0); },
     imp: [{ t: "link", piv: [-0.38, 1.25, 0.42], to: "hand", pad: "grip" }, { t: "stackmove", ref: "hands", k: 0.6 }] },
   { id: "rowing-menton", n: "Rowing menton", gear: "Barre", lvl: "Intermédiaire", p: ["deltoides_lat", "trapezes"], s: ["deltoides_ant", "biceps"], reps: "10-12", rest: 60,
     tips: ["Prise serrée, mains un peu plus étroites que les épaules", "Monte la barre le long du corps jusqu'en bas de la poitrine", "Les coudes montent plus haut que les mains", "Redescends lentement"],
     err: ["Monter la barre jusqu'au menton (épaules en souffrance)", "Balancer le buste", "Prise trop serrée"],
     vars: ["Élévations latérales", "Shrugs"], order: "con", ph: { con: "Montée", exc: "Descente lente" },
-    a: ST({ hand: [0.09, 0.91, 0.12], elbow: [0, 0.2, 1] }), b: { hand: [0.15, 1.36, 0.13], elbow: [-0.1, 1, 1] }, imp: [{ t: "bar", r: 0.15 }] },
+    a: ST({ hand: [0.09, 0.91, 0.12], elbow: [0, 0.2, 1], palm: [-1, 0, 0] }), b: { hand: [0.15, 1.36, 0.13], elbow: [-0.1, 1, 1] }, imp: [{ t: "bar", r: 0.15 }] },
 
   /* ---------------- Bras ---------------- */
   { id: "curl-halteres", n: "Curl biceps haltères", gear: "Haltères", lvl: "Débutant", p: ["biceps"], s: ["avantbras"], reps: "10-12", rest: 60,
     tips: ["Coudes collés au corps : ils ne bougent pas", "Paumes vers l'avant, monte jusqu'à bien contracter le biceps", "Redescends lentement jusqu'aux bras presque tendus"],
     err: ["Balancer le buste pour monter la charge", "Avancer les coudes en haut du mouvement", "Laisser retomber les haltères"],
     vars: ["Curl barre", "Curl marteau", "Curl à la poulie", "Curl pupitre"], order: "con", ph: { con: "Montée", exc: "Descente lente" },
-    a: ST({ th: 1, hand: { c: { el: [0.02, -1, 0] }, r: L.fa, d: [0.5, -0.86, 0.18] }, elbow: [-1, 0, 0] }), b: { th: -2, hand: { c: { el: [0.03, -1, 0] }, r: L.fa, d: [0.68, 0.73, -0.06] } },
+    a: ST({ th: 1, hand: { c: { el: [0.02, -1, 0] }, r: L.fa, d: [0.5, -0.86, 0.18] }, elbow: [-1, 0, 0], palm: "sup" }), b: { th: -2, hand: { c: { el: [0.03, -1, 0] }, r: L.fa, d: [0.68, 0.73, -0.06] } },
     imp: [{ t: "db", grip: "R" }] },
   { id: "curl-barre", n: "Curl barre", gear: "Barre", lvl: "Débutant", p: ["biceps"], s: ["avantbras"], reps: "8-12", rest: 60,
     tips: ["Mains largeur d'épaules, paumes vers le haut", "Coudes fixes le long du corps", "Monte la barre jusqu'aux épaules sans balancer", "Redescends lentement, bras presque tendus"],
     err: ["Se cambrer pour monter la barre", "Coudes qui avancent", "Descente trop rapide"],
     vars: ["Curl biceps haltères", "Curl pupitre", "Curl à la poulie"], order: "con", ph: { con: "Montée", exc: "Descente lente" },
-    a: ST({ th: 1, hand: { c: { el: [0.02, -1, 0] }, r: L.fa, d: [0.32, -0.95, 0] }, elbow: [-1, 0, 0] }), b: { th: -2, hand: { c: { el: [0.03, -1, 0] }, r: L.fa, d: [0.68, 0.73, 0] } },
+    a: ST({ th: 1, hand: { c: { el: [0.02, -1, 0] }, r: L.fa, d: [0.32, -0.95, 0] }, elbow: [-1, 0, 0], palm: "sup" }), b: { th: -2, hand: { c: { el: [0.03, -1, 0] }, r: L.fa, d: [0.68, 0.73, 0] } },
     imp: [{ t: "bar", r: 0.13, len: 1.3 }] },
   { id: "curl-marteau", n: "Curl marteau", gear: "Haltères", lvl: "Débutant", p: ["biceps", "avantbras"], s: [], reps: "10-12", rest: 60,
     tips: ["Pouces vers le haut, paumes face à face", "Coudes collés au corps", "Monte l'haltère jusqu'à l'épaule", "Redescends lentement"],
     err: ["Balancer le buste", "Décoller les coudes du corps", "Tourner les poignets"],
     vars: ["Curl biceps haltères", "Curl barre"], order: "con", ph: { con: "Montée", exc: "Descente lente" },
-    a: ST({ th: 1, hand: { c: { el: [0.02, -1, 0] }, r: L.fa, d: [0.5, -0.86, 0.18] }, elbow: [-1, 0, 0] }), b: { th: -2, hand: { c: { el: [0.03, -1, 0] }, r: L.fa, d: [0.68, 0.73, -0.06] } },
+    a: ST({ th: 1, hand: { c: { el: [0.02, -1, 0] }, r: L.fa, d: [0.5, -0.86, 0.18] }, elbow: [-1, 0, 0], palm: [0, 0, -1] }), b: { th: -2, hand: { c: { el: [0.03, -1, 0] }, r: L.fa, d: [0.68, 0.73, -0.06] } },
     imp: [{ t: "db", grip: "F" }] },
   { id: "curl-poulie", n: "Curl à la poulie", gear: "Poulie basse et barre", lvl: "Débutant", p: ["biceps"], s: ["avantbras"], reps: "10-15", rest: 60,
     tips: ["Face à la poulie, barre prise paumes vers le haut", "Coudes fixes le long du corps", "Monte la barre jusqu'aux épaules", "Garde la tension en redescendant lentement"],
     err: ["Reculer le buste pour tirer", "Coudes qui avancent", "Lâcher la descente"],
     vars: ["Curl barre", "Curl biceps haltères"], order: "con", ph: { con: "Montée", exc: "Descente lente" },
-    a: ST({ th: 1, hand: { c: { el: [0.02, -1, 0] }, r: L.fa, d: [0.32, -0.95, 0] }, elbow: [-1, 0, 0] }), b: { th: -2, hand: { c: { el: [0.03, -1, 0] }, r: L.fa, d: [0.68, 0.73, 0] } },
+    a: ST({ th: 1, hand: { c: { el: [0.02, -1, 0] }, r: L.fa, d: [0.32, -0.95, 0] }, elbow: [-1, 0, 0], palm: "sup" }), b: { th: -2, hand: { c: { el: [0.03, -1, 0] }, r: L.fa, d: [0.68, 0.73, 0] } },
     props: P => P.tower(0.66, 0, 0.12, 0.52), imp: [{ t: "bar", r: 0, len: 0.5 }, { t: "cable", from: [0.52, 0.12, 0], to: "mid", stacks: [0] }] },
   { id: "curl-pupitre", n: "Curl pupitre", gear: "Pupitre et barre EZ", lvl: "Débutant", p: ["biceps"], s: ["avantbras"], reps: "10-12", rest: 60,
     tips: ["Haut des bras bien à plat sur le pupitre", "Pars bras presque tendus", "Monte la barre en gardant les coudes sur le pupitre", "Redescends lentement, sans tendre complètement"],
     err: ["Décoller les coudes du pupitre", "Tendre brutalement les bras en bas", "Lever les fesses du siège"],
     vars: ["Curl barre", "Curl biceps haltères"], order: "con", ph: { con: "Montée", exc: "Descente lente" },
-    a: { pc: [-0.05, 0.64], th: 8, hand: { c: { el: [0.62, -0.78, 0.05] }, r: L.fa, d: [0.75, -0.62, 0] }, elbow: [-0.6, -0.5, 0.1], foot: [0.30, 0.085, 0.18], knee: [0.3, 1, 0.2], fdir: [1, 0, 0.2] },
+    a: { pc: [-0.05, 0.64], th: 8, hand: { c: { el: [0.62, -0.78, 0.05] }, r: L.fa, d: [0.75, -0.62, 0] }, elbow: [-0.6, -0.5, 0.1], palm: "sup", foot: [0.30, 0.085, 0.18], knee: [0.3, 1, 0.2], fdir: [1, 0, 0.2] },
     b: { hand: { c: { el: [0.62, -0.78, 0.05] }, r: L.fa, d: [-0.25, 0.97, 0] } },
     props: P => P.preacher(), imp: [{ t: "bar", r: 0.12, len: 1.35 }] },
   { id: "extension-poulie", n: "Extension triceps à la poulie", gear: "Poulie haute et barre", lvl: "Débutant", p: ["triceps"], s: [], reps: "10-15", rest: 60,
     tips: ["Coudes collés au corps, ils ne bougent pas", "Buste légèrement penché vers l'avant", "Pousse la barre vers le bas jusqu'à tendre les bras", "Remonte lentement jusqu'à hauteur de poitrine"],
     err: ["Décoller les coudes", "Se pencher sur la barre pour pousser", "Remonter trop haut"],
     vars: ["Barre au front", "Extension nuque haltère", "Dips entre deux bancs"], order: "con", ph: { con: "Extension", exc: "Remontée lente" },
-    a: ST({ pc: [-0.06, 0.975], th: 12, hand: { c: { el: [-0.12, -1, 0] }, r: L.fa, d: [0.72, 0.68, -0.05] }, elbow: [-1, 0.1, 0] }), b: { hand: { c: { el: [-0.12, -1, 0] }, r: L.fa, d: [0.22, -1, -0.03] } },
+    a: ST({ pc: [-0.06, 0.975], th: 12, hand: { c: { el: [-0.12, -1, 0] }, r: L.fa, d: [0.72, 0.68, -0.05] }, elbow: [-1, 0.1, 0], palm: "pro" }), b: { hand: { c: { el: [-0.12, -1, 0] }, r: L.fa, d: [0.22, -1, -0.03] } },
     props: P => P.tower(0.55, 0, 2.0, 0.4), imp: [{ t: "bar", r: 0, len: 0.5 }, { t: "cable", from: [0.4, 2.0, 0], to: "mid", stacks: [0] }] },
   { id: "barre-au-front", n: "Barre au front", gear: "Barre EZ et banc plat", lvl: "Intermédiaire", p: ["triceps"], s: [], reps: "8-12", rest: 90,
     tips: ["Allongé, barre au-dessus du visage, bras tendus", "Les coudes restent fixes et pointent vers le plafond", "Descends la barre vers le front en pliant les coudes", "Remonte en tendant les bras"],
     err: ["Écarter les coudes", "Bouger les bras d'avant en arrière", "Charge trop lourde (coudes douloureux)"],
     vars: ["Extension triceps à la poulie", "Extension nuque haltère"], order: "exc", ph: { exc: "Descente vers le front", con: "Extension" },
-    a: m(BENCH, { hand: { c: { el: [-0.28, 1, 0.05] }, r: L.fa, d: [-0.28, 1, 0] }, elbow: [0.6, 1, 0.1] }), b: { hand: { c: { el: [-0.28, 1, 0.05] }, r: L.fa, d: [-0.95, -0.3, 0] } },
+    a: m(BENCH, { hand: { c: { el: [-0.28, 1, 0.05] }, r: L.fa, d: [-0.28, 1, 0] }, elbow: [0.6, 1, 0.1], palm: "pro" }), b: { hand: { c: { el: [-0.28, 1, 0.05] }, r: L.fa, d: [-0.95, -0.3, 0] } },
     props: P => P.bench(-0.85, 0.35), imp: [{ t: "bar", r: 0.12, len: 1.35 }] },
   { id: "extension-nuque", n: "Extension nuque haltère", gear: "Haltère", lvl: "Débutant", p: ["triceps"], s: [], reps: "10-12", rest: 60,
     tips: ["Haltère tenu à deux mains au-dessus de la tête", "Coudes serrés, pointés vers le haut", "Descends l'haltère derrière la tête", "Remonte en tendant les bras"],
     err: ["Écarter les coudes", "Se cambrer", "Descendre trop vite"],
     vars: ["Barre au front", "Extension triceps à la poulie"], order: "exc", ph: { exc: "Descente derrière la tête", con: "Extension" },
-    a: ST({ th: -3, hand: { c: { el: [-0.02, 1, -0.12] }, r: L.fa, d: [0.02, 1, -0.22] }, elbow: [0, 0, 1] }), b: { hand: { c: { el: [-0.02, 1, -0.12] }, r: L.fa, d: [-0.62, -0.75, -0.24] } }, imp: [{ t: "db1", axis: "up" }] },
+    a: ST({ th: -3, hand: { c: { el: [-0.02, 1, -0.12] }, r: L.fa, d: [0.02, 1, -0.22] }, elbow: [0, 0, 1], palm: [0, 0, -1] }), b: { hand: { c: { el: [-0.02, 1, -0.12] }, r: L.fa, d: [-0.62, -0.75, -0.24] } }, imp: [{ t: "db1", axis: "up" }] },
   { id: "dips-banc", n: "Dips entre deux bancs", gear: "Banc", lvl: "Débutant", p: ["triceps"], s: ["pectoraux", "deltoides_ant"], reps: "10-15", rest: 60,
     tips: ["Mains sur le bord du banc, doigts vers l'avant", "Jambes tendues devant, talons au sol", "Descends en pliant les coudes vers l'arrière", "Remonte en tendant les bras"],
     err: ["Descendre trop bas", "Écarter les coudes", "Éloigner le dos du banc"],
     vars: ["Dips", "Extension triceps à la poulie"], order: "exc", ph: { exc: "Descente", con: "Poussée" },
-    a: { pc: [0.02, 0.56], th: 0, hand: [-0.17, 0.50, 0.2], hdir: [1, -0.1, 0], elbow: [-1, 0.1, 0.2], foot: [0.75, 0.085, 0.12], knee: [0, 1, 0], fdir: [0.35, 0.94, 0.1] }, b: { pc: [0.04, 0.34] },
+    a: { pc: [0.02, 0.56], th: 0, hand: [-0.17, 0.475, 0.2], hdir: [1, -0.1, 0], hpose: "flat", palm: [0, -1, 0], elbow: [-1, 0.1, 0.2], foot: [0.75, 0.085, 0.12], knee: [0, 1, 0], fdir: [0.35, 0.94, 0.1] }, b: { pc: [0.04, 0.34] },
     props: P => P.benchZ(-0.3, 0.45) },
   { id: "kickback", n: "Kickback triceps", gear: "Haltères", lvl: "Débutant", p: ["triceps"], s: [], reps: "12-15", rest: 60,
     tips: ["Buste penché, dos plat", "Haut des bras le long du corps, immobile", "Tends les bras vers l'arrière", "Reviens lentement, avant-bras vers le sol"],
     err: ["Bouger le haut du bras", "Balancer les haltères", "Dos rond"],
     vars: ["Extension triceps à la poulie", "Barre au front"], order: "con", ph: { con: "Extension", exc: "Retour lent" },
-    a: ST({ pc: [-0.24, 0.84], th: 78, hp: -30, hand: { c: { el: [-0.98, -0.2, 0.02] }, r: L.fa, d: [0.4, -1, 0] }, elbow: [0, 1, 0.1], foot: [0, 0.085, 0.14], knee: [1, 0, 0.15] }),
+    a: ST({ pc: [-0.24, 0.84], th: 78, hp: -30, hand: { c: { el: [-0.98, -0.2, 0.02] }, r: L.fa, d: [0.6, -0.8, 0] }, elbow: [0, 1, 0.1], palm: [0, 0, -1], foot: [0, 0.085, 0.14], knee: [1, 0, 0.15] }),
     b: { hand: { c: { el: [-0.98, -0.2, 0.02] }, r: L.fa, d: [-0.98, -0.2, 0] } }, imp: [{ t: "db", grip: "F" }] },
   { id: "pompes-diamant", n: "Pompes diamant", gear: "Poids du corps", lvl: "Intermédiaire", p: ["triceps"], s: ["pectoraux", "deltoides_ant"], reps: "8-15", rest: 60,
     tips: ["Mains rapprochées sous la poitrine, pouces et index qui se touchent", "Corps gainé des talons à la tête", "Descends en gardant les coudes près du corps", "Pousse jusqu'aux bras tendus"],
     err: ["Écarter les coudes", "Bassin qui s'affaisse", "Amplitude trop courte"],
     vars: ["Pompes", "Dips entre deux bancs"], order: "exc", ph: { exc: "Descente", con: "Poussée" },
-    a: m(PUSHUP_A, { hand: [0, 0.045, 0.06], elbow: [-1, 0.5, 0.2] }), b: PUSHUP_B, props: P => P.mat(-1.5, 0.4) },
+    a: m(PUSHUP_A, { hand: [0, 0.022, 0.06], elbow: [-1, 0.5, 0.2] }), b: PUSHUP_B, props: P => P.mat(-1.5, 0.4) },
 
   /* ---------------- Jambes ---------------- */
   { id: "squat", n: "Squat", gear: "Barre", lvl: "Intermédiaire", p: ["quadriceps", "fessiers"], s: ["ischios", "lombaires", "abdos"], reps: "5-8", rest: 150,
     tips: ["Barre posée sur les trapèzes, jamais sur la nuque", "Pieds largeur d'épaules, pointes légèrement ouvertes", "Descends en poussant les fesses en arrière, genoux dans l'axe des pieds", "Dos droit et regard devant, remonte en poussant dans les talons"],
     err: ["Genoux qui rentrent vers l'intérieur", "Talons qui décollent du sol", "Dos qui s'arrondit en bas du mouvement"],
     vars: ["Squat goblet", "Presse à cuisses", "Hack squat", "Fentes"], order: "exc", ph: { exc: "Descente", con: "Remontée" },
-    a: { pc: [-0.03, 0.975], th: 4, hand: { t: [-0.13, 0.02, 0.44] }, hdir: { t: [0.6, -1, 0] }, elbow: [-0.5, -1, 0.4], foot: [0, 0.085, 0.17], knee: [1, 0.05, 0.35], fdir: [1, 0, 0.28] },
+    a: { pc: [-0.03, 0.975], th: 4, hand: { t: [-0.12, -0.075, 0.44] }, palm: [1, 0.2, 0], elbow: [-0.5, -1, 0.4], foot: [0, 0.085, 0.17], knee: [1, 0.05, 0.35], fdir: [1, 0, 0.28] },
     b: { pc: [-0.25, 0.53], th: 42, cp: -6, hp: -22 }, imp: [{ t: "bar", r: 0.225 }] },
   { id: "squat-goblet", n: "Squat goblet", gear: "Haltère", lvl: "Débutant", p: ["quadriceps", "fessiers"], s: ["ischios", "abdos"], reps: "10-12", rest: 90,
     tips: ["Haltère tenu à la verticale contre la poitrine", "Pieds un peu plus larges que les épaules", "Descends entre tes jambes, buste bien droit", "Remonte en poussant dans les talons"],
     err: ["Buste qui s'effondre vers l'avant", "Talons qui décollent", "Genoux qui rentrent"],
     vars: ["Squat", "Fentes", "Presse à cuisses"], order: "exc", ph: { exc: "Descente", con: "Remontée" },
-    a: { pc: [-0.03, 0.975], th: 3, hand: { t: [0.2, -0.2, 0.06] }, hdir: { t: [0, 1, 0] }, elbow: { t: [0, -1, 0.4] }, foot: [0, 0.085, 0.2], knee: [1, 0, 0.4], fdir: [1, 0, 0.35] },
+    a: { pc: [-0.03, 0.975], th: 3, hand: { t: [0.2, -0.2, 0.06] }, hdir: { t: [0, 1, 0] }, palm: [0, 0, -1], elbow: { t: [0, -1, 0.4] }, foot: [0, 0.085, 0.2], knee: [1, 0, 0.4], fdir: [1, 0, 0.35] },
     b: { pc: [-0.15, 0.50], th: 22, hp: -10 }, imp: [{ t: "db1", axis: "torso" }] },
   { id: "presse-cuisses", n: "Presse à cuisses", gear: "Machine (presse à 45°)", lvl: "Débutant", p: ["quadriceps", "fessiers"], s: ["ischios", "adducteurs"], reps: "10-12", rest: 120,
     tips: ["Dos et fesses bien plaqués contre le dossier", "Pieds largeur de hanches au milieu de la plateforme", "Descends jusqu'à ce que les genoux forment un angle droit", "Pousse sans verrouiller les genoux"],
     err: ["Décoller les fesses en bas du mouvement", "Verrouiller les genoux en haut", "Genoux qui rentrent"],
     vars: ["Squat", "Hack squat", "Leg extension"], order: "exc", ph: { exc: "Descente contrôlée", con: "Poussée" },
-    a: { pc: [0, 0.48], th: -45, hp: 20, hand: [0.10, 0.52, 0.30], elbow: [0, -1, 0.5], foot: [0.615, 1.025, 0.16], knee: [-0.707, 0.707, 0.2], fdir: [-0.707, 0.707, 0.12] },
+    a: { pc: [0, 0.48], th: -45, hp: 20, hand: [0.10, 0.52, 0.30], elbow: [0, -1, 0.5], palm: [0, 0, -1], foot: [0.615, 1.025, 0.16], knee: [-0.707, 0.707, 0.2], fdir: [-0.707, 0.707, 0.12] },
     b: { foot: [0.47, 0.88, 0.16] }, props: P => P.legPress(), imp: [{ t: "platform" }], view: [0.25, 0.3, 1] },
   { id: "fentes", n: "Fentes", gear: "Haltères", lvl: "Débutant", p: ["quadriceps", "fessiers"], s: ["ischios", "adducteurs"], reps: "8-12 par jambe", rest: 90,
     tips: ["Un grand pas en avant, buste droit", "Descends jusqu'à ce que le genou arrière frôle le sol", "Le genou avant reste au-dessus de la cheville", "Remonte en poussant sur le talon avant"],
     err: ["Genou avant qui dépasse loin devant les orteils", "Buste qui penche vers l'avant", "Pas trop court"],
     vars: ["Squat bulgare", "Squat", "Presse à cuisses"], order: "exc", ph: { exc: "Descente", con: "Remontée" },
-    a: { pc: [-0.05, 0.90], th: 0, hand: HANG, foot: [[0.38, 0.085, 0.12], [-0.50, 0.205, 0.12]], knee: [[1, 0, 0.1], [1, -0.2, 0.1]], fdir: [[1, 0, 0.12], [0.55, -0.84, 0.05]] },
+    a: { pc: [-0.05, 0.90], th: 0, hand: HANG, palm: [0, 0, -1], foot: [[0.38, 0.085, 0.12], [-0.50, 0.205, 0.12]], knee: [[1, 0, 0.1], [1, -0.2, 0.1]], fdir: [[1, 0, 0.12], [0.55, -0.84, 0.05]] },
     b: { pc: [-0.05, 0.565], th: 2 }, imp: [{ t: "db", grip: "F" }] },
   { id: "souleve-roumain", n: "Soulevé de terre roumain", gear: "Barre", lvl: "Intermédiaire", p: ["ischios", "fessiers"], s: ["lombaires"], reps: "8-10", rest: 120,
     tips: ["Genoux légèrement fléchis, ils restent ainsi", "Pousse les fesses en arrière, la barre glisse le long des cuisses", "Descends jusqu'au milieu des tibias, dos plat", "Remonte en poussant les hanches vers l'avant"],
     err: ["Arrondir le dos", "Plier les genoux comme un squat", "Barre qui s'éloigne des jambes"],
     vars: ["Soulevé de terre", "Leg curl allongé", "Hip thrust"], order: "exc", ph: { exc: "Descente", con: "Remontée" },
-    a: ST({ pc: [-0.03, 0.97], hand: [0.075, 0.90, 0.22], elbow: [-0.3, 0, 0.2], foot: [0, 0.085, 0.14], knee: [1, 0, 0.15] }), b: { pc: [-0.33, 0.87], th: 80, hp: -30, hand: [0.08, 0.405, 0.22] },
+    a: ST({ pc: [-0.03, 0.97], hand: [0.075, 0.90, 0.22], elbow: [-0.3, 0, 0.2], palm: [-1, 0, 0], foot: [0, 0.085, 0.14], knee: [1, 0, 0.15] }), b: { pc: [-0.33, 0.87], th: 80, hp: -30, hand: [0.08, 0.405, 0.22] },
     imp: [{ t: "bar", r: 0.2 }] },
   { id: "leg-extension", n: "Leg extension", gear: "Machine", lvl: "Débutant", p: ["quadriceps"], s: [], reps: "12-15", rest: 60,
     tips: ["Genoux alignés avec l'axe de la machine", "Boudin sur le bas des tibias", "Tends les jambes en contractant les cuisses", "Redescends lentement sans laisser claquer les poids"],
     err: ["Décoller les fesses du siège", "Donner des à-coups", "Amplitude trop courte"],
     vars: ["Presse à cuisses", "Squat", "Leg curl allongé"], order: "con", ph: { con: "Extension", exc: "Retour lent" },
-    a: { pc: [0, 0.68], th: -12, hand: [0.08, 0.64, 0.30], elbow: [0, -1, 0.5], foot: { c: { kn: [1, -0.03, 0.02] }, r: L.sh, d: [0.2, -1, 0] }, knee: [0.5, 1, 0], fdir: [1, 0.15, 0.1] },
+    a: { pc: [0, 0.68], th: -12, hand: [0.08, 0.64, 0.30], elbow: [0, -1, 0.5], palm: [0, 0, -1], foot: { c: { kn: [1, -0.03, 0.02] }, r: L.sh, d: [0.2, -1, 0] }, knee: [0.5, 1, 0], fdir: [1, 0.15, 0.1] },
     b: { foot: { c: { kn: [1, -0.03, 0.02] }, r: L.sh, d: [1, 0.12, 0] }, fdir: [-0.15, 1, 0.1] },
     props: P => P.legExtension(), imp: [{ t: "link", piv: [0.45, 0.62, 0.3], to: "ankle", pad: "roller", side: "front" }, { t: "stackmove", ref: "ankles", k: 0.5 }] },
   { id: "leg-curl", n: "Leg curl allongé", gear: "Machine", lvl: "Débutant", p: ["ischios"], s: ["mollets"], reps: "10-15", rest: 60,
     tips: ["Allongé sur le ventre, genoux juste après le bord du banc", "Boudin au-dessus des talons", "Ramène les talons vers les fesses", "Redescends lentement sans lever le bassin"],
     err: ["Bassin qui se soulève", "À-coups au départ", "Retour trop rapide"],
     vars: ["Soulevé de terre roumain", "Leg extension"], order: "con", ph: { con: "Flexion", exc: "Retour lent" },
-    a: { pc: [0, 0.73], th: 90, hp: -25, hand: [0.75, 0.55, 0.22], elbow: [-0.3, 0.3, 1], foot: { c: { kn: [-1, -0.02, 0.01] }, r: L.sh, d: [-1, 0.06, 0] }, knee: [0, -1, 0], fdir: [0, -1, 0.05] },
+    a: { pc: [0, 0.73], th: 90, hp: -25, hand: [0.75, 0.55, 0.22], elbow: [-0.3, 0.3, 1], palm: [0, 0, -1], foot: { c: { kn: [-1, -0.02, 0.01] }, r: L.sh, d: [-1, 0.06, 0] }, knee: [0, -1, 0], fdir: [0, -1, 0.05] },
     b: { foot: { c: { kn: [-1, -0.02, 0.01] }, r: L.sh, d: [0.3, 0.95, 0] }, fdir: [-0.95, 0.3, 0.05] },
     props: P => P.legCurl(), imp: [{ t: "link", piv: [-0.49, 0.70, 0.3], to: "ankle", pad: "roller", side: "back" }, { t: "stackmove", ref: "ankles", k: 0.4 }] },
   { id: "hip-thrust", n: "Hip thrust", gear: "Barre et banc", lvl: "Intermédiaire", p: ["fessiers"], s: ["ischios", "quadriceps"], reps: "8-12", rest: 90,
     tips: ["Haut du dos appuyé sur le bord du banc", "Barre sur le pli des hanches (avec une mousse)", "Monte les hanches jusqu'à aligner genoux, hanches et épaules", "Serre fort les fessiers en haut, puis redescends lentement"],
     err: ["Se cambrer en haut au lieu de serrer les fessiers", "Pieds trop loin ou trop près", "Pousser sur la pointe des pieds"],
     vars: ["Pont fessier", "Soulevé de terre roumain"], order: "con", ph: { con: "Montée des hanches", exc: "Descente contrôlée" },
-    a: { shAt: [-0.45, 0.56, 0], th: -49, hand: { t: [0.18, -0.5, 0.33] }, hdir: { t: [1, 0, 0] }, elbow: { t: [0, 0, 1] }, foot: [0.42, 0.085, 0.18], knee: [0, 1, 0.15], fdir: [1, 0, 0.15] },
+    a: { shAt: [-0.45, 0.56, 0], th: -49, hand: { t: [0.25, -0.5, 0.33] }, palm: { t: [-1, 0, 0] }, elbow: { t: [0, 0, 1] }, foot: [0.42, 0.085, 0.18], knee: [0, 1, 0.15], fdir: [1, 0, 0.15] },
     b: { th: -90 }, props: P => P.benchZ(-0.6, 0.45), imp: [{ t: "bar", r: 0.225 }] },
   { id: "mollets-debout", n: "Mollets debout", gear: "Haltères et marche", lvl: "Débutant", p: ["mollets"], s: [], reps: "12-20", rest: 60,
     tips: ["Avant des pieds sur une marche, talons dans le vide", "Descends les talons pour étirer les mollets", "Monte le plus haut possible sur la pointe des pieds", "Marque une pause en haut"],
     err: ["Plier les genoux", "Amplitude trop courte", "Rebondir en bas"],
     vars: ["Presse à cuisses", "Squat"], order: "con", ph: { con: "Montée sur les pointes", exc: "Descente lente" },
-    a: ST({ pc: [-0.03, 1.037], hand: HANG, foot: [-0.019, 0.127, 0.12], fdir: [0.94, 0.34, 0.1] }), b: { pc: [0.06, 1.156], th: 3, foot: [0.071, 0.246, 0.12], fdir: [0.82, -0.57, 0.1] },
+    a: ST({ pc: [-0.03, 1.037], hand: HANG, palm: [0, 0, -1], foot: [-0.019, 0.127, 0.12], fdir: [0.94, 0.34, 0.1] }), b: { pc: [0.06, 1.156], th: 3, foot: [0.071, 0.246, 0.12], fdir: [0.82, -0.57, 0.1] },
     props: P => P.box([0.32, 0.1, 0.62], [0.26, 0.05, 0], "dark"), imp: [{ t: "db", grip: "F" }] },
   { id: "hack-squat", n: "Hack squat", gear: "Machine", lvl: "Intermédiaire", p: ["quadriceps"], s: ["fessiers"], reps: "8-12", rest: 120,
     tips: ["Dos et épaules bien calés contre les appuis", "Pieds au milieu de la plateforme, largeur de hanches", "Descends jusqu'à ce que les cuisses soient parallèles à la plateforme", "Pousse sans verrouiller les genoux"],
     err: ["Décoller le bas du dos", "Descendre à moitié", "Genoux qui rentrent"],
     vars: ["Squat", "Presse à cuisses"], order: "exc", ph: { exc: "Descente", con: "Poussée" },
-    a: { pc: [-0.15, 1.02], th: -25, hp: 10, hand: { t: [-0.02, 0.05, 0.30] }, hdir: { t: [1, 0, 0] }, elbow: { t: [0.5, -1, 0.6] }, foot: [0.20, 0.17, 0.16], knee: [1, 0.3, 0.3], fdir: [0.94, 0.34, 0.15] },
+    a: { pc: [-0.15, 1.02], th: -25, hp: 10, hand: { t: [-0.02, 0.05, 0.30] }, hdir: { t: [1, 0, 0] }, palm: { t: [0, -1, 0] }, elbow: { t: [0.5, -1, 0.6] }, foot: [0.20, 0.17, 0.16], knee: [1, 0.3, 0.3], fdir: [0.94, 0.34, 0.15] },
     b: { pc: [0.04, 0.61] }, props: P => P.hack(), imp: [{ t: "sled" }] },
   { id: "squat-bulgare", n: "Squat bulgare", gear: "Haltères et banc", lvl: "Intermédiaire", p: ["quadriceps", "fessiers"], s: ["ischios", "adducteurs"], reps: "8-10 par jambe", rest: 90,
     tips: ["Pied arrière posé sur le banc, pied avant bien en avant", "Buste droit ou légèrement penché", "Descends à la verticale jusqu'à ce que la cuisse avant soit parallèle au sol", "Remonte en poussant sur le talon avant"],
     err: ["Pied avant trop près du banc", "Genou avant qui rentre", "Perdre l'équilibre en allant trop vite"],
     vars: ["Fentes", "Squat"], order: "exc", ph: { exc: "Descente", con: "Remontée" },
-    a: { pc: [-0.25, 0.92], th: 6, hand: HANG, foot: [[0.15, 0.085, 0.12], [-0.72, 0.52, 0.12]], knee: [[1, 0, 0.1], [0, -1, 0.05]], fdir: [[1, 0, 0.12], [-0.95, -0.3, 0]] },
+    a: { pc: [-0.25, 0.92], th: 6, hand: HANG, palm: [0, 0, -1], foot: [[0.15, 0.085, 0.12], [-0.72, 0.52, 0.12]], knee: [[1, 0, 0.1], [0, -1, 0.05]], fdir: [[1, 0, 0.12], [-0.95, -0.3, 0]] },
     b: { pc: [-0.22, 0.55], th: 18 }, props: P => P.bench(-1.25, -0.62, 0.45, 0.12), imp: [{ t: "db", grip: "F" }] },
   { id: "adducteurs", n: "Adducteurs à la machine", gear: "Machine", lvl: "Débutant", p: ["adducteurs"], s: [], reps: "12-15", rest: 60,
     tips: ["Dos plaqué contre le dossier", "Appuis à l'intérieur des genoux", "Serre les jambes jusqu'à ce que les appuis se touchent", "Rouvre lentement"],
     err: ["Ouvrir trop loin au départ", "Laisser claquer les poids", "Se pencher en avant"],
     vars: ["Abducteurs à la machine", "Squat goblet"], order: "con", ph: { con: "Fermeture", exc: "Ouverture lente" },
-    a: { pc: [0, 0.62], th: -12, hand: [0, 0.62, 0.32], elbow: [0, -1, 0.5], foot: { c: "hip", r: L.th, d: [0.78, -0.08, 0.62], plus: [0.04, -0.425, 0] }, knee: [1, 0.6, 0], fdir: [1, 0.1, 0.15] },
+    a: { pc: [0, 0.62], th: -12, hand: [0, 0.62, 0.32], elbow: [0, -1, 0.5], palm: [0, 0, -1], foot: { c: "hip", r: L.th, d: [0.78, -0.08, 0.62], plus: [0.04, -0.425, 0] }, knee: [1, 0.6, 0], fdir: [1, 0.1, 0.15] },
     b: { foot: { c: "hip", r: L.th, d: [1, -0.08, 0.06], plus: [0.04, -0.425, 0] } },
     props: P => P.hipMachine(), imp: [{ t: "link", piv: [0.42, 0.33, 0.12], to: "knee", pad: "pad", side: "in" }, { t: "stackmove", ref: "knees", k: 0.6 }], view: [1, 0.45, 0.35] },
   { id: "abducteurs", n: "Abducteurs à la machine", gear: "Machine", lvl: "Débutant", p: ["abducteurs"], s: ["fessiers"], reps: "12-15", rest: 60,
     tips: ["Dos plaqué contre le dossier", "Appuis à l'extérieur des genoux", "Écarte les jambes le plus loin possible", "Referme lentement"],
     err: ["Se pencher en avant", "À-coups", "Amplitude trop courte"],
     vars: ["Adducteurs à la machine", "Hip thrust"], order: "con", ph: { con: "Ouverture", exc: "Fermeture lente" },
-    a: { pc: [0, 0.62], th: -12, hand: [0, 0.62, 0.32], elbow: [0, -1, 0.5], foot: { c: "hip", r: L.th, d: [1, -0.08, 0.06], plus: [0.04, -0.425, 0] }, knee: [1, 0.6, 0], fdir: [1, 0.1, 0.15] },
+    a: { pc: [0, 0.62], th: -12, hand: [0, 0.62, 0.32], elbow: [0, -1, 0.5], palm: [0, 0, -1], foot: { c: "hip", r: L.th, d: [1, -0.08, 0.06], plus: [0.04, -0.425, 0] }, knee: [1, 0.6, 0], fdir: [1, 0.1, 0.15] },
     b: { foot: { c: "hip", r: L.th, d: [0.78, -0.08, 0.62], plus: [0.04, -0.425, 0] } },
     props: P => P.hipMachine(), imp: [{ t: "link", piv: [0.42, 0.33, 0.12], to: "knee", pad: "pad", side: "out" }, { t: "stackmove", ref: "knees", k: 0.6 }], view: [1, 0.45, 0.35] },
   { id: "pont-fessier", n: "Pont fessier", gear: "Poids du corps", lvl: "Débutant", p: ["fessiers"], s: ["ischios"], reps: "12-20", rest: 60,
     tips: ["Allongé sur le dos, genoux pliés, pieds à plat", "Pousse dans les talons pour monter les hanches", "Serre les fessiers en haut, sans te cambrer", "Redescends lentement"],
     err: ["Pousser sur les pointes de pieds", "Cambrer le bas du dos", "Monter trop vite"],
     vars: ["Hip thrust"], order: "con", ph: { con: "Montée des hanches", exc: "Descente contrôlée" },
-    a: { shAt: [-0.45, 0.125, 0], th: -90, hp: 12, hand: [0.06, 0.035, 0.25], hdir: [1, 0, 0], elbow: [0, 0.15, 1], foot: [0.38, 0.085, 0.15], knee: [0, 1, 0.1], fdir: [1, 0, 0.12] },
+    a: { shAt: [-0.45, 0.125, 0], th: -90, hp: 12, hand: [0.06, 0.022, 0.25], hdir: [1, 0, 0], hpose: "flat", palm: [0, -1, 0], elbow: [0, 0.15, 1], foot: [0.38, 0.085, 0.15], knee: [0, 1, 0.1], fdir: [1, 0, 0.12] },
     b: { th: -125 }, props: P => P.mat(-0.9, 0.6) },
   { id: "kettlebell-swing", n: "Kettlebell swing", gear: "Kettlebell", lvl: "Intermédiaire", p: ["fessiers", "ischios"], s: ["lombaires", "abdos"], reps: "15-20", rest: 60, tempo: 1.5,
     tips: ["Pieds un peu plus larges que les épaules", "Le mouvement vient des hanches, pas des bras", "Pousse les hanches vers l'avant pour lancer la kettlebell", "Laisse-la redescendre entre les jambes, dos plat"],
     err: ["Soulever la kettlebell avec les bras", "Arrondir le dos en bas", "Faire un squat au lieu d'une flexion de hanches"],
     vars: ["Soulevé de terre roumain", "Hip thrust"], order: "con", ph: { con: "Extension des hanches", exc: "Retour entre les jambes" },
-    a: { pc: [-0.25, 0.86], th: 55, hp: -25, hand: { c: "sh", r: 0.55, d: [-0.25, -1, -0.2] }, elbow: [0, 1, 0.5], foot: [0, 0.085, 0.22], knee: [1, 0, 0.35], fdir: [1, 0, 0.3] },
-    b: { pc: [-0.04, 0.975], th: -4, hp: 0, hand: { c: "sh", r: 0.55, d: [1, 0.05, -0.2] } }, imp: [{ t: "kb" }] },
+    a: { pc: [-0.25, 0.86], th: 55, hp: -25, hand: { c: "sh", r: 0.55, d: [-0.25, -1, -0.2] }, elbow: [0, 1, 0.5], palm: [-1, 0, 0], foot: [0, 0.085, 0.22], knee: [1, 0, 0.35], fdir: [1, 0, 0.3] },
+    b: { pc: [-0.04, 0.975], th: -4, hp: 0, palm: [0, -1, 0], hand: { c: "sh", r: 0.55, d: [1, 0.05, -0.2] } }, imp: [{ t: "kb" }] },
 
   /* ---------------- Abdos ---------------- */
   { id: "crunch", n: "Crunch", gear: "Poids du corps", lvl: "Débutant", p: ["abdos"], s: ["obliques"], reps: "15-20", rest: 45,
     tips: ["Allongé, genoux pliés, pieds à plat", "Bas du dos collé au sol", "Enroule le haut du dos en rapprochant les côtes du bassin", "Redescends lentement sans reposer complètement la tête"],
     err: ["Tirer sur la nuque", "Décoller le bas du dos", "Aller trop vite"],
     vars: ["Crunch à la poulie", "Relevé de jambes allongé", "Gainage"], order: "con", ph: { con: "Enroulement", exc: "Retour lent" },
-    a: { pc: [0, 0.12], th: -90, hand: [{ t: [0.12, -0.1, -0.02] }, { t: [0.21, -0.19, -0.02] }], elbow: { t: [0.3, 0, 1] }, foot: [0.42, 0.085, 0.13], knee: [0, 1, 0.1], fdir: [1, 0, 0.12] },
+    a: { pc: [0, 0.12], th: -90, hand: [{ t: [0.12, -0.1, -0.02] }, { t: [0.21, -0.19, -0.02] }], elbow: { t: [0.3, 0, 1] }, hpose: "flat", palm: { t: [-1, 0, 0] }, foot: [0.42, 0.085, 0.13], knee: [0, 1, 0.1], fdir: [1, 0, 0.12] },
     b: { cp: 38, hp: 15 }, props: P => P.mat(-1.0, 0.6) },
   { id: "gainage", n: "Gainage (planche)", gear: "Poids du corps", lvl: "Débutant", p: ["abdos"], s: ["obliques", "lombaires", "fessiers"], time: true, rest: 60,
     tips: ["Avant-bras au sol, coudes sous les épaules", "Corps aligné des talons à la tête", "Serre les abdos et les fessiers", "Respire calmement pendant tout le maintien"],
     err: ["Bassin trop haut ou qui s'affaisse", "Retenir sa respiration", "Regarder devant soi (nuque cassée)"],
     vars: ["Crunch", "Roue abdominale", "Mountain climbers"], order: "iso", ph: { iso: "Maintien de la position" },
-    a: { pc: [-0.467, 0.264], th: 77, hand: [0.265, 0.04, 0.10], hdir: [1, 0, -0.15], elbow: [-0.3, -1, 0.2], foot: [-1.35, 0.205, 0.10], fdir: [0.55, -0.84, 0.03], knee: [0, -1, 0] },
+    a: { pc: [-0.467, 0.264], th: 77, hand: [0.265, 0.022, 0.10], hdir: [1, 0, -0.15], hpose: "flat", palm: [0, -1, 0], elbow: [-0.3, -1, 0.2], foot: [-1.35, 0.205, 0.10], fdir: [0.55, -0.84, 0.03], knee: [0, -1, 0] },
     b: { pc: [-0.467, 0.272] }, props: P => P.mat(-1.6, 0.5) },
   { id: "releve-jambes-suspendu", n: "Relevé de jambes suspendu", gear: "Barre de traction", lvl: "Confirmé", p: ["abdos"], s: ["obliques"], reps: "8-12", rest: 60,
     tips: ["Suspendu à la barre, bras tendus", "Monte les jambes tendues jusqu'à l'horizontale", "Enroule légèrement le bassin en haut", "Redescends lentement sans te balancer"],
     err: ["Se balancer pour monter les jambes", "Redescendre en laissant tomber les jambes", "Cambrer le dos"],
     vars: ["Relevé de jambes allongé", "Crunch"], order: "con", ph: { con: "Montée des jambes", exc: "Descente lente" },
-    a: { pc: [-0.02, 1.16], th: -8, hand: [0, 2.14, 0.30], elbow: [0, -1, 1], hdir: [0, 1, 0], foot: { c: "hip", r: 0.86, d: [0.08, -1, 0.02] }, knee: [1, 0.3, 0], fdir: [0.6, -0.8, 0.05] },
+    a: { pc: [-0.02, 1.195], th: -8, hand: [0, 2.105, 0.30], elbow: [0, -1, 1], hdir: [0, 1, 0], palm: [1, 0, 0], foot: { c: "hip", r: 0.86, d: [0.08, -1, 0.02] }, knee: [1, 0.3, 0], fdir: [0.6, -0.8, 0.05] },
     b: { th: -14, foot: { c: "hip", r: 0.86, d: [1, 0.12, 0.02] }, fdir: [0.3, 0.95, 0.05] }, props: P => P.pullup(2.17) },
   { id: "releve-jambes-allonge", n: "Relevé de jambes allongé", gear: "Poids du corps", lvl: "Débutant", p: ["abdos"], s: ["obliques"], reps: "12-15", rest: 45,
     tips: ["Allongé sur le dos, mains sous les fesses ou le long du corps", "Jambes tendues, monte-les jusqu'à la verticale", "Garde le bas du dos collé au sol", "Redescends lentement sans toucher le sol"],
     err: ["Bas du dos qui se décolle", "Laisser retomber les jambes", "Plier les jambes pour tricher"],
     vars: ["Relevé de jambes suspendu", "Crunch"], order: "con", ph: { con: "Montée des jambes", exc: "Descente lente" },
-    a: { pc: [0, 0.12], th: -90, hand: [0, 0.04, 0.27], hdir: [1, 0, 0], elbow: [0, 1, 0.3], foot: { c: "hip", r: 0.86, d: [1, 0.1, 0.02] }, knee: [0, 1, 0], fdir: [-0.1, 1, 0.05] },
+    a: { pc: [0, 0.12], th: -90, hand: [0, 0.022, 0.27], hdir: [1, 0, 0], hpose: "flat", palm: [0, -1, 0], elbow: [0, 1, 0.3], foot: { c: "hip", r: 0.86, d: [1, 0.1, 0.02] }, knee: [0, 1, 0], fdir: [-0.1, 1, 0.05] },
     b: { foot: { c: "hip", r: 0.86, d: [0.12, 1, 0.02] }, fdir: [-1, 0.12, 0.05] }, props: P => P.mat(-1.0, 0.95) },
   { id: "roue-abdominale", n: "Roue abdominale", gear: "Roue", lvl: "Confirmé", p: ["abdos"], s: ["dorsaux", "obliques"], reps: "8-12", rest: 60,
     tips: ["À genoux, mains sur les poignées de la roue", "Abdos serrés, dos légèrement arrondi", "Roule vers l'avant aussi loin que possible sans creuser le dos", "Reviens en contractant les abdos"],
     err: ["Creuser le bas du dos", "Aller trop loin au début", "Revenir en pliant les hanches seulement"],
     vars: ["Gainage", "Crunch"], order: "exc", ph: { exc: "Déroulé vers l'avant", con: "Retour" },
-    a: { hipAt: { c: [0, 0.06, 0], r: 0.44, d: [0.02, 1, 0] }, th: 65, cp: 8, hp: -10, hand: [0.50, 0.13, 0.10], elbow: [-1, 0.4, 0.3], foot: [-0.43, 0.07, 0.10], knee: [0.4, -1, 0], fdir: [-0.95, -0.2, 0] },
-    b: { hipAt: { c: [0, 0.06, 0], r: 0.44, d: [0.64, 0.77, 0] }, th: 84, hp: -30, hand: [1.30, 0.13, 0.10] }, props: P => P.mat(-0.7, 1.5), imp: [{ t: "wheel" }] },
+    a: { hipAt: { c: [0, 0.06, 0], r: 0.44, d: [0.02, 1, 0] }, th: 65, cp: 8, hp: -10, hand: [0.50, 0.16, 0.10], elbow: [-1, 0.4, 0.3], palm: [-1, 0, 0], foot: [-0.43, 0.07, 0.10], knee: [0.4, -1, 0], fdir: [-0.95, -0.2, 0] },
+    b: { hipAt: { c: [0, 0.06, 0], r: 0.44, d: [0.64, 0.77, 0] }, th: 84, hp: -30, hand: [1.29, 0.16, 0.10] }, props: P => P.mat(-0.7, 1.5), imp: [{ t: "wheel" }] },
   { id: "mountain-climbers", n: "Mountain climbers", gear: "Poids du corps", lvl: "Débutant", p: ["abdos"], s: ["obliques", "quadriceps", "deltoides_ant"], time: true, rest: 60,
     tips: ["Position de pompe, bras tendus sous les épaules", "Ramène un genou vers la poitrine, puis l'autre", "Garde le bassin bas et le dos plat", "Rythme régulier, respiration continue"],
     err: ["Bassin qui monte", "Mains trop en avant des épaules", "Mouvement trop court"],
     vars: ["Gainage", "Pompes"], order: "alt", ph: { con: "Genou gauche", exc: "Genou droit" },
-    a: { pc: [-0.485, 0.58], th: 90, hp: -15, hand: [0, 0.045, 0.28], hdir: [1, 0, -0.1], elbow: [-0.8, 0.6, 0.65], foot: [{ c: { kn: [0.6, -0.8, 0.05] }, r: L.sh, d: [-0.9, 0.3, 0] }, { c: { kn: [-0.891, -0.454, 0] }, r: L.sh, d: [-0.891, -0.454, 0] }], knee: [0, -1, 0], fdir: [[0.35, -0.94, 0.03], [0.55, -0.84, 0.03]] },
+    a: { pc: [-0.485, 0.58], th: 90, hp: -15, hand: [0, 0.022, 0.28], hdir: [1, 0, -0.1], hpose: "flat", palm: [0, -1, 0], elbow: [-0.8, 0.6, 0.65], foot: [{ c: { kn: [0.6, -0.8, 0.05] }, r: L.sh, d: [-0.9, 0.3, 0] }, { c: { kn: [-0.891, -0.454, 0] }, r: L.sh, d: [-0.891, -0.454, 0] }], knee: [0, -1, 0], fdir: [[0.35, -0.94, 0.03], [0.55, -0.84, 0.03]] },
     b: { foot: [{ c: { kn: [-0.891, -0.454, 0] }, r: L.sh, d: [-0.891, -0.454, 0] }, { c: { kn: [0.6, -0.8, 0.05] }, r: L.sh, d: [-0.9, 0.3, 0] }], fdir: [[0.55, -0.84, 0.03], [0.35, -0.94, 0.03]] }, props: P => P.mat(-1.5, 0.4) },
   { id: "crunch-poulie", n: "Crunch à la poulie", gear: "Poulie haute et corde", lvl: "Intermédiaire", p: ["abdos"], s: ["obliques"], reps: "12-15", rest: 60,
     tips: ["À genoux face à la poulie, corde tenue près de la tête", "Les hanches ne bougent pas", "Enroule le buste vers le sol en contractant les abdos", "Reviens lentement"],
     err: ["Tirer avec les bras", "S'asseoir sur les talons", "Garder le dos droit (pas d'enroulement)"],
     vars: ["Crunch", "Roue abdominale"], order: "con", ph: { con: "Enroulement", exc: "Retour lent" },
-    a: { hipAt: { c: [0, 0.06, 0], r: 0.44, d: [0.05, 1, 0] }, th: 15, hand: { t: [0.07, 0.12, 0.10] }, hdir: { t: [0, 1, 0] }, elbow: { t: [0.6, -0.6, 0.6] }, foot: [-0.43, 0.07, 0.10], knee: [0.4, -1, 0], fdir: [-0.95, -0.2, 0] },
+    a: { hipAt: { c: [0, 0.06, 0], r: 0.44, d: [0.05, 1, 0] }, th: 15, hand: { t: [0.07, 0.12, 0.10] }, hdir: { t: [0, 1, 0] }, palm: [0, 0, -1], elbow: { t: [0.6, -0.6, 0.6] }, foot: [-0.43, 0.07, 0.10], knee: [0.4, -1, 0], fdir: [-0.95, -0.2, 0] },
     b: { th: 55, cp: 30, hp: 15 }, props: P => { P.mat(-0.7, 0.6); P.tower(0.62, 0, 2.0, 0.45); }, imp: [{ t: "cable", from: [0.45, 2.0, 0], to: "mid", handle: "rope", stacks: [0] }] },
 ];
 
@@ -432,7 +432,7 @@ const MAT = {};
 function materials() {
   const P = (c, o) => new THREE.MeshPhysicalMaterial(Object.assign({ color: c, roughness: 0.48, clearcoat: 0.35, clearcoatRoughness: 0.5 }, o));
   Object.assign(MAT, {
-    body: P(0xd9d3cd), pad: P(0xccc4bd, { roughness: 0.52 }), joint: P(0x9c958f, { roughness: 0.42, clearcoat: 0.5 }),
+    body: P(0xd9d3cd), pad: P(0xccc4bd, { roughness: 0.52 }), palm: P(0xc4aca2, { roughness: 0.6, clearcoat: 0.2 }), joint: P(0x9c958f, { roughness: 0.42, clearcoat: 0.5 }),
     primary: P(0xff3d7f, { emissive: 0xff2d6f, emissiveIntensity: 0.25, roughness: 0.38, clearcoat: 0.6 }),
     secondary: P(0xffa04f, { emissive: 0xff8a32, emissiveIntensity: 0.12, roughness: 0.42, clearcoat: 0.5 }),
     steel: new THREE.MeshStandardMaterial({ color: 0xc9ccd3, metalness: 0.9, roughness: 0.28 }),
@@ -484,7 +484,7 @@ const shadowy = o => { o.traverse(c => { if (c.isMesh) { c.castShadow = true; c.
 
 /* ---------- Mannequin avec muscles détaillés ---------- */
 function buildMan() {
-  const man = new THREE.Group(), muscles = {};
+  const man = new THREE.Group(), muscles = {}, fists = [], flats = [];
   const add = (name, mesh) => { if (name) (muscles[name] = muscles[name] || []).push(mesh); return mesh; };
   const part = () => { const g = new THREE.Group(); man.add(g); return g; };
   const mesh = (parent, geo, mat, pos, scl, rot) => { const o = new THREE.Mesh(geo, mat); o.position.set(...pos); o.scale.set(...scl); if (rot) o.rotation.set(...rot); parent.add(o); return o; };
@@ -535,7 +535,18 @@ function buildMan() {
     lpad(P.ua[i], i, "ua", "triceps", 205, 0.45, [0.027, 0.11, 0.03]);
     lpad(P.ua[i], i, "ua", "triceps", 145, 0.4, [0.025, 0.085, 0.026]);
     lpad(P.fa[i], i, "fa", "avantbras", -10, 0.3, [0.036, 0.095, 0.03]);
-    mesh(P.hand[i], sph, MAT.body, [0, 0.048, 0.004], [0.03, 0.05, 0.042]);
+    // repère de la main : y = vers les doigts, z = côté paume, x = pouce (main droite) ; t = côté du pouce
+    const t = i === 1 ? 1 : -1, fist = new THREE.Group(), flatH = new THREE.Group(); P.hand[i].add(fist, flatH);
+    mesh(fist, sph, MAT.body, [0, 0.04, 0], [0.04, 0.043, 0.018]);
+    mesh(fist, sph, MAT.palm, [0, 0.036, 0.011], [0.033, 0.034, 0.01]);                         // paume
+    const roll = new THREE.Mesh(G.geo.cap, MAT.body); roll.position.set(0, 0.078, 0.019); roll.rotation.z = Math.PI / 2; fist.add(roll); // doigts repliés
+    [-0.027, -0.009, 0.009, 0.027].forEach(x => { mesh(fist, sph, MAT.body, [x, 0.085, -0.004], [0.011, 0.011, 0.011]); mesh(fist, sph, MAT.body, [x, 0.06, 0.036], [0.0105, 0.012, 0.009]); }); // jointures, bouts des doigts
+    mesh(fist, sph, MAT.body, [t * 0.036, 0.045, 0.026], [0.012, 0.03, 0.012], [0, 0, -t * 0.95]);  // pouce replié sur les doigts
+    mesh(flatH, sph, MAT.body, [0, 0.042, 0], [0.042, 0.045, 0.013]);
+    mesh(flatH, sph, MAT.palm, [0, 0.04, 0.008], [0.034, 0.036, 0.008]);
+    [-0.027, -0.009, 0.009, 0.027].forEach((x, k) => { const f = new THREE.Mesh(G.geo.finger, MAT.body); f.position.set(x * 1.05, 0.1 + [0, 0.008, 0.006, -0.004][k], 0); flatH.add(f); });
+    const th2 = new THREE.Mesh(G.geo.finger, MAT.body); th2.position.set(t * 0.047, 0.045, 0.006); th2.rotation.z = -t * 0.75; th2.scale.set(1.15, 0.8, 1.15); flatH.add(th2);
+    fists.push(fist); flats.push(flatH);
     lpad(P.th[i], i, "th", "quadriceps", 10, 0.52, [0.06, 0.18, 0.045]);
     lpad(P.th[i], i, "th", "ischios", 180, 0.5, [0.052, 0.165, 0.04]);
     lpad(P.th[i], i, "th", "adducteurs", -100, 0.3, [0.042, 0.12, 0.03]);
@@ -546,7 +557,7 @@ function buildMan() {
   const J = {}; const joint = r => { const o = new THREE.Mesh(sph, MAT.joint); o.scale.setScalar(r); man.add(o); return o; };
   for (const [k, r] of [["sh", 0.05], ["el", 0.037], ["wr", 0.027], ["hip", 0.058], ["kn", 0.047], ["an", 0.033]]) J[k] = [joint(r), joint(r)];
   shadowy(man);
-  return { man, P, J, muscles };
+  return { man, P, J, muscles, fist: fists, flatHand: flats };
 }
 
 /* ---------- Résolution d'une pose ---------- */
@@ -612,7 +623,7 @@ function solve(ex, s) {
     ctx.sh[i] = ctx.neckBase.clone().addScaledVector(Uc, -(L.shDrop - (k.shrug || 0))).addScaledVector(R, sg(i) * L.shW).addScaledVector(Fc, -0.01);
     ctx.hip[i] = pc.clone().addScaledVector(U, -L.hipDrop).addScaledVector(R, sg(i) * L.hipW);
   }
-  const out = Object.assign(ctx, { wr: [], el: [], hand: [], fd: [], hd: [], bendA: [], kn: [], an: [], bendL: [], fdir: [] });
+  const out = Object.assign(ctx, { wr: [], el: [], hand: [], fd: [], hd: [], bendA: [], palm: [], flat: [], hx: [], kn: [], an: [], bendL: [], fdir: [] });
   // articulation intermédiaire imposée (coude ou genou fixe) : pas de calcul, position exacte
   const fixed = (root, midP, end, pole) => {
     const u = end.clone().sub(root).normalize(), v = midP.clone().sub(root); v.addScaledVector(u, -v.dot(u));
@@ -624,8 +635,17 @@ function solve(ex, s) {
     if (hs.c && hs.c.el) { const E = center(hs.c, i); a = fixed(ctx.sh[i], E, E.clone().addScaledVector(W(hs.d, i).normalize(), L.fa), hp); }
     else a = ik(ctx.sh[i], point(hs, i), L.ua, L.fa, hp);
     const fd = a.end.clone().sub(a.mid).normalize();
-    const hd = k.hdir ? dir(side(k.hdir, i), i) : fd;
-    out.wr.push(a.end); out.el.push(a.mid); out.fd.push(fd); out.hd.push(hd); out.bendA.push(a.bend); out.hand.push(a.end.clone().addScaledVector(hd, 0.05));
+    const hds = k.hdir ? side(k.hdir, i) : null, hd = hds ? dir(hds, i) : fd;
+    // paume : "sup" = supination (côté des fléchisseurs), "pro" = pronation, sinon une direction
+    const ps = side(k.palm, i);
+    let pv = ps === "pro" ? a.bend.clone() : (!ps || ps === "sup") ? a.bend.clone().negate() : dir(ps, i);
+    pv.addScaledVector(hd, -pv.dot(hd));
+    if (pv.lengthSq() < 1e-4) { pv = a.bend.clone().negate().addScaledVector(hd, -a.bend.clone().negate().dot(hd)); if (pv.lengthSq() < 1e-4) pv = Math.abs(hd.y) < 0.9 ? UP.clone().addScaledVector(hd, -hd.y) : V(1, 0, 0); }
+    pv.normalize();
+    const flat = side(k.hpose, i) === "flat";
+    out.wr.push(a.end); out.el.push(a.mid); out.fd.push(fd); out.hd.push(hd); out.bendA.push(a.bend); out.palm.push(pv); out.flat.push(flat);
+    out.hx.push(new THREE.Vector3().crossVectors(hd, pv).normalize()); // axe de la prise (barre, poignée d'haltère)
+    out.hand.push(a.end.clone().addScaledVector(hd, flat ? 0.06 : 0.062).addScaledVector(pv, flat ? 0 : 0.02));
     const fs = side(k.foot || STAND.foot, i), kp = dir(side(k.knee || STAND.knee, i), i);
     let l;
     if (fs.c && fs.c.kn) { const K = center(fs.c, i); l = fixed(ctx.hip[i], K, K.clone().addScaledVector(W(fs.d, i).normalize(), L.sh), kp); }
@@ -643,7 +663,8 @@ function applyPose(H, o) {
     const front = o.bendA[i].clone().negate();
     orient(P.ua[i], o.sh[i], o.el[i].clone().sub(o.sh[i]), front);
     orient(P.fa[i], o.el[i], o.fd[i], front);
-    orient(P.hand[i], o.wr[i], o.hd[i], front);
+    orient(P.hand[i], o.wr[i], o.hd[i], o.palm[i]);
+    H.fist[i].visible = !o.flat[i]; H.flatHand[i].visible = o.flat[i];
     orient(P.th[i], o.hip[i], o.kn[i].clone().sub(o.hip[i]), o.bendL[i]);
     orient(P.sh[i], o.kn[i], o.an[i].clone().sub(o.kn[i]), o.bendL[i]);
     const fd = o.fdir[i], fup = V(-fd.y, fd.x, 0); if (fup.lengthSq() < 1e-4) fup.copy(UP);
@@ -770,8 +791,7 @@ function buildImplements(ex, g, stacks, o0) {
     else if (im.t === "db") {
       const ds = (im.hands || [0, 1]).map(i => { const d = dumbbell(); g.add(d); return [i, d]; });
       ups.push(o => ds.forEach(([i, d]) => {
-        const ref = { R: o.R, F: o.F, U: o.U }[im.grip] || o.R; const ax = ref.clone().addScaledVector(o.hd[i], -ref.dot(o.hd[i]));
-        orient(d, o.hand[i], ax.lengthSq() > 1e-4 ? ax : o.R, o.hd[i]);
+        orient(d, o.hand[i], o.hx[i], o.hd[i]);
       }));
     } else if (im.t === "db1") {
       const d = dumbbell(); g.add(d);
@@ -848,7 +868,7 @@ function buildImplements(ex, g, stacks, o0) {
 function initScene() {
   if (G) return G;
   materials();
-  G = { geo: { sph: new THREE.SphereGeometry(1, 32, 22), soft: spindleGeo(true), spin: spindleGeo(false) } };
+  G = { geo: { sph: new THREE.SphereGeometry(1, 32, 22), soft: spindleGeo(true), spin: spindleGeo(false), cap: new THREE.CapsuleGeometry(0.019, 0.05, 6, 14), finger: new THREE.CapsuleGeometry(0.0085, 0.045, 4, 10) } };
   let renderer;
   try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); } catch (e) { G.failed = true; return G; }
   const mobile = Math.min(screen.width, screen.height) < 700;
@@ -1072,7 +1092,7 @@ function implCaps(ex, o) {
   for (const im of ex.imp || []) {
     if (im.t === "bar") { const h = (im.len || 1.9) / 2; C.push({ n: "barre", a: mid.clone().addScaledVector(lat, -h), b: mid.clone().addScaledVector(lat, h), r: 0.015, grip: true });
       if (im.r) [1, -1].forEach(sg => C.push({ n: "disques", a: mid.clone().addScaledVector(lat, sg * (h - 0.27)), b: mid.clone().addScaledVector(lat, sg * (h - 0.2)), r: im.r, grip: false, plate: true })); }
-    if (im.t === "db") (im.hands || [0, 1]).forEach(i => { const ref = { R: o.R, F: o.F, U: o.U }[im.grip] || o.R, ax = ref.clone().addScaledVector(o.hd[i], -ref.dot(o.hd[i])).normalize();
+    if (im.t === "db") (im.hands || [0, 1]).forEach(i => { const ax = o.hx[i];
       [1, -1].forEach(sg => C.push({ n: "haltère", a: o.hand[i].clone().addScaledVector(ax, sg * 0.07), b: o.hand[i].clone().addScaledVector(ax, sg * 0.115), r: 0.05, own: i })); });
     if (im.t === "db1") C.push({ n: "haltère", a: mid.clone(), b: mid.clone(), r: 0.06, grip: true });
     if (im.t === "kb") { const d = o.fd[0].clone().add(o.fd[1]).normalize(); const c = mid.clone().addScaledVector(d, 0.11); C.push({ n: "kettlebell", a: c, b: c, r: 0.1, grip: true }); }
@@ -1126,7 +1146,15 @@ function metrics(ex) {
     return r;
   });
 }
-export const __debug = { solve, EXOS, metrics: id => metrics(EXOS.find(e => e.id === id)), check: id => check(EXOS.find(e => e.id === id)), shot(id, s, w = 360, h = 300, viewDir) {
+function handShot(id, s, viewDir, dist) {
+  const ex = EXOS.find(e => e.id === id); initScene(); G.renderer.setSize(420, 360, false); G.camera.aspect = 420 / 360; G.camera.updateProjectionMatrix();
+  view.stage = null; view.ex = null; showExercise(ex); view.playing = false;
+  const o = solve(ex, s); applyPose(G.H, o); view.update(o, s);
+  const d = V(...(viewDir || [1, 0.3, 1])).normalize();
+  Object.assign(G.orbit, { az: Math.atan2(d.z, d.x), pol: Math.asin(d.y), dist: dist || 0.55, target: o.hand[1].clone(), goal: null });
+  placeCamera(0); G.renderer.render(G.scene, G.camera); return G.renderer.domElement.toDataURL("image/png");
+}
+export const __debug = { solve, EXOS, handShot, metrics: id => metrics(EXOS.find(e => e.id === id)), check: id => check(EXOS.find(e => e.id === id)), shot(id, s, w = 360, h = 300, viewDir) {
   const ex = EXOS.find(e => e.id === id); initScene(); G.renderer.setSize(w, h, false); G.camera.aspect = w / h; G.camera.updateProjectionMatrix();
   view.stage = null; view.ex = null; showExercise(ex); view.playing = false; view.time = 0;
   if (viewDir) { const d = V(...viewDir).normalize(); G.orbit.az = Math.atan2(d.z, d.x); G.orbit.pol = Math.asin(d.y); }
