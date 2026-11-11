@@ -492,10 +492,11 @@ function renderNow() {
       break;
     }
     case "settings": body = viewSettings(); break;
+    case "faq": body = viewFaq(r.args[0]); if (r.args[0]) setTimeout(() => { const d = document.getElementById("faq-" + r.args[0]); if (d) d.scrollIntoView({ block: "start" }); }, 60); break;
     case "exercices": body = '<div id="exo-root"><div class="page-head"><h1>Exercices</h1></div><div class="card empty">Chargement des exercices…</div></div>'; break;
     default: body = viewHome();
   }
-  const tab = { session: "home", program: "home", import: "home", s: "home", calendar: "progress", evolution: "progress", history: "progress", programs: "home", body: "progress" }[r.name] || (NAV.some(n => n[0] === r.name) ? r.name : "home");
+  const tab = { faq: "settings", session: "home", program: "home", import: "home", s: "home", calendar: "progress", evolution: "progress", history: "progress", programs: "home", body: "progress" }[r.name] || (NAV.some(n => n[0] === r.name) ? r.name : "home");
   $app.innerHTML = '<div class="shell' + (immersive ? " hide-nav" : "") + '"><nav class="nav" aria-label="Navigation"><div class="brand">Fiitday</div>' +
     NAV.map(n => '<a href="#/' + n[0] + '" class="' + (n[0] === tab ? "on" : "") + '"' + (n[0] === tab ? ' aria-current="page"' : "") + ">" + ICON[n[2]] + "<span>" + n[1] + "</span></a>").join("") +
     '</nav><main class="main' + (wide ? " wide" : "") + '">' + body + "</main></div>";
@@ -1904,6 +1905,56 @@ async function unpackBackup(txt) {
 }
 
 /* ================= Écran : réglages ================= */
+/* ================= Questions fréquentes (Réglages › Aide) ================= */
+// [thème, [[id, question, réponse (HTML écrit ici, sans donnée de l'utilisateur)]]] ; #/faq/id ouvre directement une question
+const FAQ = [
+  ["Démarrer", [
+    ["creer", "Comment créer mon premier programme ?", "Sur l'accueil, appuie sur « + Nouveau programme » et donne-lui un nom (par exemple « Push » ou « Haut du corps »). Ajoute ensuite une séance avec « + Nouvelle séance », puis ses exercices avec « + Ajouter un exercice ». Tape quelques lettres (« dev », « pec »…) : Fiitday propose les exercices de sa bibliothèque, avec les répétitions et le repos conseillés."],
+    ["programme", "Quelle différence entre un programme et une séance ?", "Un programme regroupe plusieurs séances : par exemple le programme « Push Pull » avec « Séance 1 » et « Séance 2 », chacune avec ses exercices. Sur l'accueil, la séance marquée « Suggérée » est celle que tu n'as jamais faite, sinon celle faite il y a le plus longtemps."],
+    ["types", "Quels types d'exercices puis-je créer ?", "Quatre types : <b>Poids × reps</b> (kilos et répétitions), <b>Reps uniquement</b> (pompes, tractions sans charge), <b>Temps</b> (gainage, étirements : le temps est pris par le chrono) et <b>Distance</b> (course, rameur, ateliers Hyrox, avec ou sans charge). Le type se choisit dans la configuration de l'exercice."],
+    ["superset", "Comment faire un superset ou un dégressif ?", "En ajoutant un exercice, choisis « Superset », « Biset », « Triset » ou « Dégressif ». Tu peux aussi relier deux exercices avec « Enchaîner avec l'exercice suivant ». Dans un superset, le repos démarre seulement quand tout le tour est fini."]]],
+  ["Pendant la séance", [
+    ["repos", "Comment fonctionne le repos ?", "Quand tu valides une série (✓), le repos démarre tout seul avec la durée réglée pour l'exercice. Tu peux ajouter ou enlever 15 s, le passer ou le réduire. Après la dernière série d'un exercice, c'est le « Repos avant l'exercice suivant » qui démarre : il se règle dans la configuration de la séance."],
+    ["alerte", "Je ne suis pas prévenu à la fin du repos, que faire ?", "Vérifie <a href=\"#/settings\">Réglages</a> › Alerte de fin de repos (Vibration, Son ou Les deux) et appuie sur « Tester ». Dans l'appli Android, autorise les notifications de Fiitday : elles te préviennent même écran verrouillé. Limite d'Android : hors de l'appli, un repos de plus de 3 minutes peut ne pas sonner à la fin."],
+    ["chrono", "Comment marche le chrono du gainage et des étirements ?", "Appuie sur « Démarrer chrono » : tu as 5 secondes pour te mettre en position, puis le chrono démarre. Quand tu l'arrêtes, le temps s'inscrit tout seul dans la série (il ne se modifie pas à la main). Pour la course et l'Hyrox, tu peux aussi taper ton temps : « 405 » devient 4:05."],
+    ["gris", "À quoi servent les chiffres en gris ?", "Ce sont tes valeurs de la dernière fois pour cet exercice. Le bouton ✓ les reprend si tu as fait pareil ; sinon, tape simplement tes nouveaux chiffres."]]],
+  ["Progrès et exercices", [
+    ["progression", "Comment voir ma progression sur un exercice ?", "Dans <a href=\"#/evolution\">Stats › Évolution</a>, cherche un exercice déjà fait : tu vois sa courbe (charge, 1RM estimé, répétitions ou temps), ton record et ton historique, sur 1 mois, 3 mois, 6 mois, 1 an ou depuis le début."],
+    ["record", "Comment est calculé un record ?", "Pour un exercice avec poids, Fiitday estime ton 1RM (la charge que tu pourrais soulever une seule fois) avec la formule d'Epley : charge × (1 + répétitions ÷ 30). Un record est fêté quand ce 1RM dépasse ton meilleur, à partir de ta 2e séance avec cet exercice. Pour la course, le record est ton meilleur temps."],
+    ["corriger", "Comment corriger ou supprimer une séance terminée ?", "Ouvre-la depuis l'accueil (Dernières séances) ou <a href=\"#/history\">Stats › Historique</a> pour corriger une valeur. Pour la supprimer, fais glisser sa ligne de droite à gauche, puis appuie sur « Supprimer »."],
+    ["etirements", "Quand et comment m'étirer ?", "L'onglet <a href=\"#/exercices/etirements\">Exercices › Étirements</a> propose 23 étirements avec le mannequin 3D, et le guide « Bien s'étirer » explique quand et comment le faire. Après une séance, l'accueil te propose pendant 15 minutes des étirements adaptés aux muscles travaillés."],
+    ["mannequin", "Comment utiliser le mannequin 3D ?", "Fais glisser l'image pour tourner autour du mannequin, pince pour zoomer et appuie deux fois pour revenir au cadrage de départ. Fais glisser la fiche (sous l'image) vers la gauche ou la droite pour passer à l'exercice suivant ou précédent."]]],
+  ["Données et compte", [
+    ["synchro", "Mes données sont-elles sur mon téléphone et sur mon ordinateur ?", "Oui : avec ton compte, tout se synchronise automatiquement entre l'appli et fiitday.com. L'heure de la dernière synchro est dans Réglages › Compte. Sans réseau, fais ta séance normalement : elle sera envoyée au retour du réseau."],
+    ["sauvegarde", "Comment faire une sauvegarde de mes données ?", "<a href=\"#/settings\">Réglages</a> › Données › « Enregistrer une sauvegarde » crée un fichier à garder sur ton téléphone, ton ordinateur ou dans un cloud (Google Drive…). « Restaurer une sauvegarde » le relit : ce qui a été supprimé depuis revient, et ce que tu as modifié depuis garde sa version la plus récente."],
+    ["transfert", "Comment passer mes données sur un autre compte ?", "Dans l'ancien compte : Réglages › Données › « Créer un code ». Tu obtiens un code de 8 caractères, valable 1 heure. Dans le nouveau compte : « J'ai un code », puis tape-le. Ne le donne à personne d'autre : il donne accès à toutes tes données."],
+    ["partage", "Comment partager une séance avec un ami ?", "Dans la configuration de la séance, appuie sur « Partager cette séance » et envoie le lien (WhatsApp, SMS…). Ton ami, connecté à son compte Fiitday, ouvre le lien ou le colle dans Accueil › Importer, puis choisit où ajouter la séance."],
+    ["supprimer-compte", "Comment supprimer mon compte ?", "Réglages › Compte › « Supprimer mon compte », puis tape SUPPRIMER pour confirmer. Ton compte et toutes tes données sont effacés définitivement : fais une sauvegarde avant si tu veux les garder."]]],
+  ["Appli et montre", [
+    ["montre", "Comment être prévenu sur ma montre ?", "Dans l'appli Android : Réglages › Montre connectée › « Activée ». La montre vibre à la fin du repos et quand l'objectif d'un chrono est atteint, avec « Terminer » pour arrêter le chrono. Sur Galaxy Watch, dans l'appli Galaxy Wearable › Paramètres de la montre › Notifications : autorise Fiitday et choisis « Toujours afficher sur les deux » dans « Notifications du téléphone sur la montre »."],
+    ["version", "Comment mettre à jour Fiitday ?", "Le site fiitday.com est toujours à jour. L'appli Android se met à jour avec Obtainium, sans perdre tes données. Ta version est écrite en bas de la page <a href=\"#/settings\">Réglages</a> (« Fiitday V1.… »)."]]]
+];
+// espaces insécables de la typographie française : « ? », « : », « » » ne passent jamais seuls à la ligne
+const nbsp = t => t.replace(/ ([?:!;»])/g, "\u00a0$1").replace(/« /g, "«\u00a0");
+function viewFaq(open) {
+  const n = FAQ.reduce((a, c) => a + c[1].length, 0);
+  return '<a class="back" href="#/settings">‹ Réglages</a><div class="page-head"><h1>Questions fréquentes</h1><span class="muted small">' + n + " questions</span></div>" +
+    '<input class="f" id="faq-q" type="search" autocomplete="off" placeholder="Rechercher : repos, sauvegarde…" aria-label="Rechercher dans les questions fréquentes">' +
+    FAQ.map(([cat, qs]) => '<section class="faq-cat"><div class="section-title">' + esc(cat) + '</div><div class="faq-box">' +
+      qs.map(([id, q, a]) => '<details class="faq-q" id="faq-' + id + '"' + (id === open ? " open" : "") + "><summary>" + esc(nbsp(q)) + '</summary><div class="faq-a">' + nbsp(a) + "</div></details>").join("") + "</div></section>").join("") +
+    '<p class="muted faq-none" hidden>Aucune question ne correspond. Essaie un autre mot.</p>' +
+    '<div class="card faq-more"><b>Pas trouvé ta réponse ?</b><div class="small muted" style="margin-top:4px">Écris-nous : l\'adresse de contact est dans Réglages › Informations légales › Mentions légales.</div></div>';
+}
+// recherche sans tenir compte des accents ni des majuscules ; une seule réponse : elle s'ouvre
+$app.addEventListener("input", e => {
+  if (e.target.id !== "faq-q") return;
+  const words = norm(e.target.value).split(/\s+/).filter(Boolean), shown = [];
+  document.querySelectorAll(".faq-q").forEach(d => { const ok = words.every(w => norm(d.textContent).includes(w)); d.hidden = !ok; if (ok) shown.push(d); });
+  document.querySelectorAll(".faq-cat").forEach(s => { s.hidden = !s.querySelector(".faq-q:not([hidden])"); });
+  const none = document.querySelector(".faq-none"); if (none) none.hidden = shown.length > 0;
+  if (words.length && shown.length === 1) shown[0].open = true;
+});
+
 function viewSettings() {
   const s = settings();
   const sv = k => s[k] || (k === "watch" ? "non" : "");
@@ -1918,20 +1969,22 @@ function viewSettings() {
     (nativeWatch() ? '<div class="card"><b>Montre connectée</b><div class="small muted" style="margin-top:4px">Galaxy Watch, Pixel Watch… : la montre vibre à la fin du repos et quand l\'objectif d\'un chrono est atteint (avec « Terminer » pour arrêter le chrono), même quand Fiitday est ouvert sur le téléphone.</div>' +
       '<div style="margin-top:10px">' + seg("watch", [["non", "Désactivée"], ["oui", "Activée"]]) + "</div>" +
       (watchOn() ? '<button class="btn sm" style="margin-top:10px" data-act="testwatch">Tester sur la montre</button>' +
-        '<div class="small muted" style="margin-top:8px">Rien sur la montre ? Dans l\'appli Galaxy Wearable › Paramètres de la montre › Notifications : autorise Fiitday, et dans « Notifications du téléphone sur la montre », choisis « Toujours afficher sur les deux » (sinon la montre ne reçoit rien tant que l\'écran du téléphone est allumé, et Fiitday le garde allumé pendant la séance).</div>' : "") + "</div>" : "") +
+        '<div class="small muted" style="margin-top:8px">Rien sur la montre ? Dans l\'appli Galaxy Wearable › Paramètres de la montre › Notifications : autorise Fiitday, et dans « Notifications du téléphone sur la montre », choisis « Toujours afficher sur les deux » (sinon la montre ne reçoit rien tant que l\'écran du téléphone est allumé, et Fiitday le garde allumé pendant la séance).</div>' : "") +
+      '<a class="link small" style="padding:0;display:inline-flex;align-items:center;margin-top:6px" href="#/faq/montre">Aide pour la montre</a></div>' : "") +
     '<div class="card"><b>Objectif de séances par semaine</b><div style="margin-top:10px">' + seg("goal", [["2", "2"], ["3", "3"], ["4", "4"], ["5", "5"], ["6", "6"], ["7", "7"]]) + "</div></div>" +
     '<div class="card"><b>Données</b><div class="small muted" style="margin-top:4px">Tes programmes, séances et réglages.</div>' +
     '<div class="data-sec"><div class="data-t">Sauvegarde</div><div class="small muted">Un fichier à garder sur ton téléphone, ton ordinateur ou dans un cloud (Google Drive…).</div>' +
     '<div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-act="filesave">Enregistrer une sauvegarde</button><button class="btn sm" data-act="fileopen">Restaurer une sauvegarde</button></div></div>' +
     '<div class="data-sec"><div class="data-t">Transfert vers un autre compte</div><div class="small muted">Un code de 8 caractères, valable 1 heure, à taper dans l\'autre compte.</div>' +
     '<div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-act="xfercreate">Créer un code</button><button class="btn sm" data-act="xferuse">J\'ai un code</button></div></div>' +
-    '<button class="link small" style="margin-top:6px;padding:0;text-align:left" data-act="import">Restaurer un ancien texte de sauvegarde (FIITDAY1:…)</button></div>' +
+    '<div class="row" style="margin-top:6px;flex-wrap:wrap;gap:4px 14px"><a class="link small" style="padding:0;display:inline-flex;align-items:center" href="#/faq/sauvegarde">Comment ça marche ?</a><button class="link small" style="padding:0;text-align:left" data-act="import">Restaurer un ancien texte de sauvegarde (FIITDAY1:…)</button></div></div>' +
     '<div class="card"><b>Compte</b><div style="margin-top:8px">' +
     (db.auth ? '<label class="fl" style="margin-bottom:8px">Prénom<input class="f" data-setname maxlength="40" autocomplete="given-name" value="' + esc(firstName()) + '" placeholder="Ton prénom"></label>' +
       '<div class="small">Connecté : ' + esc(db.auth.user.email) + "</div><div style=\"margin-top:6px\">" + syncBadge() + '</div><div class="small msg err" data-sync-error>' + (syncState.status === "err" ? esc(syncState.error) : "") + "</div>" +
       '<div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-act="syncnow">Synchroniser maintenant</button><button class="btn sm" data-act="logout">Se déconnecter</button><button class="btn sm danger" data-act="delaccount">Supprimer mon compte</button></div>'
       : '<div class="small muted">Sans compte : tes données restent sur cet appareil.</div><button class="btn sm primary" style="margin-top:8px" data-act="tologin">Se connecter / créer un compte</button>') +
     "</div></div>" +
+    '<div class="card"><b>Aide</b><div class="small muted" style="margin-top:4px">Les réponses aux questions les plus fréquentes : séances, repos, sauvegarde, montre…</div><a class="btn sm" style="margin-top:8px" href="#/faq">Questions fréquentes</a></div>' +
     '<div class="card"><b>Informations légales</b><div class="row" style="margin-top:8px;flex-wrap:wrap">' +
     '<a class="btn sm" href="' + LEGAL.privacy + '" target="_blank" rel="noopener">Politique de confidentialité</a>' +
     '<a class="btn sm" href="' + LEGAL.legal + '" target="_blank" rel="noopener">Mentions légales</a></div></div>' +
