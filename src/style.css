@@ -179,6 +179,14 @@ table.grid { border-collapse: collapse; width: 100%; min-width: 900px; }
 .set { display: flex; gap: 8px; min-width: 0; }
 .set input { flex: 1; min-width: 0; }
 .set .chrono { flex: none; padding: 0 10px; white-space: nowrap; }
+/* ligne d'une série étroite (petit écran, grande taille de texte d'Android) : la case du temps garde la place pour « 1:05 »,
+   le bouton du chrono ne montre plus que ▶, et les cases réduisent un peu leur texte */
+.set { container-type: inline-size; }
+@container (max-width: 11.5em) { .set .chrono .cl { display: none; } .set .chrono { padding: 0 12px; } }
+@container (max-width: 9.5em) { .set input { font-size: 15px; padding: 0 2px; } }
+/* course avec charge : la case du temps (jusqu'à « 1:00:05 ») prend plus de place que celle des kilos */
+.set input[data-f="clock"] { flex: 1.45 1 0; }
+@container (max-width: 13em) { .set input[data-f="clock"] { font-size: 15px; padding: 0 2px; } }
 .hdr { display: flex; gap: 8px; } .hdr span { flex: 1; }
 .n.drop { color: var(--muted); font-size: 18px; font-weight: 400; }
 .letter { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; background: var(--strong); color: var(--strong-ink); font-size: 13px; font-weight: 800; margin-right: 8px; vertical-align: 2px; }

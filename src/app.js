@@ -755,7 +755,7 @@ function inputsHtml(w, e, i, k, d, label) {
 function chronoBtn(w, i, s) {
   const c = db.live.chrono, run = c && c.wid === w.id && c.i === i && c.s === s;
   return '<button class="chrono' + (run ? " run" : "") + '" data-act="chrono" data-i="' + i + '" data-s="' + s + '" aria-label="' + (run ? "Arrêter le chrono" : "Lancer le chrono") + '">' +
-    (run ? ICON.stop + '<span class="num" data-tick="chrono">0:00</span>' : ICON.play + (w.exercises[i] && w.exercises[i].type === "dist" ? (w.exercises[i].load ? "" : "<span>Chrono</span>") : "<span>Démarrer chrono</span>")) + "</button>";
+    (run ? ICON.stop + '<span class="num" data-tick="chrono">0:00</span>' : ICON.play + (w.exercises[i] && w.exercises[i].type === "dist" && w.exercises[i].load ? "" : '<span class="cl">Chrono</span>')) + "</button>";
 }
 function okBtn(s, i, k) {
   return '<button class="ok' + (s.done ? " on" : "") + '" data-act="done" data-i="' + i + '" data-s="' + k + '" aria-label="Valider la série ' + (k + 1) + '" aria-pressed="' + !!s.done + '">✓</button>';
@@ -1916,7 +1916,7 @@ const FAQ = [
   ["Pendant la séance", [
     ["repos", "Comment fonctionne le repos ?", "Quand tu valides une série (✓), le repos démarre tout seul avec la durée réglée pour l'exercice. Tu peux ajouter ou enlever 15 s, le passer ou le réduire. Après la dernière série d'un exercice, c'est le « Repos avant l'exercice suivant » qui démarre : il se règle dans la configuration de la séance."],
     ["alerte", "Je ne suis pas prévenu à la fin du repos, que faire ?", "Vérifie <a href=\"#/settings\">Réglages</a> › Alerte de fin de repos (Vibration, Son ou Les deux) et appuie sur « Tester ». Dans l'appli Android, autorise les notifications de Fiitday : elles te préviennent même écran verrouillé. Limite d'Android : hors de l'appli, un repos de plus de 3 minutes peut ne pas sonner à la fin."],
-    ["chrono", "Comment marche le chrono du gainage et des étirements ?", "Appuie sur « Démarrer chrono » : tu as 5 secondes pour te mettre en position, puis le chrono démarre. Quand tu l'arrêtes, le temps s'inscrit tout seul dans la série (il ne se modifie pas à la main). Pour la course et l'Hyrox, tu peux aussi taper ton temps : « 405 » devient 4:05."],
+    ["chrono", "Comment marche le chrono du gainage et des étirements ?", "Appuie sur ▶ « Chrono » : tu as 5 secondes pour te mettre en position, puis le chrono démarre. Quand tu l'arrêtes, le temps s'inscrit tout seul dans la série (il ne se modifie pas à la main). Pour la course et l'Hyrox, tu peux aussi taper ton temps : « 405 » devient 4:05."],
     ["gris", "À quoi servent les chiffres en gris ?", "Ce sont tes valeurs de la dernière fois pour cet exercice. Le bouton ✓ les reprend si tu as fait pareil ; sinon, tape simplement tes nouveaux chiffres."]]],
   ["Progrès et exercices", [
     ["progression", "Comment voir ma progression sur un exercice ?", "Dans <a href=\"#/evolution\">Stats › Évolution</a>, cherche un exercice déjà fait : tu vois sa courbe (charge, 1RM estimé, répétitions ou temps), ton record et ton historique, sur 1 mois, 3 mois, 6 mois, 1 an ou depuis le début."],
