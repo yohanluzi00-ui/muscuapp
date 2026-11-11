@@ -419,7 +419,59 @@ function updateSyncBadges() {
 const safeDecode = x => { try { return decodeURIComponent(x); } catch (e) { return ""; } };
 function route() { const h = location.hash.replace(/^#\/?/, ""); const p = h.split("/"); return { name: p[0] || "home", args: p.slice(1).map(safeDecode) }; }
 const go = path => { location.hash = "#/" + path; };
-window.addEventListener("hashchange", () => { flushPending(); render(); window.scrollTo(0, 0); });
+/* Retour à la même position : chaque page de l'historique garde sa position de défilement. Revenir sur une page déjà vue
+   (« ‹ Retour » vers la page d'où l'on vient, bouton retour du téléphone ou du navigateur) la remet exactement où elle était ;
+   une nouvelle page s'ouvre en haut. */
+try { history.scrollRestoration = "manual"; } catch (e) { }
+const navKey = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+let scrollPos = {}; try { scrollPos = JSON.parse(sessionStorage.getItem("fiitday-scroll") || "{}") || {}; } catch (e) { }
+let navRestoring = false, navRestoreId = 0, scrollSaveT = null;
+const sameHash = (a, b) => { try { return decodeURIComponent(a) === decodeURIComponent(b); } catch (e) { return a === b; } };
+function keepScrollPos() {
+  try { const ks = Object.keys(scrollPos); if (ks.length > 80) ks.slice(0, ks.length - 80).forEach(k => delete scrollPos[k]); sessionStorage.setItem("fiitday-scroll", JSON.stringify(scrollPos)); } catch (e) { }
+}
+window.addEventListener("scroll", () => {
+  const st = history.state; if (navRestoring || !st || !st.k) return;
+  scrollPos[st.k] = Math.round(window.scrollY);
+  clearTimeout(scrollSaveT); scrollSaveT = setTimeout(keepScrollPos, 300);
+}, { passive: true });
+// remet la page à sa position ; un contenu affiché un peu après (liste des exercices…) est attendu jusqu'à 2 s, sauf si tu fais défiler toi-même
+function applyScroll(y) {
+  const id = ++navRestoreId, t0 = Date.now();
+  navRestoring = true;
+  const stop = () => { if (id !== navRestoreId) return; navRestoring = false; ["touchstart", "wheel", "keydown"].forEach(ev => window.removeEventListener(ev, stop, true)); };
+  ["touchstart", "wheel", "keydown"].forEach(ev => window.addEventListener(ev, stop, true));
+  const step = () => {
+    if (id !== navRestoreId || !navRestoring) return;
+    const max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+    window.scrollTo(0, Math.min(y, max));
+    if (max >= y || Date.now() - t0 > 2000) { stop(); return; }
+    setTimeout(step, 50);
+  };
+  step();
+}
+function afterNavigate(oldHash) {
+  const st = history.state;
+  if (st && st.k) { applyScroll(scrollPos[st.k] || 0); return; } // page déjà vue : même position qu'avant
+  history.replaceState({ k: navKey(), prev: oldHash || "" }, "");
+  navRestoreId++; navRestoring = false; window.scrollTo(0, 0);
+}
+window.addEventListener("hashchange", e => {
+  let old = ""; try { old = e.oldURL ? new URL(e.oldURL).hash : ""; } catch (err) { }
+  navRestoring = true; flushPending(); render(); afterNavigate(old);
+});
+// changement de page qui remplace la page actuelle dans l'historique (fiche suivante en glissant) : le « Retour » reste le même
+window.__navReplace = hash => {
+  const prev = (history.state || {}).prev || "";
+  history.replaceState({ k: navKey(), prev }, "", hash);
+  navRestoring = true; flushPending(); render(); navRestoreId++; navRestoring = false; window.scrollTo(0, 0);
+};
+// « ‹ Retour » vers la page d'où l'on vient : on revient en arrière dans l'historique (donc à la même position)
+document.addEventListener("click", e => {
+  const a = e.target.closest && e.target.closest("a.back"); if (!a || e.defaultPrevented || e.button) return;
+  const st = history.state, href = a.getAttribute("href");
+  if (st && st.prev && href && sameHash(href, st.prev)) { e.preventDefault(); history.back(); }
+}, true);
 let isWide = window.innerWidth >= WIDE;
 window.addEventListener("resize", () => { const w = window.innerWidth >= WIDE; if (w !== isWide) { isWide = w; softRender(); } });
 
@@ -479,14 +531,14 @@ function renderNow() {
     case "programs": body = viewPrograms(); break;
     case "program": body = viewProgram(r.args[0], r.args[1]); break;
     case "history": body = viewHistory(); break;
-    case "progress": if (r.args[0]) { history.replaceState(null, "", "#/evolution/" + encodeURIComponent(r.args[0])); body = viewEvolutionDetail(r.args[0]); } else body = viewProgress(); break; // ancien lien d'un exercice
+    case "progress": if (r.args[0]) { history.replaceState(history.state, "", "#/evolution/" + encodeURIComponent(r.args[0])); body = viewEvolutionDetail(r.args[0]); } else body = viewProgress(); break; // ancien lien d'un exercice
     case "evolution": body = r.args[0] ? viewEvolutionDetail(r.args[0]) : viewEvolution(); break;
     case "calendar": body = viewCalendar(r.args[0], r.args[1]); break;
-    case "body": history.replaceState(null, "", "#/progress"); body = viewProgress(); break; // ancienne page Corps
+    case "body": history.replaceState(history.state, "", "#/progress"); body = viewProgress(); break; // ancienne page Corps
     case "s":
     case "import": {
       const code = r.name === "s" ? SHARE_SHORT + r.args[0] : r.args[0];
-      history.replaceState(null, "", "#/home");
+      history.replaceState(history.state, "", "#/home");
       body = viewHome();
       setTimeout(() => importShared(code), 0);
       break;
@@ -2485,6 +2537,8 @@ $app.addEventListener("keydown", e => {
 /* ================= Démarrage ================= */
 applyTheme();
 render();
+if (history.state && history.state.k) applyScroll(scrollPos[history.state.k] || 0); // page rechargée : même position
+else history.replaceState({ k: navKey(), prev: "" }, "");
 if (db.auth) sync();
 setTimeout(() => window.__fiitdayPending(), 300);
 if ("serviceWorker" in navigator && location.protocol === "https:" && !Native && !window.claude) {

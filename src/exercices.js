@@ -300,9 +300,16 @@ export const EXOS = [
   { id: "extension-poulie", n: "Extension triceps à la poulie", gear: "Poulie haute et barre", lvl: "Débutant", p: ["triceps"], s: [], reps: "10-15", rest: 60,
     tips: ["Coudes collés au corps, ils ne bougent pas", "Buste légèrement penché vers l'avant", "Pousse la barre vers le bas jusqu'à tendre les bras", "Remonte lentement jusqu'à hauteur de poitrine"],
     err: ["Décoller les coudes", "Se pencher sur la barre pour pousser", "Remonter trop haut"],
-    vars: ["Barre au front", "Extension nuque haltère", "Dips entre deux bancs"], order: "con", ph: { con: "Extension", exc: "Remontée lente" },
+    vars: ["Extension triceps à la poulie au-dessus de la tête", "Barre au front", "Extension nuque haltère", "Dips entre deux bancs"], order: "con", ph: { con: "Extension", exc: "Remontée lente" },
     a: ST({ pc: [-0.06, 0.975], th: 12, hand: { c: { el: [-0.12, -1, 0] }, r: L.fa, d: [0.72, 0.68, -0.05] }, elbow: [-1, 0.1, 0], palm: "pro" }), b: { hand: { c: { el: [-0.12, -1, 0] }, r: L.fa, d: [0.22, -1, -0.03] } },
     props: P => P.tower(0.55, 0, 2.0, 0.4), imp: [{ t: "bar", r: 0, len: 0.5 }, { t: "cable", from: [0.4, 2.0, 0], to: "mid", stacks: [0] }] },
+  { id: "extension-triceps-poulie-nuque", n: "Extension triceps à la poulie au-dessus de la tête", al: ["Extension triceps poulie basse dos à la machine", "Extension triceps corde derrière la tête", "Extension nuque à la poulie", "Extension triceps vers le haut à la poulie", "Overhead triceps extension"],
+    gear: "Poulie basse et corde", lvl: "Intermédiaire", p: ["triceps"], s: [], reps: "10-15", rest: 60,
+    tips: ["Dos à la poulie réglée en bas, corde tenue à deux mains derrière la nuque", "Coudes pointés vers le plafond, près de la tête : ils ne bougent pas", "Tends les bras vers le ciel jusqu'à l'extension complète", "Redescends lentement les mains derrière la nuque, en sentant l'étirement du triceps"],
+    err: ["Écarter les coudes sur les côtés", "Se cambrer pour pousser", "Laisser la corde ramener les mains trop vite"],
+    vars: ["Extension nuque haltère", "Extension triceps à la poulie", "Barre au front"], order: "exc", ph: { exc: "Descente derrière la nuque", con: "Extension vers le ciel" },
+    a: ST({ th: 8, hand: { c: { el: [0.1, 1, -0.1] }, r: L.fa, d: [0.1, 1, -0.06] }, elbow: [0, 0, 1], palm: [0, 0, -1] }), b: { hand: { c: { el: [0.1, 1, -0.1] }, r: L.fa, d: [-0.6, -0.77, -0.14] } },
+    props: P => P.tower(-0.66, 0, 0.12, -0.52), imp: [{ t: "cable", from: [-0.52, 0.12, 0], to: "mid", handle: "rope", stacks: [0] }] },
   { id: "barre-au-front", n: "Barre au front", gear: "Barre EZ et banc plat", lvl: "Intermédiaire", p: ["triceps"], s: [], reps: "8-12", rest: 90,
     tips: ["Allongé, barre au-dessus du visage, bras tendus", "Les coudes restent fixes et pointent vers le plafond", "Descends la barre vers le front en pliant les coudes", "Remonte en tendant les bras"],
     err: ["Écarter les coudes", "Bouger les bras d'avant en arrière", "Charge trop lourde (coudes douloureux)"],
@@ -312,7 +319,7 @@ export const EXOS = [
   { id: "extension-nuque", n: "Extension nuque haltère", gear: "Haltère", lvl: "Débutant", p: ["triceps"], s: [], reps: "10-12", rest: 60,
     tips: ["Haltère tenu à deux mains au-dessus de la tête", "Coudes serrés, pointés vers le haut", "Descends l'haltère derrière la tête", "Remonte en tendant les bras"],
     err: ["Écarter les coudes", "Se cambrer", "Descendre trop vite"],
-    vars: ["Barre au front", "Extension triceps à la poulie"], order: "exc", ph: { exc: "Descente derrière la tête", con: "Extension" },
+    vars: ["Extension triceps à la poulie au-dessus de la tête", "Barre au front", "Extension triceps à la poulie"], order: "exc", ph: { exc: "Descente derrière la tête", con: "Extension" },
     a: ST({ th: -3, hand: { c: { el: [-0.02, 1, -0.12] }, r: L.fa, d: [0.02, 1, -0.22] }, elbow: [0, 0, 1], palm: [0, 0, -1] }), b: { hand: { c: { el: [-0.02, 1, -0.12] }, r: L.fa, d: [-0.62, -0.75, -0.24] } }, imp: [{ t: "db1", axis: "up" }] },
   { id: "dips-banc", n: "Dips entre deux bancs", gear: "Banc", lvl: "Débutant", p: ["triceps"], s: ["pectoraux", "deltoides_ant"], reps: "10-15", rest: 60,
     tips: ["Mains sur le bord du banc, doigts vers l'avant", "Jambes tendues devant, talons au sol", "Descends en pliant les coudes vers l'arrière", "Remonte en tendant les bras"],
@@ -1812,7 +1819,7 @@ export function mount(root, id, appApi, arg) {
   api = appApi;
   const zoneArg = ZONES.some(z => z[0] === arg) ? arg : null;
   if (id === "etirements") { ui.mode = "etir"; if (zoneArg) { ui.zone = zoneArg; ui.qe = ""; } id = null; }
-  if (id === "conseils-etirements") { ui.mode = "etir"; root.innerHTML = guideHtml(); window.scrollTo(0, 0); return; }
+  if (id === "conseils-etirements") { ui.mode = "etir"; root.innerHTML = guideHtml(); return; } // position : gérée par l'appli (haut de page, ou même position au retour)
   const ex = id ? EXOS.find(e => e.id === id) : null;
   if (!ex) { renderList(root); return; }
   const st = isStretch(ex);
@@ -1834,12 +1841,11 @@ export function mount(root, id, appApi, arg) {
   root.querySelector("#exo-add").addEventListener("click", () => api && api.add(st ? { name: ex.n, time: true, hold: ex.hold, sets: 2, rest: ex.rest } : { name: ex.n, time: !!ex.time, dist: ex.dist || 0, load: !!ex.load, reps: ex.reps, rest: ex.rest, bw: atHome(ex) }));
   // fiche suivante ou précédente sans repasser par la liste : glisser le doigt (hors de l'image 3D), flèches du clavier
   const seq = st ? seqFor(ex) : seqForEx(ex), k = seq.indexOf(ex);
-  const step = d => { const t = seq[k + d]; if (!t) return; slideDir = d; location.replace("#/exercices/" + t.id); };
+  const step = d => { const t = seq[k + d]; if (!t) return; slideDir = d; (window.__navReplace || (h => location.replace(h)))("#/exercices/" + t.id); };
   let t0 = null;
   root.addEventListener("touchstart", e => { const t = e.touches[0]; t0 = e.touches.length === 1 && !e.target.closest("#exo-stage") ? { x: t.clientX, y: t.clientY } : null; }, { passive: true });
   root.addEventListener("touchend", e => { if (!t0) return; const t = e.changedTouches[0], dx = t.clientX - t0.x, dy = t.clientY - t0.y; t0 = null; if (Math.abs(dx) > 60 && Math.abs(dx) > 1.8 * Math.abs(dy)) step(dx < 0 ? 1 : -1); }, { passive: true });
   keyStep = step;
-  window.scrollTo(0, 0);
 }
 let keyStep = null;
 document.addEventListener("keydown", e => {
