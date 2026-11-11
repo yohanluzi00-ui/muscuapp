@@ -1915,7 +1915,7 @@ function viewSettings() {
     '<div class="card"><b>Apparence</b><div style="margin-top:10px">' + seg("theme", [["auto", "Auto"], ["clair", "Clair"], ["sombre", "Sombre"]]) + "</div></div>" +
     '<div class="card"><b>Alerte de fin de repos</b><div style="margin-top:10px">' + seg("alert", [["vibration", "Vibration"], ["son", "Son"], ["les deux", "Les deux"], ["aucune", "Aucune"]]) + "</div>" +
     '<button class="btn sm" style="margin-top:10px" data-act="testalert">Tester</button></div>' +
-    (nativeWatch() ? '<div class="card"><b>Montre connectée</b><div class="small muted" style="margin-top:4px">Galaxy Watch, Pixel Watch… : quand un repos ou un chrono démarre, une notification arrive sur la montre (sans vibrer), avec « Passer » ou « Terminer ». La montre vibre à la fin.</div>' +
+    (nativeWatch() ? '<div class="card"><b>Montre connectée</b><div class="small muted" style="margin-top:4px">Galaxy Watch, Pixel Watch… : la montre vibre à la fin du repos et quand l\'objectif d\'un chrono est atteint (avec « Terminer » pour arrêter le chrono), même quand Fiitday est ouvert sur le téléphone.</div>' +
       '<div style="margin-top:10px">' + seg("watch", [["non", "Désactivée"], ["oui", "Activée"]]) + "</div>" +
       (watchOn() ? '<button class="btn sm" style="margin-top:10px" data-act="testwatch">Tester sur la montre</button>' +
         '<div class="small muted" style="margin-top:8px">Rien sur la montre ? Dans l\'appli Galaxy Wearable › Paramètres de la montre › Notifications : autorise Fiitday, et dans « Notifications du téléphone sur la montre », choisis « Toujours afficher sur les deux » (sinon la montre ne reçoit rien tant que l\'écran du téléphone est allumé, et Fiitday le garde allumé pendant la séance).</div>' : "") + "</div>" : "") +

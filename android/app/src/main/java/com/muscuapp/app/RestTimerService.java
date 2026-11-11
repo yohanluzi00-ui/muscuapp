@@ -21,15 +21,13 @@ import android.os.Looper;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 
-import java.text.DateFormat;
-import java.util.Date;
 
 /**
  * Minuteurs dans les notifications : repos (compte à rebours) et chrono (gainage, étirement, course).
  * - une notification permanente affiche le temps qui défile ; sur Android 16 et plus, elle demande à être une
  *   « Live Update » (en haut de l'écran verrouillé, pastille dans la barre d'état ; sur les montres qui le permettent) ;
- * - option « montre » : une notification simple au départ (la montre la reçoit, sans vibrer), avec un bouton
- *   « Passer » ou « Terminer », puis l'alerte de fin qui fait vibrer la montre ;
+ * - option « montre » : l'alerte de fin (fin du repos, objectif du chrono) part aussi quand Fiitday est à l'écran
+ *   et vibre elle-même, pour que la montre la reçoive et vibre (rien n'est envoyé à la montre au départ) ;
  * - à la fin du repos ou à l'objectif du chrono, si l'appli n'est pas à l'écran, le service sonne et/ou vibre.
  * Service de premier plan de type « courte durée » (shortService), le type prévu par Android pour ce besoin.
  */
@@ -39,7 +37,7 @@ public class RestTimerService extends Service {
     static final int WATCH_ID = 13;
     private static final String CH_ONGOING = "repos_en_cours";
     private static final String CH_END = "repos_fin";
-    private static final String CH_WATCH = "montre_depart";
+    private static final String CH_WATCH_OLD = "montre_depart"; // V1.40 : notification de départ, retirée
     private static final String CH_END_WATCH = "montre_fin";
     static final String ACT_SKIP = "com.muscuapp.app.SKIP_REST";
     static final String ACT_STOP = "com.muscuapp.app.STOP_CHRONO";
@@ -115,7 +113,7 @@ public class RestTimerService extends Service {
         }
         handler.removeCallbacks(fire);
         handler.removeCallbacks(stopper); // un nouveau minuteur annule l'arrêt prévu après le son précédent
-        postWatchCard();
+        cancelWatchCard();
         if (end > 0) {
             long d = end - System.currentTimeMillis();
             if (d <= 0) onEnd();
@@ -198,12 +196,7 @@ public class RestTimerService extends Service {
             nc.enableVibration(false);
             nm.createNotificationChannel(nc);
         }
-        if (nm.getNotificationChannel(CH_WATCH) == null) {
-            NotificationChannel nc = new NotificationChannel(CH_WATCH, "Montre : départ du repos ou du chrono", NotificationManager.IMPORTANCE_DEFAULT);
-            nc.setSound(null, null);
-            nc.enableVibration(false);
-            nm.createNotificationChannel(nc);
-        }
+        try { nm.deleteNotificationChannel(CH_WATCH_OLD); } catch (Exception ignored) { }
         if (nm.getNotificationChannel(CH_END_WATCH) == null) {
             NotificationChannel nc = new NotificationChannel(CH_END_WATCH, "Montre : fin du repos ou objectif atteint", NotificationManager.IMPORTANCE_HIGH);
             nc.setSound(null, null);
@@ -247,30 +240,10 @@ public class RestTimerService extends Service {
         return b.build();
     }
 
-    /** option montre : notification simple (non permanente, donc transmise à la montre), sans son ni vibration */
-    private void postWatchCard() {
+    /** la notification de départ envoyée à la montre (V1.40) n'existe plus : on enlève celle qui resterait affichée */
+    private void cancelWatchCard() {
         NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        if (nm == null) return;
-        if (!watch) { nm.cancel(WATCH_ID); return; }
-        channels(this);
-        boolean chrono = isChrono();
-        long now = System.currentTimeMillis();
-        String t = chrono ? (title.isEmpty() ? "Chrono lancé" : title) : "Repos " + clock(end - now);
-        String x = chrono ? (text.isEmpty() ? "Chrono lancé" : text) : "Fin à " + DateFormat.getTimeInstance(DateFormat.SHORT).format(new Date(end));
-        Notification.Builder b = builder(CH_WATCH)
-                .setSmallIcon(R.drawable.ic_stat)
-                .setContentTitle(t)
-                .setContentText(x)
-                .setOnlyAlertOnce(true)
-                .setContentIntent(openApp())
-                .setWhen(chrono ? start : end)
-                .setShowWhen(true)
-                .setUsesChronometer(true)
-                .addAction(action());
-        if (Build.VERSION.SDK_INT >= 24) b.setChronometerCountDown(!chrono);
-        if (Build.VERSION.SDK_INT >= 26) b.setTimeoutAfter(chrono ? 3 * 3600_000L : Math.max(1000, end - now + 5000));
-        if (Build.VERSION.SDK_INT < 26) b.setPriority(Notification.PRIORITY_DEFAULT);
-        try { nm.notify(WATCH_ID, b.build()); } catch (SecurityException ignored) { }
+        if (nm != null) nm.cancel(WATCH_ID);
     }
 
     /**
