@@ -338,7 +338,7 @@ async function sync() {
   if (!db.auth) return;
   if (syncing) { syncAgain = true; return; }
   if (navigator.onLine === false) { syncState.status = "offline"; updateSyncBadges(); return; }
-  syncing = true; syncState.status = "busy"; updateSyncBadges();
+  syncing = true; if (syncState.status !== "ok") { syncState.status = "busy"; updateSyncBadges(); } // déjà synchronisé : la synchro de fond ne change pas le texte (pas de saut à l'écran)
   let changed = false;
   try {
     // 1) récupérer ce qui a changé sur le serveur
@@ -397,7 +397,7 @@ function syncBadge() {
   return '<span class="sync" data-sync><span class="dot ' + cls + '"></span>' + esc(txt) + "</span>";
 }
 function updateSyncBadges() {
-  document.querySelectorAll("[data-sync]").forEach(el => { el.outerHTML = syncBadge(); });
+  const html = syncBadge(); document.querySelectorAll("[data-sync]").forEach(el => { if (el.outerHTML !== html) el.outerHTML = html; });
   const e = document.querySelector("[data-sync-error]"); if (e) e.textContent = syncState.status === "err" ? syncState.error : "";
 }
 
@@ -637,7 +637,7 @@ function variantStats(t) {
 }
 function viewHome() {
   const act = activeWorkout();
-  let h = '<div class="page-head"><div><div class="muted small">' + esc(fmtDateLong(Date.now())) + '</div><h1>Bonjour' + (firstName() ? " " + esc(firstName()) : "") + '</h1></div>' + syncBadge() + "</div>" +
+  let h = '<div class="page-head"><div><div class="muted small">' + esc(fmtDateLong(Date.now())) + '</div><h1>Bonjour' + (firstName() ? " " + esc(firstName()) : "") + '</h1></div></div>' +
     homeStretch(act) +
     '<div class="home-actions"><button class="btn primary" data-act="newtpl">+ Nouveau programme</button><button class="btn" data-act="importvar">Importer</button></div>';
   if (act) {
