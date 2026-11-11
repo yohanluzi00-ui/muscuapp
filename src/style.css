@@ -516,3 +516,8 @@ input.ro { background: var(--soft) !important; color: var(--ink); pointer-events
 /* accueil : tuile « + Nouvelle séance » dans le bloc d'un programme */
 .variant.add { border-style: dashed; border-color: color-mix(in srgb, var(--accent) 50%, var(--in-line)); background: transparent; cursor: pointer; }
 .variant.add b { color: var(--accent); }
+/* Réglages › Données */
+.data-sec { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.data-t { font-weight: 600; font-size: 15px; margin-bottom: 2px; }
+.xfer-code { font-family: var(--display), ui-monospace, monospace; font-size: 34px; font-weight: 700; letter-spacing: .14em; text-align: center; padding: 14px 8px; border-radius: 14px; background: var(--soft); border: 1px solid var(--line); color: var(--ink); user-select: all; -webkit-user-select: all; font-variant-numeric: tabular-nums; }
+.code-in { font-family: var(--display), ui-monospace, monospace; font-size: 22px; letter-spacing: .12em; text-transform: uppercase; text-align: center; }

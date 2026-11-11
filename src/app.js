@@ -282,8 +282,8 @@ function ask(o) {
   return new Promise(res => {
     const d = document.createElement("div"); d.className = "modal";
     d.innerHTML = '<div class="modal-box" role="dialog" aria-modal="true" aria-label="' + esc(o.title) + '"><h3>' + esc(o.title) + "</h3>" +
-      (o.text ? "<p>" + esc(o.text) + "</p>" : "") +
-      (o.input !== undefined ? (o.multiline ? '<textarea class="f" rows="6" aria-label="' + esc(o.title) + '">' + esc(o.input) + "</textarea>" : o.suggest ? '<div class="fl"><input class="f" data-suggest autocomplete="off" maxlength="80" placeholder="Tape un nom ou un muscle" aria-label="' + esc(o.title) + '" value="' + esc(o.input) + '"><div class="sugg" hidden></div></div>' : '<input class="f" aria-label="' + esc(o.title) + '" value="' + esc(o.input) + '">') : "") +
+      (o.html || "") + (o.text ? "<p>" + esc(o.text) + "</p>" : "") +
+      (o.input !== undefined ? (o.code ? '<input class="f code-in" aria-label="' + esc(o.title) + '" maxlength="12" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="ex. K7P2X9QM" value="' + esc(o.input) + '">' : o.multiline ? '<textarea class="f" rows="6" aria-label="' + esc(o.title) + '">' + esc(o.input) + "</textarea>" : o.suggest ? '<div class="fl"><input class="f" data-suggest autocomplete="off" maxlength="80" placeholder="Tape un nom ou un muscle" aria-label="' + esc(o.title) + '" value="' + esc(o.input) + '"><div class="sugg" hidden></div></div>' : '<input class="f" aria-label="' + esc(o.title) + '" value="' + esc(o.input) + '">') : "") +
       '<div class="modal-btns">' + (o.cancel === false ? "" : '<button class="btn" data-r="0">' + esc(o.cancel || "Annuler") + "</button>") +
       '<button class="btn ' + (o.danger ? "strong" : "primary") + '" data-r="1">' + esc(o.ok || "OK") + "</button></div></div>";
     document.body.appendChild(d);
@@ -296,6 +296,17 @@ function ask(o) {
 }
 
 /* ================= Supabase (connexion + synchro) ================= */
+// fonction SQL (rpc) : renvoie son résultat JSON (null si vide)
+async function rpc(name, args) {
+  await ensureToken();
+  const go = () => fetch(SUPABASE_URL + "/rest/v1/rpc/" + name, { method: "POST", body: JSON.stringify(args || {}),
+    headers: { apikey: SUPABASE_KEY, Authorization: "Bearer " + db.auth.access_token, "Content-Type": "application/json" } });
+  let r = await go();
+  if (r.status === 401) { await ensureToken(true); r = await go(); }
+  const t = await r.text(); let j = null; try { j = t ? JSON.parse(t) : null; } catch (e) { }
+  if (!r.ok) { const e = new Error((j && j.message) || t || ("Erreur " + r.status)); e.status = r.status; e.code = j && j.code; throw e; }
+  return j;
+}
 const syncState = { status: "idle", at: null, error: "" };
 async function authReq(path, body) {
   const r = await fetch(SUPABASE_URL + "/auth/v1/" + path, { method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -1792,6 +1803,45 @@ function fatWorkout(d) {
   if (!d || !Array.isArray(d.exercises)) return d;
   return Object.assign({}, d, { exercises: d.exercises.map(e => Object.assign({ groupId: null, groupKind: null, note: "" }, e, { sets: (Array.isArray(e.sets) ? e.sets : []).map(st => Object.assign({ kg: "", reps: "", sec: "", done: false }, st, { drops: (st.drops || []).map(dr => Object.assign({ kg: "", reps: "" }, dr)) })) })) });
 }
+// contenu complet d'une sauvegarde (fichier, code de transfert, ancien texte)
+async function backupText() {
+  flushPending();
+  return packBackup(JSON.stringify({ app: "muscuapp", v: 2, at: Date.now(), items: Object.values(db.items).filter(x => !x.deleted).map(x => ({ id: x.id, kind: x.kind, data: slimData(x), updated_at: x.updated_at })) }));
+}
+const backupName = () => { const d = new Date(); return "fiitday-sauvegarde-" + d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + ".txt"; };
+// fichier : dans l'appli Android, le téléphone demande où l'enregistrer (Téléchargements, Drive…) ; sur le site, téléchargement classique
+const nativeFiles = () => !!(window.AndroidBridge && typeof window.AndroidBridge.saveFile === "function" && typeof window.AndroidBridge.openFile === "function");
+let fileCb = null;
+window.__fiitdayFile = (kind, status, text) => { const cb = fileCb; fileCb = null; if (cb) cb(status, text); };
+function saveFile(name, text) {
+  if (nativeFiles()) return new Promise(res => { fileCb = st => res(st); window.AndroidBridge.saveFile(name, text); });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type: "text/plain" })); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+  return Promise.resolve("download");
+}
+// texte du fichier choisi, null si rien n'est choisi, false s'il n'a pas pu être lu
+function openFile() {
+  if (nativeFiles()) return new Promise(res => { fileCb = (st, text) => res(st === "ok" ? text : st === "error" ? false : null); window.AndroidBridge.openFile(); });
+  return new Promise(res => {
+    const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".txt,.json,text/plain,application/json";
+    inp.addEventListener("change", () => { const f = inp.files && inp.files[0]; if (!f) return res(null); if (f.size > 20e6) return res(false); f.text().then(res, () => res(false)); });
+    inp.addEventListener("cancel", () => res(null));
+    inp.click();
+  });
+}
+// code de transfert : 8 caractères, lettres majuscules et chiffres sans 0 / O / 1 / I (créé et vérifié par Supabase)
+const XFER_RE = /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$/;
+const normCode = t => String(t || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+const xferErr = err => err && (err.code === "PGRST202" || err.status === 404) ? "Les codes de transfert ne sont pas encore activés (SQL transfert.sql à exécuter dans Supabase)"
+  : err && err.message === "Failed to fetch" ? "Pas de connexion : réessaie avec du réseau" : (err && err.message) || "Erreur, réessaie";
+async function useTransferCode(raw) {
+  const c = normCode(raw);
+  if (!XFER_RE.test(c)) { toast("Un code de transfert fait 8 caractères (lettres et chiffres)"); return; }
+  if (!db.auth) { toast("Connecte-toi au compte qui doit recevoir les données"); return; }
+  let txt; try { txt = await rpc("use_transfer", { p_code: c }); } catch (err) { toast(xferErr(err)); return; }
+  if (!txt || typeof txt !== "string") { toast("Code inconnu ou expiré (un code n'est valable qu'1 heure)"); return; }
+  restoreBackup(txt, "Ce code ne contient pas une sauvegarde valide");
+}
 // « FIITDAY1: » + données compressées en base64 : bien plus court que le texte brut
 async function packBackup(str) {
   if (!window.CompressionStream) return str;
@@ -1821,8 +1871,12 @@ function viewSettings() {
     '<div class="card"><b>Alerte de fin de repos</b><div style="margin-top:10px">' + seg("alert", [["vibration", "Vibration"], ["son", "Son"], ["les deux", "Les deux"], ["aucune", "Aucune"]]) + "</div>" +
     '<button class="btn sm" style="margin-top:10px" data-act="testalert">Tester</button></div>' +
     '<div class="card"><b>Objectif de séances par semaine</b><div style="margin-top:10px">' + seg("goal", [["2", "2"], ["3", "3"], ["4", "4"], ["5", "5"], ["6", "6"], ["7", "7"]]) + "</div></div>" +
-    '<div class="card"><b>Sauvegarde</b><div class="small muted" style="margin-top:4px">Copie de secours de toutes tes données (texte à garder dans une note).</div>' +
-    '<div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-act="export">Copier la sauvegarde</button><button class="btn sm" data-act="import">Restaurer…</button></div></div>' +
+    '<div class="card"><b>Données</b><div class="small muted" style="margin-top:4px">Tes programmes, séances et réglages.</div>' +
+    '<div class="data-sec"><div class="data-t">Sauvegarde</div><div class="small muted">Un fichier à garder sur ton téléphone, ton ordinateur ou dans un cloud (Google Drive…).</div>' +
+    '<div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-act="filesave">Enregistrer une sauvegarde</button><button class="btn sm" data-act="fileopen">Restaurer une sauvegarde</button></div></div>' +
+    '<div class="data-sec"><div class="data-t">Transfert vers un autre compte</div><div class="small muted">Un code de 8 caractères, valable 1 heure, à taper dans l\'autre compte.</div>' +
+    '<div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-act="xfercreate">Créer un code</button><button class="btn sm" data-act="xferuse">J\'ai un code</button></div></div>' +
+    '<button class="link small" style="margin-top:6px;padding:0;text-align:left" data-act="import">Restaurer un ancien texte de sauvegarde (FIITDAY1:…)</button></div>' +
     '<div class="card"><b>Compte</b><div style="margin-top:8px">' +
     (db.auth ? '<label class="fl" style="margin-bottom:8px">Prénom<input class="f" data-setname maxlength="40" autocomplete="given-name" value="' + esc(firstName()) + '" placeholder="Ton prénom"></label>' +
       '<div class="small">Connecté : ' + esc(db.auth.user.email) + "</div><div style=\"margin-top:6px\">" + syncBadge() + '</div><div class="small msg err" data-sync-error>' + (syncState.status === "err" ? esc(syncState.error) : "") + "</div>" +
@@ -2181,6 +2235,7 @@ $app.addEventListener("click", async e => {
     case "sharevar": { const { t, v } = currentProgram(); if (v) shareVariant(t, v); } break;
     case "importvar": { const code = await ask({ title: "Importer une séance", text: "Colle le lien de la séance qu'on t'a envoyé.", input: "", ok: "Continuer" }); if (!code) return;
       if (/^\s*FIITDAY\d:/.test(code)) { if (await ask({ title: "C'est une sauvegarde", text: "Ce texte est une sauvegarde complète (programmes, séances, réglages), pas un lien de séance. La restaurer dans ce compte ?", ok: "Restaurer" })) restoreBackup(code); return; }
+      if (XFER_RE.test(normCode(code)) && code.trim().length <= 12) { if (await ask({ title: "C'est un code de transfert", text: "Ce code sert à récupérer toutes les données d'un autre compte (programmes, séances, réglages). Les récupérer dans ce compte ?", ok: "Récupérer" })) useTransferCode(code); return; }
       importShared(code); } break;
     case "launchvar": flushPending(); startWorkout(b.dataset.t, b.dataset.v, true); break;
     case "deltpl": { const { t } = currentProgram(); if (!t) return; if (!await ask({ title: "Supprimer « " + t.name + " » ?", text: "Ses séances et exercices seront supprimés. L'historique des séances déjà faites est conservé.", ok: "Supprimer", danger: true })) return; remove(t.id); go("home"); } break;
@@ -2195,11 +2250,31 @@ $app.addEventListener("click", async e => {
       signal();
       if ((a === "vibration" || a === "les deux") && !Native && !navigator.vibrate) toast("Sur ce téléphone, un site web ne peut pas faire vibrer (c'est le cas sur iPhone) : seul le son fonctionne.");
     } break;
-    case "export": {
-      flushPending();
-      const data = await packBackup(JSON.stringify({ app: "muscuapp", v: 2, at: Date.now(), items: Object.values(db.items).filter(x => !x.deleted).map(x => ({ id: x.id, kind: x.kind, data: slimData(x), updated_at: x.updated_at })) }));
-      try { await navigator.clipboard.writeText(data); toast("Sauvegarde copiée : colle-la dans une note, puis dans Réglages › Restaurer pour la récupérer"); }
-      catch (err) { await ask({ title: "Sauvegarde", text: "Copie ce texte :", input: data, multiline: true, cancel: false, ok: "Fermer" }); }
+    case "filesave": {
+      const r = await saveFile(backupName(), await backupText());
+      if (r === "ok") toast("Sauvegarde enregistrée");
+      else if (r === "download") toast("Sauvegarde enregistrée dans tes téléchargements (" + backupName() + ")");
+      else if (r === "error") toast("La sauvegarde n'a pas pu être enregistrée");
+    } break;
+    case "fileopen": {
+      const txt = await openFile();
+      if (txt === false) toast("Ce fichier n'a pas pu être lu");
+      else if (txt != null) restoreBackup(txt, "Ce fichier n'est pas une sauvegarde Fiitday");
+    } break;
+    case "xfercreate": {
+      if (!db.auth) { toast("Connecte-toi à ton compte pour créer un code"); return; }
+      const txt = await backupText();
+      let row; try { row = await rpc("create_transfer", { p_payload: txt }); } catch (err) { toast(xferErr(err)); return; }
+      row = Array.isArray(row) ? row[0] : row;
+      if (!row || !XFER_RE.test(row.transfer_code || "")) { toast("Impossible de créer un code, réessaie"); return; }
+      const copy = await ask({ title: "Code de transfert", html: '<div class="xfer-code" aria-label="Code ' + esc(row.transfer_code.split("").join(" ")) + '">' + esc(row.transfer_code) + "</div>",
+        text: "Valable jusqu'à " + fmtTime(Date.parse(row.valid_until)) + " (1 heure).\nDans l'autre compte : Réglages › Données › « J'ai un code ».\nCe code donne accès à toutes tes données : ne le partage pas.", ok: "Copier le code", cancel: "Fermer" });
+      if (copy) { try { await navigator.clipboard.writeText(row.transfer_code); toast("Code copié"); } catch (err) { toast("Note le code : " + row.transfer_code); } }
+    } break;
+    case "xferuse": {
+      if (!db.auth) { toast("Connecte-toi au compte qui doit recevoir les données"); return; }
+      const c = await ask({ title: "J'ai un code", text: "Tape le code de 8 caractères créé dans l'autre compte (Réglages › Données › Créer un code). Il n'est valable qu'1 heure.", input: "", code: true, ok: "Récupérer" });
+      if (c) useTransferCode(c);
     } break;
     case "import": {
       const txt = await ask({ title: "Restaurer une sauvegarde", text: "Colle le texte de la sauvegarde. Ce qui a été supprimé depuis revient ; ce que tu as modifié depuis garde sa version la plus récente.", input: "", multiline: true, ok: "Restaurer" });
@@ -2207,14 +2282,14 @@ $app.addEventListener("click", async e => {
     } break;
   }
 });
-async function restoreBackup(txt) {
+async function restoreBackup(txt, badMsg) {
   {
       try {
         const j = JSON.parse(await unpackBackup(txt)); if (!j || j.app !== "muscuapp" || !Array.isArray(j.items)) throw new Error();
         let n = 0, bad = 0;
         for (const it of j.items) { if (it && it.kind === "workout" && it.data) it.data = fatWorkout(it.data); if (!validItem(it) || typeof it.updated_at !== "number") { bad++; continue; } const cur = db.items[it.id]; if (!cur || cur.deleted || it.updated_at > cur.updated_at) { db.items[it.id] = { id: it.id, kind: it.kind, data: it.data, updated_at: Math.max(it.updated_at, (cur && cur.updated_at + 1) || 0), deleted: false, dirty: true }; n++; } }
         dataRev++; localFixed = false; saveNow(); scheduleSync(); render(); toast((n ? n + " élément" + (n > 1 ? "s" : "") + " restauré" + (n > 1 ? "s" : "") : "Rien à restaurer : tout ce qui est dans la sauvegarde est déjà dans l'appli") + (bad ? " (" + bad + " ignoré" + (bad > 1 ? "s" : "") + ")" : ""));
-      } catch (err) { toast("Ce texte n'est pas une sauvegarde valide"); }
+      } catch (err) { toast(badMsg || "Ce texte n'est pas une sauvegarde valide"); }
   }
 }
 

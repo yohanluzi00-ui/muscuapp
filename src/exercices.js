@@ -21,7 +21,7 @@ export const MUSCLES = {
   quadriceps: ["Quadriceps", "jambes"], ischios: ["Ischio-jambiers", "jambes"], fessiers: ["Fessiers", "jambes"],
   adducteurs: ["Adducteurs", "jambes"], abducteurs: ["Abducteurs (moyen fessier)", "jambes"], mollets: ["Mollets", "jambes"],
 };
-const GROUPS = [["tous", "Tous"], ["maison", "Sans matériel"], ["pectoraux", "Pectoraux"], ["dos", "Dos"], ["epaules", "Épaules"], ["bras", "Bras"], ["jambes", "Jambes"], ["abdos", "Abdos"], ["cardio", "Cardio"], ["hyrox", "Hyrox"]];
+const GROUPS = [["tous", "Tous"], ["maison", "Sans matériel"], ["pectoraux", "Pectoraux"], ["dos", "Dos"], ["epaules", "Épaules"], ["bras", "Bras"], ["jambes", "Jambes"], ["abdos", "Abdos"], ["cardio", "Circuit Training"], ["hyrox", "Hyrox"]];
 const atHome = ex => /^Poids du corps/.test(ex.gear);
 
 /* =====================================================================
