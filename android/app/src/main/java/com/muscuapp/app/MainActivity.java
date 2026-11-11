@@ -3,11 +3,14 @@ package com.muscuapp.app;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.app.NotificationManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.view.WindowManager;
@@ -27,6 +30,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.ref.WeakReference;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 
@@ -43,6 +47,8 @@ public class MainActivity extends Activity {
     private static final int REQ_SAVE = 41, REQ_OPEN = 42;
     private static final long MAX_FILE = 20L * 1024 * 1024;
     private static String pendingSave = null;
+    /** appli ouverte (pour lui transmettre les boutons « Passer » / « Terminer » des notifications) */
+    private static WeakReference<MainActivity> currentActivity = new WeakReference<>(null);
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -50,6 +56,7 @@ public class MainActivity extends Activity {
 
         web = new WebView(this);
         setContentView(web);
+        currentActivity = new WeakReference<>(this);
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
@@ -134,7 +141,40 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
-        public void stopRestTimer() { RestTimerService.stop(MainActivity.this); }
+        public void stopRestTimer() { RestTimerService.stop(MainActivity.this, "rest"); }
+
+        /** repos avec titre et option montre */
+        @JavascriptInterface
+        public void startRest(String at, String mode, String title, boolean watch) {
+            long end;
+            try { end = Long.parseLong(at); } catch (Exception e) { return; }
+            RestTimerService.startRest(MainActivity.this, end, mode, title, watch);
+        }
+
+        /** chrono (gainage, étirement, course) : départ, objectif en secondes (0 = aucun) */
+        @JavascriptInterface
+        public void startChrono(String startAt, String targetSec, String mode, String title, String text, boolean watch) {
+            long st, tg;
+            try { st = Long.parseLong(startAt); tg = Long.parseLong(targetSec); } catch (Exception e) { return; }
+            RestTimerService.startChrono(MainActivity.this, st, tg, mode, title, text, watch);
+        }
+
+        @JavascriptInterface
+        public void stopChrono() { RestTimerService.stop(MainActivity.this, "chrono"); }
+
+        @JavascriptInterface
+        public void testWatch() { new Handler(Looper.getMainLooper()).postDelayed(() -> RestTimerService.testWatch(MainActivity.this), 5000); } // 5 s pour verrouiller le téléphone
+
+        /** bouton appuyé dans une notification (ou sur la montre) en attente : {"act":"chronostop","at":…} ou "" */
+        @JavascriptInterface
+        public String takeAction() {
+            SharedPreferences p = getSharedPreferences("fiitday", MODE_PRIVATE);
+            String act = p.getString("action", "");
+            long at = p.getLong("action_at", 0);
+            p.edit().remove("action").remove("action_at").apply();
+            if (act == null || act.isEmpty()) return "";
+            return "{\"act\":" + JSONObject.quote(act) + ",\"at\":" + at + "}";
+        }
 
         @JavascriptInterface
         public String restAlertedAt() { return String.valueOf(RestTimerService.alertedEnd); }
@@ -187,6 +227,14 @@ public class MainActivity extends Activity {
             try { return getPackageManager().getPackageInfo(getPackageName(), 0).versionName; }
             catch (Exception e) { return ""; }
         }
+    }
+
+    /** bouton « Passer » / « Terminer » : gardé jusqu'à ce que l'appli le prenne, et l'appli ouverte est prévenue tout de suite */
+    static void deliverAction(Context c, String act, long at) {
+        c.getSharedPreferences("fiitday", MODE_PRIVATE).edit().putString("action", act).putLong("action_at", at).apply();
+        final MainActivity a = currentActivity.get();
+        if (a == null) return;
+        a.runOnUiThread(() -> { if (a.web != null) a.web.evaluateJavascript("window.__fiitdayPending&&window.__fiitdayPending()", null); });
     }
 
     @Override
@@ -273,6 +321,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        if (currentActivity.get() == this) currentActivity.clear();
         if (web != null) web.destroy();
         super.onDestroy();
     }

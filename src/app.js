@@ -87,7 +87,7 @@ function putLater(kind, data) {
 function flushPending() {
   for (const id of Object.keys(pending)) { clearTimeout(pending[id]); delete pending[id]; const it = db.items[id]; if (it && !it.deleted) put(it.kind, it.data); }
 }
-document.addEventListener("visibilitychange", () => { if (document.hidden) { flushPending(); saveNow(); } else sync(); });
+document.addEventListener("visibilitychange", () => { if (document.hidden) { flushPending(); saveNow(); } else { sync(); if (window.__fiitdayPending) window.__fiitdayPending(); } });
 
 /* ================= Données ================= */
 // identifiants : lettres, chiffres, « _ » et « - » seulement (ils sont insérés dans les attributs HTML)
@@ -269,7 +269,10 @@ function vibrate() {
   const p = [350, 150, 350];
   try { if (Native && Native.vibrate) Native.vibrate(JSON.stringify(p)); else if (navigator.vibrate) navigator.vibrate(p); } catch (e) { }
 }
-function signal() { const a = settings().alert; if (a === "son" || a === "les deux") beep(); if (a === "vibration" || a === "les deux") vibrate(); }
+function signal(noVib) { const a = settings().alert; if (a === "son" || a === "les deux") beep(); if (!noVib && (a === "vibration" || a === "les deux")) vibrate(); }
+// montre connectée (appli Android) : le repos et le chrono arrivent sur la montre, qui vibre à la fin
+const nativeWatch = () => !!(Native && typeof Native.startChrono === "function");
+const watchOn = () => nativeWatch() && settings().watch === "oui";
 let screenOn = null;
 function keepScreen(on) { if (on === screenOn) return; screenOn = on; try { if (Native && Native.keepScreenOn) Native.keepScreenOn(on); } catch (e) { } }
 
@@ -936,13 +939,14 @@ function prepBeep(go) {
   }
   if (go && (a === "vibration" || a === "les deux")) { try { if (Native && Native.vibrate) Native.vibrate("[250]"); else if (navigator.vibrate) navigator.vibrate(250); } catch (e) { } }
 }
-function stopChrono(w) {
+function stopChrono(w, at) {
   const c = db.live.chrono; if (!c || c.wid !== w.id) return;
+  const t = at || Date.now();
   const set = w.exercises[c.i] && w.exercises[c.i].sets[c.s];
   db.live.chrono = null;
   if (!set) return;
-  if (Date.now() < c.start) return; // arrêté pendant la préparation : rien n'est noté
-  set.sec = String(Math.round((Date.now() - c.start) / 1000)); set.done = true;
+  if (t < c.start) return; // arrêté pendant la préparation : rien n'est noté
+  set.sec = String(Math.round((t - c.start) / 1000)); set.done = true;
   afterSet(w, c.i, c.s);
   put("workout", w);
   const rec = checkRecord(w, c.i, c.s);
@@ -1631,19 +1635,59 @@ async function importShared(code) {
 }
 
 /* ================= Minuteur de repos dans les notifications (appli Android) ================= */
-let nativeRestSent = null, notifAsked = false;
+let nativeRestSent = null, nativeRestEnd = 0, nativeChronoSent = null, notifAsked = false;
+function askNotif() { if (!notifAsked && Native.askNotifications) { notifAsked = true; Native.askNotifications(); } }
 function syncNativeRest() {
   if (!Native || !Native.startRestTimer) return;
-  const v = (db.live && db.live.restEnd) || 0;
-  if (v === nativeRestSent) return;
-  nativeRestSent = v;
+  const L = db.live || {}, v = L.restEnd || 0, wOn = watchOn();
+  const key = v ? [v, L.restLabel || "", wOn, settings().alert].join("|") : "";
+  if (key === nativeRestSent) return;
+  nativeRestSent = key;
   try {
     if (v) {
-      if (!notifAsked && Native.askNotifications) { notifAsked = true; Native.askNotifications(); }
-      Native.startRestTimer(String(v), settings().alert);
-    } else Native.stopRestTimer();
+      askNotif();
+      if (typeof Native.startRest === "function") Native.startRest(String(v), settings().alert, L.restLabel || "Repos", wOn);
+      else Native.startRestTimer(String(v), settings().alert);
+      nativeRestEnd = v;
+    } else {
+      // repos arrivé au bout : Android finit seul (alerte, montre) ; repos passé ou annulé : on l'arrête
+      if (!nativeRestEnd || Date.now() < nativeRestEnd - 500) Native.stopRestTimer();
+      nativeRestEnd = 0;
+    }
   } catch (e) { }
 }
+// chrono (gainage, étirement, course) : notification qui défile, et sur la montre avec l'option
+function syncNativeChrono() {
+  if (!nativeWatch()) return;
+  const c = db.live && db.live.chrono, wOn = watchOn();
+  const key = c ? [c.wid, c.i, c.s, c.start, c.target || 0, wOn, settings().alert].join("|") : "";
+  if (key === nativeChronoSent) return;
+  nativeChronoSent = key;
+  try {
+    if (c) {
+      const w = getItem(c.wid), ex = w && w.exercises[c.i];
+      const title = chronoKind(w, c) + (ex ? " · " + ex.name : "");
+      const text = c.target ? "Objectif " + fmtHold(c.target) : c.dist ? "Distance : " + fmtNum(c.dist) + " m" : "";
+      askNotif();
+      Native.startChrono(String(c.start), String(Math.round(c.target || 0)), settings().alert, title, text, wOn);
+    } else Native.stopChrono();
+  } catch (e) { }
+}
+// boutons « Passer » / « Terminer » appuyés dans une notification ou sur la montre : at = heure de l'appui
+function nativeAction(act, at) {
+  const L = db.live || {};
+  if (act === "skiprest") { if (L.restEnd && at < L.restEnd) { L.restEnd = null; L.restMin = false; save(); tick(); } return; }
+  if (act === "chronostop") {
+    const c = L.chrono; if (!c || at < c.start - 10000) return;
+    const w = getItem(c.wid);
+    if (w) stopChrono(w, at); else L.chrono = null;
+    save(); render();
+  }
+}
+window.__fiitdayPending = () => {
+  try { const t = Native && Native.takeAction && Native.takeAction(); if (t) { const a = JSON.parse(t); nativeAction(a.act, Number(a.at) || Date.now()); } } catch (e) { }
+  return true;
+};
 
 /* ================= Glisser-déposer pour l'ordre des programmes et des séances ================= */
 let drag = null, lastDragEnd = 0;
@@ -1862,7 +1906,8 @@ async function unpackBackup(txt) {
 /* ================= Écran : réglages ================= */
 function viewSettings() {
   const s = settings();
-  const seg = (k, opts) => '<div class="seg" role="group">' + opts.map(o => '<button class="' + (s[k] === o[0] ? "on" : "") + '" aria-pressed="' + (s[k] === o[0]) + '" data-act="set" data-k="' + k + '" data-val="' + o[0] + '">' + o[1] + "</button>").join("") + "</div>";
+  const sv = k => s[k] || (k === "watch" ? "non" : "");
+  const seg = (k, opts) => '<div class="seg" role="group">' + opts.map(o => '<button class="' + (sv(k) === o[0] ? "on" : "") + '" aria-pressed="' + (sv(k) === o[0]) + '" data-act="set" data-k="' + k + '" data-val="' + o[0] + '">' + o[1] + "</button>").join("") + "</div>";
   // même numéro sur le téléphone et sur le web : 1.<nombre de modifications du code>
   const num_ = (Native && Native.version && Native.version()) || window.APP_VERSION || "";
   const ver = "Fiitday " + (num_ && num_ !== "1.0-dev" ? "V" + num_ : "(version de développement)");
@@ -1870,6 +1915,10 @@ function viewSettings() {
     '<div class="card"><b>Apparence</b><div style="margin-top:10px">' + seg("theme", [["auto", "Auto"], ["clair", "Clair"], ["sombre", "Sombre"]]) + "</div></div>" +
     '<div class="card"><b>Alerte de fin de repos</b><div style="margin-top:10px">' + seg("alert", [["vibration", "Vibration"], ["son", "Son"], ["les deux", "Les deux"], ["aucune", "Aucune"]]) + "</div>" +
     '<button class="btn sm" style="margin-top:10px" data-act="testalert">Tester</button></div>' +
+    (nativeWatch() ? '<div class="card"><b>Montre connectée</b><div class="small muted" style="margin-top:4px">Galaxy Watch, Pixel Watch… : quand un repos ou un chrono démarre, une notification arrive sur la montre (sans vibrer), avec « Passer » ou « Terminer ». La montre vibre à la fin.</div>' +
+      '<div style="margin-top:10px">' + seg("watch", [["non", "Désactivée"], ["oui", "Activée"]]) + "</div>" +
+      (watchOn() ? '<button class="btn sm" style="margin-top:10px" data-act="testwatch">Tester sur la montre</button>' +
+        '<div class="small muted" style="margin-top:8px">Rien sur la montre ? Dans l\'appli Galaxy Wearable › Paramètres de la montre › Notifications : autorise Fiitday, et dans « Notifications du téléphone sur la montre », choisis « Toujours afficher sur les deux » (sinon la montre ne reçoit rien tant que l\'écran du téléphone est allumé, et Fiitday le garde allumé pendant la séance).</div>' : "") + "</div>" : "") +
     '<div class="card"><b>Objectif de séances par semaine</b><div style="margin-top:10px">' + seg("goal", [["2", "2"], ["3", "3"], ["4", "4"], ["5", "5"], ["6", "6"], ["7", "7"]]) + "</div></div>" +
     '<div class="card"><b>Données</b><div class="small muted" style="margin-top:4px">Tes programmes, séances et réglages.</div>' +
     '<div class="data-sec"><div class="data-t">Sauvegarde</div><div class="small muted">Un fichier à garder sur ton téléphone, ton ordinateur ou dans un cloud (Google Drive…).</div>' +
@@ -1901,9 +1950,9 @@ function tick() {
     let nativeAlerted = false;
     try { nativeAlerted = !!(Native && Native.restAlertedAt && Number(Native.restAlertedAt()) === L.restEnd); } catch (e) { }
     L.restAlerted = true; L.restEnd = null; L.restMin = false; save();
-    if (!nativeAlerted) { signal(); restDone(); }
+    if (!nativeAlerted) { signal(watchOn()); restDone(); } // option montre : la notification d'Android vibre (téléphone et montre)
   }
-  syncNativeRest();
+  syncNativeChrono(); syncNativeRest(); // le chrono d'abord : un repos qui suit un chrono ne doit pas être coupé
   const pop = document.querySelector("[data-restpop]"), pill = document.querySelector("[data-restpill]");
   if (pop) {
     const on = !!L.restEnd;
@@ -1927,7 +1976,12 @@ function tick() {
     if (prep && left !== c.count) { c.count = left; if (left <= 3) prepBeep(false); }
     if (!prep && !c.go) { c.go = true; save(); prepBeep(true); }
     if (el) el.textContent = prep ? "Prêt · " + left : fmtDur(ms, "down");
-    if (!c.alerted && c.target && ms >= c.target * 1000) { c.alerted = true; save(); signal(); }
+    if (!c.alerted && c.target && ms >= c.target * 1000) {
+      c.alerted = true; save();
+      let nativeDone = false; // objectif déjà signalé par Android (appli en arrière-plan)
+      try { nativeDone = !!(Native && Native.restAlertedAt && Number(Native.restAlertedAt()) === c.start + c.target * 1000); } catch (e) { }
+      if (!nativeDone) signal(watchOn());
+    }
     const w = currentWorkout(), here = w && w.id === c.wid;
     if (cpop) {
       cpop.hidden = !here || !!c.min;
@@ -2242,6 +2296,11 @@ $app.addEventListener("click", async e => {
 
     /* réglages */
     case "set": setSetting(b.dataset.k, b.dataset.val); break;
+    case "testwatch": {
+      if (!nativeWatch() || typeof Native.testWatch !== "function") return;
+      askNotif(); Native.testWatch();
+      toast("Notification de test dans 5 secondes : verrouille ton téléphone et regarde ta montre");
+    } break;
     case "testalert": {
       b.classList.remove("lit"); void b.offsetWidth; b.classList.add("lit"); setTimeout(() => b.classList.remove("lit"), 1300);
       audio();
@@ -2374,6 +2433,7 @@ $app.addEventListener("keydown", e => {
 applyTheme();
 render();
 if (db.auth) sync();
+setTimeout(() => window.__fiitdayPending(), 300);
 if ("serviceWorker" in navigator && location.protocol === "https:" && !Native && !window.claude) {
   navigator.serviceWorker.register("sw.js").catch(() => { });
 }
