@@ -544,3 +544,14 @@ input.ro { background: var(--soft) !important; color: var(--ink); pointer-events
 .faq-none { margin: 16px 2px; }
 .faq-more { margin-top: 24px; }
 @media (prefers-reduced-motion: reduce) { .faq-q summary::after { transition: none; } }
+/* Ajout d'exercices : exercice à créer, puis ordre dans la séance */
+.pk-row.pk-new b { color: var(--accent); }
+.ord { max-height: min(86vh, 760px); }
+.ord-list { overflow-y: auto; margin: 4px -6px 0; padding: 0 6px; flex: 1; min-height: 80px; }
+.ord-row { display: flex; align-items: center; gap: 6px; padding: 6px 2px; border-bottom: 1px solid var(--line2); background: var(--card); }
+.ord-row .grip { width: 34px; height: 44px; }
+.ord-row .btn.sm { min-width: 40px; padding: 0; flex: none; }
+.ord-n { flex: 1; min-width: 0; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+.ord-row.new .ord-n { color: var(--accent); }
+.ord-row .tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 6px; margin-left: 4px; border-radius: 6px; vertical-align: 1px; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.ord-row.dragging { box-shadow: 0 8px 24px rgba(0, 0, 0, .18); position: relative; z-index: 2; border-radius: 10px; }

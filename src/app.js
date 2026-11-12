@@ -1111,37 +1111,127 @@ function choose(title, opts) {
     });
   });
 }
-// choix d'un ou plusieurs étirements de la bibliothèque (recherche, zones, cases à cocher)
-function pickStretches(title) {
+// choix d'un ou plusieurs exercices (ou étirements) de la bibliothèque : recherche, filtres, cases à cocher ;
+// en musculation, aussi tes propres exercices et un exercice à créer avec le nom tapé
+const PK_GROUPS = [["", "Tous"], ["pectoraux", "Pectoraux"], ["dos", "Dos"], ["epaules", "Épaules"], ["bras", "Bras"], ["jambes", "Jambes"], ["abdos", "Abdos"], ["cardio", "Circuit Training"], ["hyrox", "Hyrox"], ["maison", "Sans matériel"], ["own", "Tes exercices"]];
+const TYPE_CHOICES = [["reps", "Poids × reps", "Charge et nombre de répétitions"], ["rep", "Reps uniquement", "Pompes, tractions… sans charge"], ["time", "Temps", "Gainage, chaise… avec chrono"], ["dist", "Distance", "Course, rameur, Hyrox… avec chrono"]];
+function pickExercises(mode, title) {
+  const etir = mode === "etir";
   return new Promise(res => {
-    const all = EXO_LIB.filter(x => x.cat === "etirement"), picked = new Set();
-    let zone = "", q = "";
-    const d = document.createElement("div"); d.className = "modal sheet";
+    const lib = EXO_LIB.filter(x => etir ? x.cat === "etirement" : x.cat !== "etirement");
+    const own = etir ? [] : knownNames().filter(n => !libFor(n)).map(n => ({ id: "own:" + n, n, own: true, nn: norm(n) }));
+    const byKey = new Map(); lib.forEach(x => byKey.set(x.id, x)); own.forEach(x => byKey.set(x.id, x));
+    const stretchKey = new Map(); if (!etir) EXO_LIB.filter(x => x.cat === "etirement").forEach(x => stretchKey.set(x.id, x)); // trouvés aussi par la recherche
+    const picked = [], created = new Map(); // clés dans l'ordre où elles sont cochées ; exercices créés (nom tapé)
+    let filt = "", q = "";
+    const chips = etir ? [["", "Tous"], ["haut", "Haut"], ["milieu", "Milieu"], ["bas", "Bas"]] : PK_GROUPS.filter(g => g[0] !== "own" || own.length);
+    const inFilt = x => !filt || (etir ? x.zone === filt : filt === "own" ? !!x.own : filt === "maison" ? /^Poids du corps/.test(x.gear || "") : !x.own && x.g === filt);
+    const sub = x => x.own ? "Tes exercices" : etir || x.cat === "etirement" ? (etir ? "" : "Étirement · ") + x.mus + " · " + x.hold + " s" + (x.side ? " de chaque côté" : "") : x.mus + " · " + x.gear;
+    const row = (key, name, s, cls) => '<label class="pk-row' + (cls || "") + '"><input type="checkbox" data-pk="' + esc(key) + '"' + (picked.includes(key) ? " checked" : "") + "><span><b>" + esc(name) + '</b><span class="muted small">' + esc(s) + "</span></span></label>";
+    const what = etir ? "étirement" : "exercice";
     const listHtml = () => {
-      const qs = words(q), v = all.filter(x => (!zone || x.zone === zone) && (!qs.length || qs.every(t => words(x.n + " " + x.mus + " " + x.al.join(" ")).some(w => w.startsWith(t)))));
-      if (!v.length) return '<p class="muted small" style="margin:8px 2px">Aucun étirement ne correspond.</p>';
-      return ["haut", "milieu", "bas"].map(z => { const it = v.filter(x => x.zone === z); return it.length ? '<div class="pk-h">' + ZONE_NAMES[z] + "</div>" + it.map(x =>
-        '<label class="pk-row"><input type="checkbox" data-pk="' + x.id + '"' + (picked.has(x.id) ? " checked" : "") + '><span><b>' + esc(x.n) + '</b><span class="muted small">' + esc(x.mus) + " · " + x.hold + " s" + (x.side ? " de chaque côté" : "") + "</span></span></label>").join("") : ""; }).join("");
+      let h = "";
+      created.forEach((c, key) => { h += row(key, c.n, "Ton exercice (réglages modifiables ensuite)", " pk-new"); });
+      const qt = q.trim();
+      if (qt) {
+        const exists = libFor(qt) || own.some(o => o.nn === norm(qt)) || created.has("new:" + qt.slice(0, 80));
+        const found = searchExercises(qt), v = found.map(c => byKey.get(c.own ? "own:" + c.n : c.id)).filter(x => x && inFilt(x));
+        if (!filt) found.forEach(c => { const x = !c.own && stretchKey.get(c.id); if (x) v.push(x); }); // étirements : après les exercices
+        // « Créer » : en premier si rien ne correspond, sinon après les exercices trouvés
+        const mk = !etir && !exists ? row("new:" + qt.slice(0, 80), "+ Créer « " + qt.slice(0, 80) + " »", "Ton propre exercice, s'il n'est pas dans la liste", " pk-new") : "";
+        return h + (v.length ? v.map(x => row(x.id, x.n, sub(x))).join("") + mk : mk + '<p class="muted small" style="margin:8px 2px">Aucun ' + what + " de la liste ne correspond." + (mk ? " Coche « Créer » pour ajouter le tien." : "") + "</p>");
+      }
+      const v = lib.concat(own).filter(inFilt);
+      const secs = etir ? ["haut", "milieu", "bas"].map(z => [ZONE_NAMES[z], v.filter(x => x.zone === z)])
+        : PK_GROUPS.filter(g => g[0] && g[0] !== "maison").map(([g, n]) => [n, v.filter(x => g === "own" ? x.own : !x.own && x.g === g)]);
+      return h + secs.filter(s => s[1].length).map(([n, it]) => '<div class="pk-h">' + esc(n) + "</div>" + it.map(x => row(x.id, x.n, sub(x))).join("")).join("");
     };
-    const okLabel = () => picked.size ? "Ajouter (" + picked.size + ")" : "Ajouter";
-    d.innerHTML = '<div class="modal-box pk" role="dialog" aria-modal="true" aria-label="' + esc(title) + '"><h3>' + esc(title) + '</h3><p class="muted small" style="margin:0 0 8px">Chaque étirement est ajouté en mode temps : 2 séries de 30 s.</p>' +
-      '<input class="f" type="search" data-pkq placeholder="Rechercher un étirement, un muscle" autocomplete="off" aria-label="Rechercher un étirement">' +
-      '<div class="pk-zones" role="group" aria-label="Zone">' + [["", "Tous"], ["haut", "Haut"], ["milieu", "Milieu"], ["bas", "Bas"]].map(z => '<button type="button" class="chip-btn" data-pkz="' + z[0] + '" aria-pressed="' + (z[0] === zone) + '">' + z[1] + "</button>").join("") + "</div>" +
+    const okLabel = () => picked.length ? "Ajouter (" + picked.length + ")" : "Ajouter";
+    const d = document.createElement("div"); d.className = "modal sheet";
+    d.innerHTML = '<div class="modal-box pk" role="dialog" aria-modal="true" aria-label="' + esc(title) + '"><h3>' + esc(title) + "</h3>" +
+      '<p class="muted small" style="margin:0 0 8px">' + (etir ? "Chaque étirement est ajouté en mode temps : 2 séries de 30 s. " : "") + "Coche-les, puis choisis leur ordre dans la séance.</p>" +
+      '<input class="f" type="search" data-pkq placeholder="' + (etir ? "Rechercher un étirement, un muscle" : "Rechercher (ex. dev, pec, rowing)") + '" autocomplete="off" aria-label="Rechercher un ' + what + '">' +
+      '<div class="pk-zones" role="group" aria-label="Filtrer">' + chips.map(z => '<button type="button" class="chip-btn" data-pkz="' + z[0] + '" aria-pressed="' + (z[0] === filt) + '">' + z[1] + "</button>").join("") + "</div>" +
       '<div class="pk-list">' + listHtml() + '</div><div class="modal-btns"><button class="btn" data-r="0">Annuler</button><button class="btn primary" data-r="1">' + okLabel() + "</button></div></div>";
     document.body.appendChild(d);
-    const box = d.querySelector(".pk-list"), ok = d.querySelector('[data-r="1"]');
-    d.querySelector("[data-pkq]").addEventListener("input", e => { q = e.target.value; box.innerHTML = listHtml(); });
-    d.addEventListener("change", e => { const id = e.target.dataset && e.target.dataset.pk; if (!id) return; if (e.target.checked) picked.add(id); else picked.delete(id); ok.textContent = okLabel(); });
+    const box = d.querySelector(".pk-list"), ok = d.querySelector('[data-r="1"]'), qin = d.querySelector("[data-pkq]");
+    qin.addEventListener("input", e => { q = e.target.value; box.innerHTML = listHtml(); });
+    qin.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); qin.blur(); } });
+    d.addEventListener("change", e => {
+      const key = e.target.dataset && e.target.dataset.pk; if (!key) return;
+      if (e.target.checked) { if (key.startsWith("new:")) created.set(key, { n: key.slice(4) }); if (!picked.includes(key)) picked.push(key); }
+      else { const k = picked.indexOf(key); if (k >= 0) picked.splice(k, 1); if (key.startsWith("new:")) created.delete(key); }
+      if (key.startsWith("new:")) box.innerHTML = listHtml(); // l'exercice créé passe en haut de la liste
+      ok.textContent = okLabel();
+    });
     d.addEventListener("click", e => {
       if (e.target === d) { d.remove(); res(null); return; }
-      const z = e.target.closest("[data-pkz]"); if (z) { zone = z.dataset.pkz; d.querySelectorAll("[data-pkz]").forEach(x => x.setAttribute("aria-pressed", String(x === z))); box.innerHTML = listHtml(); return; }
+      const z = e.target.closest("[data-pkz]"); if (z) { filt = z.dataset.pkz; d.querySelectorAll("[data-pkz]").forEach(x => x.setAttribute("aria-pressed", String(x === z))); box.innerHTML = listHtml(); box.scrollTop = 0; return; }
       const b = e.target.closest("[data-r]"); if (!b) return;
-      if (b.dataset.r === "1" && !picked.size) { ok.textContent = "Coche au moins un étirement"; return; }
-      d.remove(); res(b.dataset.r === "1" ? all.filter(x => picked.has(x.id)) : null);
+      if (b.dataset.r === "1" && !picked.length) { ok.textContent = "Coche au moins un " + what; return; }
+      d.remove();
+      const get = k => byKey.get(k) || stretchKey.get(k);
+      res(b.dataset.r === "1" ? picked.map(k => k.startsWith("new:") ? { name: created.get(k).n, custom: true } : get(k).own ? { name: get(k).n, own: true } : { lib: get(k), name: get(k).n }) : null);
     });
   });
 }
 const stretchExercise = x => Object.assign(newExercise(), { name: x.n }, libDefaults(x));
+// réglages d'un exercice choisi : ceux de la bibliothèque, sinon ceux que tu utilises déjà pour ce nom dans tes programmes
+function ownDefaults(name) {
+  const nn = norm(name);
+  for (const t of all("template")) for (const v of t.variants) for (const e of v.exercises) if (norm(e.name) === nn)
+    return { type: e.type || "reps", sets: e.sets, target: e.target, rest: e.rest, load: !!e.load };
+  return null;
+}
+function libExercise(p) {
+  if (p.lib) return p.lib.cat === "etirement" ? stretchExercise(p.lib) : Object.assign(newExercise(), { name: p.lib.n }, libDefaults(p.lib));
+  return Object.assign(newExercise(), { name: String(p.name).slice(0, 80) }, ownDefaults(p.name) || {});
+}
+// ordre dans la séance après un ajout : les nouveaux arrivent à la fin, on les place où on veut (⠿ à faire glisser, ou ↑ ↓) ;
+// un superset / biset / triset se déplace en entier ; renvoie la nouvelle liste (ou null si « Annuler »)
+function orderNew(list, news, what) {
+  return new Promise(res => {
+    const bl = blocks(list);
+    if (!bl.length && news.length < 2) { res(list.concat(news)); return; }
+    const rows = bl.map((b, bi) => ({ key: "b" + bi, n: b.groupId ? (GROUP_LABEL[b.kind] || "Groupe") + " : " + b.items.map(x => x.e.name).join(" + ") : b.items[0].e.name }))
+      .concat(news.map((e, k) => ({ key: "n" + k, n: e.name, isNew: true })));
+    const d = document.createElement("div"); d.className = "modal sheet";
+    d.innerHTML = '<div class="modal-box ord" role="dialog" aria-modal="true" aria-label="Ordre dans la séance"><h3>Ordre dans la séance</h3>' +
+      '<p class="muted small" style="margin:0">' + (news.length > 1 ? "Tes " + what + "s sont" : "Ton " + what + " est") + " à la fin. Fais glisser ⠿, ou utilise ↑ ↓, pour choisir l'ordre.</p>" +
+      '<div class="ord-list">' + rows.map(r => '<div class="ord-row' + (r.isNew ? " new" : "") + '" data-key="' + r.key + '"><span class="grip" data-odrag title="Maintiens et fais glisser">' + GRIP + '</span><span class="ord-n">' + esc(r.n) + (r.isNew ? ' <span class="tag">Nouveau</span>' : "") + "</span>" +
+        '<button type="button" class="btn sm" data-om="-1" aria-label="Monter ' + esc(r.n) + '">↑</button><button type="button" class="btn sm" data-om="1" aria-label="Descendre ' + esc(r.n) + '">↓</button></div>').join("") + "</div>" +
+      '<div class="modal-btns"><button class="btn" data-r="0">Annuler</button><button class="btn primary" data-r="1">Valider</button></div></div>';
+    document.body.appendChild(d);
+    const L = d.querySelector(".ord-list");
+    const last = L.lastElementChild; if (last) setTimeout(() => last.scrollIntoView({ block: "nearest" }), 0);
+    let drag = null;
+    L.addEventListener("pointerdown", e => {
+      const h = e.target.closest("[data-odrag]"); if (!h) return;
+      e.preventDefault(); drag = { row: h.closest(".ord-row"), id: e.pointerId }; drag.row.classList.add("dragging");
+      try { h.setPointerCapture(e.pointerId); } catch (err) { }
+    });
+    L.addEventListener("pointermove", e => {
+      if (!drag || e.pointerId !== drag.id) return; e.preventDefault();
+      let before = null;
+      for (const r of L.children) { if (r === drag.row) continue; const bb = r.getBoundingClientRect(); if (e.clientY < bb.top + bb.height / 2) { before = r; break; } }
+      if (drag.row.nextElementSibling !== before) L.insertBefore(drag.row, before);
+      const lb = L.getBoundingClientRect(); if (e.clientY < lb.top + 30) L.scrollTop -= 12; else if (e.clientY > lb.bottom - 30) L.scrollTop += 12;
+    });
+    const end = () => { if (drag) { drag.row.classList.remove("dragging"); drag = null; } };
+    L.addEventListener("pointerup", end); L.addEventListener("pointercancel", end);
+    d.addEventListener("click", e => {
+      if (e.target === d) { d.remove(); res(null); return; }
+      const m = e.target.closest("[data-om]");
+      if (m) { const r = m.closest(".ord-row"); if (+m.dataset.om < 0 && r.previousElementSibling) L.insertBefore(r, r.previousElementSibling); else if (+m.dataset.om > 0 && r.nextElementSibling) L.insertBefore(r.nextElementSibling, r); m.focus(); return; }
+      const b = e.target.closest("[data-r]"); if (!b) return;
+      d.remove();
+      if (b.dataset.r !== "1") { res(null); return; }
+      const out = [];
+      [...L.children].forEach(r => { const k = r.dataset.key; if (k[0] === "b") bl[+k.slice(1)].items.forEach(x => out.push(x.e)); else out.push(news[+k.slice(1)]); });
+      res(out);
+    });
+  });
+}
 // demande le nom d'un ou plusieurs exercices, avec la liste des exercices déjà connus
 function askNames(title, n, text) {
   return new Promise(res => {
@@ -1816,7 +1906,7 @@ function pickSeconds(title, value, min, max) {
 
 /* ================= Propositions de noms d'exercices (recherche intelligente) ================= */
 // bibliothèque de l'onglet Exercices (index léger inclus dans la page) : [id, nom, muscles, matériel, temps ?, reps, repos]
-const EXO_LIB = (window.EXO_INDEX || []).map(([id, n, mus, gear, kind, reps, rest, dist, load, cat, al, hold, zone, side], k) => ({ id, n, mus, gear, kind: ["reps", "time", "dist"][kind] || "reps", reps, rest, dist, load: !!load, cat: cat || "", al: al || [], hold: hold || 0, zone: zone || "", side: !!side, nn: norm(n), k }));
+const EXO_LIB = (window.EXO_INDEX || []).map(([id, n, mus, gear, kind, reps, rest, dist, load, cat, al, hold, zone, side, g], k) => ({ id, n, mus, gear, kind: ["reps", "time", "dist"][kind] || "reps", reps, rest, dist, load: !!load, cat: cat || "", al: al || [], hold: hold || 0, zone: zone || "", side: !!side, g: g || "", nn: norm(n), k }));
 const words = t => norm(t).split(/[^a-z0-9]+/).filter(Boolean);
 EXO_LIB.forEach(x => { x.w = words(x.n); x.a = words(x.al.join(" ")); x.o = words(x.mus + " " + x.gear + " " + x.cat); });
 const libByName = {}; EXO_LIB.forEach(x => { libByName[x.nn] = x; x.al.forEach(a => { libByName[norm(a)] = x; }); }); // anciens noms reconnus aussi
@@ -1961,10 +2051,10 @@ async function unpackBackup(txt) {
 // [thème, [[id, question, réponse (HTML écrit ici, sans donnée de l'utilisateur)]]] ; #/faq/id ouvre directement une question
 const FAQ = [
   ["Démarrer", [
-    ["creer", "Comment créer mon premier programme ?", "Sur l'accueil, appuie sur « + Nouveau programme » et donne-lui un nom (par exemple « Push » ou « Haut du corps »). Ajoute ensuite une séance avec « + Nouvelle séance », puis ses exercices avec « + Ajouter un exercice ». Tape quelques lettres (« dev », « pec »…) : Fiitday propose les exercices de sa bibliothèque, avec les répétitions et le repos conseillés."],
+    ["creer", "Comment créer mon premier programme ?", "Sur l'accueil, appuie sur « + Nouveau programme » et donne-lui un nom (par exemple « Push » ou « Haut du corps »). Ajoute ensuite une séance avec « + Nouvelle séance », puis ses exercices avec « + Ajouter un exercice » : cherche (« dev », « pec »…) ou filtre par muscle, coche les exercices voulus, puis choisis leur ordre dans la séance. Ils arrivent avec les répétitions et le repos conseillés. Un exercice qui n'est pas dans la liste ? Tape son nom et coche « + Créer »."],
     ["programme", "Quelle différence entre un programme et une séance ?", "Un programme regroupe plusieurs séances : par exemple le programme « Push Pull » avec « Séance 1 » et « Séance 2 », chacune avec ses exercices. Sur l'accueil, la séance marquée « Suggérée » est celle que tu n'as jamais faite, sinon celle faite il y a le plus longtemps."],
     ["types", "Quels types d'exercices puis-je créer ?", "Quatre types : <b>Poids × reps</b> (kilos et répétitions), <b>Reps uniquement</b> (pompes, tractions sans charge), <b>Temps</b> (gainage, étirements : le temps est pris par le chrono) et <b>Distance</b> (course, rameur, ateliers Hyrox, avec ou sans charge). Le type se choisit dans la configuration de l'exercice."],
-    ["superset", "Comment faire un superset ou un dégressif ?", "En ajoutant un exercice, choisis « Superset », « Biset », « Triset » ou « Dégressif ». Tu peux aussi relier deux exercices avec « Enchaîner avec l'exercice suivant ». Dans un superset, le repos démarre seulement quand tout le tour est fini."]]],
+    ["superset", "Comment faire un superset ou un dégressif ?", "Ajoute d'abord tes exercices, puis dans la configuration de la séance : « Enchaîner avec l'exercice suivant » relie deux exercices en superset ou biset (un 3e exercice ajouté au groupe en fait un triset), et le réglage « Dégressif » d'un exercice ajoute les baisses de charge. Dans un superset, le repos démarre seulement quand tout le tour est fini."]]],
   ["Pendant la séance", [
     ["repos", "Comment fonctionne le repos ?", "Quand tu valides une série (✓), le repos démarre tout seul avec la durée réglée pour l'exercice. Tu peux ajouter ou enlever 15 s, le passer ou le réduire. Après la dernière série d'un exercice, c'est le « Repos avant l'exercice suivant » qui démarre : il se règle dans la configuration de la séance."],
     ["alerte", "Je ne suis pas prévenu à la fin du repos, que faire ?", "Vérifie <a href=\"#/settings\">Réglages</a> › Alerte de fin de repos (Vibration, Son ou Les deux) et appuie sur « Tester ». Dans l'appli Android, autorise les notifications de Fiitday : elles te préviennent même écran verrouillé. Limite d'Android : hors de l'appli, un repos de plus de 3 minutes peut ne pas sonner à la fin."],
@@ -2243,25 +2333,39 @@ $app.addEventListener("click", async e => {
       if (t && te) { te.name = n.slice(0, 80); put("template", t); }
       render();
     } break;
-    case "addex": if (w) {
-      const n = await ask({ title: "Nouvel exercice", input: "", ok: "Suivant", suggest: true });
-      if (!n) return;
-      const lib = libFor(n);
-      const type = lib ? lib.kind : await choose("Type d'exercice", [["reps", "Poids × reps", "Charge et nombre de répétitions"], ["rep", "Reps uniquement", "Pompes, tractions… sans charge"], ["time", "Temps", "Gainage, chaise… avec chrono"], ["dist", "Distance", "Course, rameur, Hyrox… avec chrono"]]);
-      if (!type) return;
-      const te = Object.assign(newExercise(), { name: n.slice(0, 80), type }, lib ? libDefaults(lib) : type === "time" ? { target: "45", rest: 60 } : type === "dist" ? { target: "1000", rest: 120 } : {});
-      const add = await ask({ title: "L'ajouter au programme ?", text: "L'ajouter aussi à « " + w.templateName + " · " + vLabel(w.variantName) + " » pour les prochaines fois ?", ok: "Oui", cancel: "Juste aujourd'hui" });
-      if (add) { const t = getItem(w.templateId); const v = t && t.variants.find(x => x.id === w.variantId); if (v) { v.exercises.push(te); put("template", t); } }
-      w.exercises.push({ exId: te.id, name: te.name, type: te.type, target: te.target, rest: te.rest, load: !!te.load, drops: 0, groupId: null, groupKind: null, sets: Array.from({ length: te.sets }, () => blankSet(0)) });
-      put("workout", w); render();
-    } break;
-    case "sessstretch": if (w) {
-      const xs = await pickStretches("Ajouter des étirements"); if (!xs) return;
-      const tes = xs.map(stretchExercise);
-      const add = await ask({ title: "Les ajouter au programme ?", text: "Les ajouter aussi à « " + w.templateName + " · " + vLabel(w.variantName) + " » pour les prochaines fois ?", ok: "Oui", cancel: "Juste aujourd'hui" });
-      if (add) { const t = getItem(w.templateId); const v = t && t.variants.find(x => x.id === w.variantId); if (v) { tes.forEach(te => v.exercises.push(te)); put("template", t); } }
-      tes.forEach(te => w.exercises.push({ exId: te.id, name: te.name, type: te.type, target: te.target, rest: te.rest, load: false, drops: 0, groupId: null, groupKind: null, sets: Array.from({ length: te.sets }, () => blankSet(0)) }));
-      put("workout", w); render();
+    case "addex": case "sessstretch": if (w) {
+      const etir = a === "sessstretch", what = etir ? "étirement" : "exercice";
+      const picks = await pickExercises(etir ? "etir" : "muscu", etir ? "Ajouter des étirements" : "Ajouter des exercices"); if (!picks) return;
+      const tes = [];
+      for (const p of picks) {
+        const te = libExercise(p);
+        if (!p.lib && !ownDefaults(p.name)) { // exercice nouveau : son type, pour savoir quoi noter
+          const type = await choose("Type de « " + te.name + " »", TYPE_CHOICES); if (!type) return;
+          Object.assign(te, { type }, type === "time" ? { target: "45", rest: 60 } : type === "dist" ? { target: "1000", rest: 120 } : {});
+        }
+        tes.push(te);
+      }
+      const wnew = tes.map(te => ({ exId: te.id, name: te.name, type: te.type, target: te.target, rest: te.rest, load: !!te.load, drops: 0, groupId: null, groupKind: null, sets: Array.from({ length: Math.max(1, num(te.sets) || 1) }, () => blankSet(0)) }));
+      const c = db.live.chrono, chronoEx = c && c.wid === w.id ? w.exercises[c.i] : null;
+      const out = await orderNew(w.exercises, wnew, what); if (!out) return;
+      const add = await ask({ title: tes.length > 1 ? "Les ajouter au programme ?" : "L'ajouter au programme ?", text: (tes.length > 1 ? "Les ajouter" : "L'ajouter") + " aussi à « " + w.templateName + " · " + vLabel(w.variantName) + " », au même endroit, pour les prochaines fois ?", ok: "Oui", cancel: "Juste aujourd'hui" });
+      w.exercises = out;
+      if (chronoEx && db.live.chrono) db.live.chrono.i = out.indexOf(chronoEx); // le chrono en cours suit son exercice
+      if (add) {
+        const t = getItem(w.templateId), v = t && t.variants.find(x => x.id === w.variantId);
+        if (v) {
+          // chaque nouvel exercice va juste après l'exercice qui le précède dans la séance (après tout son groupe)
+          let at = -1;
+          out.forEach(we => {
+            const k = wnew.indexOf(we);
+            if (k >= 0) { v.exercises.splice(at + 1, 0, tes[k]); at++; return; }
+            const ti = v.exercises.findIndex(x => x.id === we.exId); if (ti < 0) return;
+            at = ti; const g = v.exercises[ti].groupId; if (g) while (v.exercises[at + 1] && v.exercises[at + 1].groupId === g) at++;
+          });
+          put("template", t);
+        }
+      }
+      put("workout", w); save(); render();
     } break;
     case "chronostop": if (w) { stopChrono(w); save(); render(); } break;
     case "chronocancel": db.live.chrono = null; save(); render(); break;
@@ -2338,27 +2442,13 @@ $app.addEventListener("click", async e => {
       toast("Séance dupliquée dans « " + to.name + " »"); go("program/" + to.id + "/" + c.id);
     } break;
     case "delvar": { const { t, v } = currentProgram(); if (!v) return; if (!await ask({ title: "Supprimer « " + vLabel(v.name) + " » ?", text: "L'historique des séances déjà faites est conservé.", ok: "Supprimer", danger: true })) return; t.variants = t.variants.filter(x => x !== v); put("template", t); go("program/" + t.id); } break;
-    case "addtplex": {
+    case "addtplex": case "addstretch": {
       const { t, v } = currentProgram(); if (!v) return;
-      const kind = await choose("Ajouter", ADD_CHOICES); if (!kind) return;
-      const n = GROUP_SIZE[kind] || 1;
-      const names = await askNames(GROUP_LABEL[kind] || (kind === "degressif" ? "Exercice en dégressif" : "Nouvel exercice"), n,
-        n > 1 ? "Ces " + n + " exercices s'enchaînent sans repos ; le repos vient après le tour complet." : ""); if (!names) return;
-      const gid = n > 1 ? "g-" + uid() : null;
-      names.forEach(name => {
-        const lib = libFor(name);
-        const e = Object.assign(newExercise(), { name }, lib ? libDefaults(lib) : {});
-        if (kind === "degressif") e.drops = 2;
-        if (gid) { e.groupId = gid; e.groupKind = kind; }
-        v.exercises.push(e);
-      });
-      put("template", t); render();
-    } break;
-    case "addstretch": {
-      const { t, v } = currentProgram(); if (!v) return;
-      const xs = await pickStretches("Ajouter des étirements"); if (!xs) return;
-      xs.forEach(x => v.exercises.push(stretchExercise(x)));
-      put("template", t); render(); toast(xs.length > 1 ? xs.length + " étirements ajoutés" : "Étirement ajouté");
+      const etir = a === "addstretch", what = etir ? "étirement" : "exercice";
+      const picks = await pickExercises(etir ? "etir" : "muscu", etir ? "Ajouter des étirements" : "Ajouter des exercices"); if (!picks) return;
+      const out = await orderNew(v.exercises, picks.map(libExercise), what); if (!out) return;
+      v.exercises = out; cleanGroups(v); put("template", t); render();
+      toast(picks.length > 1 ? picks.length + " " + what + "s ajoutés" : (etir ? "Étirement ajouté" : "Exercice ajouté"));
     } break;
     case "addmember": {
       const { t, v } = currentProgram(); if (!v) return;
