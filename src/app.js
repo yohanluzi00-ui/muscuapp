@@ -749,7 +749,7 @@ function viewHome() {
   }
   h += "</div>";
   h += '<div class="section-title">Découvrir</div><div class="home-more"><a class="card" href="#/exercices/etirements"><b>Étirements</b><span class="muted small">Haut, milieu et bas du corps, avec les conseils</span></a>' +
-    '<a class="card" href="#/programs"><b>Programmes Fiitday</b><span class="muted small">Programmes prêts à l\'emploi et circuit training</span></a></div>';
+    '<a class="card" href="#/programs"><b>Programmes Fiitday</b><span class="muted small">' + (isFree() ? '<span class="tag">Premium</span> ' : "") + 'Programmes prêts à l\'emploi et circuit training</span></a></div>';
   const recent = finished().slice(0, 3);
   if (recent.length) {
     h += '<div class="section-title">Dernières séances</div><div class="list">' + recent.map(historyRow).join("") + "</div>";
@@ -1036,6 +1036,8 @@ function startRest(sec, label) {
 const GRIP = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>';
 function viewPrograms() {
   // programmes Fiitday prêts à l'emploi (musculation, circuit training) ; tes propres programmes se gèrent depuis l'accueil
+  if (isFree()) return '<div class="page-head"><div><h1>Programmes</h1><div class="muted small">Prêts à l\'emploi, pour débutants et intermédiaires</div></div></div>' +
+    planCard("Les programmes Fiitday (musculation et circuit training) sont réservés aux abonnés Premium. Tes propres programmes restent sur l'accueil.");
   const sec = (title, text) => '<div class="section-title">' + title + '</div><div class="card prog-empty"><p class="muted small">' + text + "</p></div>";
   return '<div class="page-head"><div><h1>Programmes</h1><div class="muted small">Prêts à l\'emploi, pour débutants et intermédiaires</div></div></div>' +
     sec("Musculation", "Des programmes complets, séance par séance, à ajouter en un appui à tes programmes.") +
@@ -2266,7 +2268,7 @@ const isFree = () => planState() === "free";
 const dataLocked = () => { const s = planState(); return s === "free" || s === "trial"; };
 const ownCount = () => knownNames().filter(n => !libFor(n)).length;
 async function premiumGate(text) {
-  if (await ask({ title: "Réservé à Premium", text: text + "\n\nAvec Premium : programmes, séances et exercices illimités, tout l'historique, toutes les stats et la synchro entre tes appareils.", ok: "Voir Premium", cancel: "Plus tard" })) go("premium");
+  if (await ask({ title: "Réservé à Premium", text: text + "\n\nAvec Premium : programmes, séances et exercices illimités, les programmes Fiitday prêts à l'emploi, tout l'historique, toutes les stats et la synchro entre tes appareils.", ok: "Voir Premium", cancel: "Plus tard" })) go("premium");
 }
 // version gratuite : 1 programme actif et 2 séances actives (choisies librement) ; les autres restent visibles avec un cadenas
 let faCache = { key: "" };
@@ -2318,7 +2320,7 @@ function planStatus() {
 function viewPremium() {
   const s = planState(), prev = (history.state && history.state.prev) || "#/settings";
   const rows = [["Programmes et séances", "Illimités", "1 programme, 2 séances actives"], ["Exercices perso", "Illimités", "5 au plus"], ["Historique", "Complet", "30 derniers jours"],
-    ["Stats", "Temps, tonnage, Évolution, calendrier", "La semaine en cours"], ["Synchro téléphone ↔ ordinateur", "Oui", "Non"], ["Partager une séance", "Envoyer et recevoir", "Recevoir"],
+    ["Stats", "Temps, tonnage, Évolution, calendrier", "La semaine en cours"], ["Programmes Fiitday", "Prêts à l'emploi : musculation et circuit training", "Non"], ["Synchro téléphone ↔ ordinateur", "Oui", "Non"], ["Partager une séance", "Envoyer et recevoir", "Recevoir"],
     ["Sauvegarde", "Enregistrer et restaurer, code de transfert", "Enregistrer (pendant l'essai aussi)"]];
   const live = MONETIZATION && s !== "premium";
   return '<a class="back" href="' + esc(prev) + '">‹ Retour</a><div class="page-head"><h1>Fiitday Premium</h1></div>' +
