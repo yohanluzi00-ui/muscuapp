@@ -633,3 +633,14 @@ html.is-dragging, html.is-dragging * { user-select: none; -webkit-user-select: n
 .plan-for { margin-top: 12px; }
 .plan-for-txt { margin: 8px 2px 0; }
 .plan-opt.life { grid-column: 1 / -1; }
+/* formule Famille : membres et places */
+.fam-list { display: flex; flex-direction: column; gap: 8px; }
+.fam-row { display: flex; gap: 10px; align-items: flex-start; padding: 10px; border: 1px solid var(--line2); border-radius: 12px; background: var(--card); text-align: left; width: 100%; font: inherit; color: inherit; }
+.fam-row .fam-t { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.fam-row > .btn { flex: none; }
+.fam-av { flex: none; width: 34px; height: 34px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; background: var(--soft); color: var(--ink); }
+.fam-row.add { border-style: dashed; cursor: pointer; }
+.fam-row.add .fam-av, .fam-row.add b { color: var(--accent); }
+.fam-row.wait { background: var(--soft); }
+.fam-row.wait > .lock-i { width: 20px; height: 20px; margin: 6px 7px 0; color: var(--muted); }
+.fam-row .link { align-self: flex-start; padding: 0; min-height: 30px; }

@@ -2261,11 +2261,11 @@ const LIFE_END = new Date(2028, 0, 1).getTime(), LIFE_END_TXT = "1er janvier 202
 const FAMILY_SIZE = 5;
 let premiumFor = "solo";
 const isPlanTester = () => !!(db.auth && PLAN_TESTERS.includes(db.auth.user.id));
-const planTesting = () => isPlanTester() && ["trial", "free", "premium"].includes(db.planTest);
+const planTesting = () => isPlanTester() && ["trial", "free", "premium", "family"].includes(db.planTest);
 const trialLeft = () => Math.max(0, Math.ceil(((planTesting() ? db.planTestEnd : db.plan && db.plan.trialEnds) - Date.now()) / DAY) || 0);
 // « off » : pas d'abonnement (appli complète) · « trial » : essai, tout comme Premium · « free » : version gratuite · « premium » : abonné
 function planState() {
-  if (planTesting()) return db.planTest === "trial" && trialLeft() <= 0 ? "free" : db.planTest;
+  if (planTesting()) return db.planTest === "trial" && trialLeft() <= 0 ? "free" : db.planTest === "family" ? "premium" : db.planTest;
   if (!MONETIZATION) return "off";
   const p = db.plan || {}; // à brancher au lancement : statut du compte envoyé par RevenueCat dans Supabase
   return p.premium ? "premium" : p.trialEnds > Date.now() ? "trial" : "free";
@@ -2322,6 +2322,7 @@ function planStatus() {
   const s = planState(), d = trialLeft();
   return s === "trial" ? "Essai Premium : encore " + d + " jour" + (d > 1 ? "s" : "") + ". À la fin, tu passes en version gratuite sans rien perdre."
     : s === "free" ? "Version gratuite. Toutes tes données sont gardées : tout se débloque dès que tu t'abonnes."
+    : s === "premium" && isFamily() ? "Abonné Premium Famille : tu partages Premium avec jusqu'à " + (FAMILY_SIZE - 1) + " proches."
     : s === "premium" ? "Abonné Premium. Merci de soutenir Fiitday !" : "L'abonnement n'est pas encore ouvert : tu as toute l'appli.";
 }
 function viewPremium() {
@@ -2347,16 +2348,45 @@ function viewPremium() {
     '<div class="section-title">Premium ou gratuit</div><div class="card plan-table"><table><thead><tr><th></th><th>Premium</th><th>Gratuit</th></tr></thead><tbody>' +
     rows.map(r => "<tr><th>" + esc(r[0]) + "</th><td>" + esc(r[1]) + "</td><td>" + esc(r[2]) + "</td></tr>").join("") + "</tbody></table></div>";
 }
+// formule Famille : le titulaire invite jusqu'à 4 personnes (code ou lien) ; chacune garde son propre compte.
+// Une place libérée en retirant quelqu'un ne se réutilise qu'après 30 jours (pas de « place tournante » partagée entre amis).
+// En mode test, tout reste sur cet appareil (invitations simulées) ; au lancement, le serveur gérera les membres.
+const isFamily = () => planTesting() && db.planTest === "family";
+const FAM_WAIT = 30 * DAY;
+const famData = () => { if (!db.planTestFam) db.planTestFam = { members: [], removed: [] }; return db.planTestFam; };
+const famWaits = () => famData().removed.filter(t => t + FAM_WAIT > Date.now()).sort((a, b) => a - b);
+const famFree = () => FAMILY_SIZE - 1 - famData().members.length - famWaits().length;
+const famCode = () => Array.from(crypto.getRandomValues(new Uint8Array(8)), b => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[b % 32]).join("");
+const famLink = c => "https://fiitday.com/#/famille/" + c;
+function familyBox() {
+  const f = famData(), av = n => '<span class="fam-av" aria-hidden="true">' + esc((n || "?").trim().charAt(0).toUpperCase()) + "</span>";
+  let h = '<div class="section-title">Ta famille · ' + (f.members.length + 1) + " / " + FAMILY_SIZE + '</div><div class="fam-list">' +
+    '<div class="fam-row">' + av(firstName() || "Toi") + '<div class="fam-t"><b>' + esc(firstName() || "Toi") + ' (toi)</b><div class="small muted">Titulaire de l\'abonnement</div></div></div>';
+  f.members.forEach(m => {
+    h += '<div class="fam-row">' + av(m.name) + '<div class="fam-t"><b>' + esc(m.name) + "</b>" +
+      (m.status === "member" ? '<div class="small muted">Membre depuis le ' + esc(fmtDate(m.at)) + "</div></div>" + '<button class="btn sm danger" data-act="famremove" data-id="' + m.id + '">Retirer</button>'
+        : '<div class="small muted">Invitation envoyée · code ' + esc(m.code) + '</div><div class="row" style="margin-top:6px;flex-wrap:wrap"><button class="btn sm" data-act="famshare" data-id="' + m.id + '">Renvoyer</button><button class="btn sm" data-act="famcancel" data-id="' + m.id + '">Annuler</button><button class="link small" data-act="famaccept" data-id="' + m.id + '">Simuler l\'acceptation (mode test)</button></div></div>') + "</div>";
+  });
+  famWaits().forEach(t => { h += '<div class="fam-row wait">' + LOCK + '<div class="fam-t"><b>Place libre le ' + esc(fmtDate(t + FAM_WAIT)) + '</b><div class="small muted">Une personne a été retirée : sa place se libère 30 jours après.</div><button class="link small" data-act="famskip">Avancer de 30 jours (mode test)</button></div></div>'; });
+  for (let k = famFree(); k > 0; k--) h += '<button class="fam-row add" data-act="faminvite"><span class="fam-av add" aria-hidden="true">+</span><span class="fam-t"><b>Inviter quelqu\'un</b><span class="small muted">Un proche ou un ami, avec son propre compte Fiitday</span></span></button>';
+  return h + '</div><div class="small muted" style="margin-top:8px">Chacun garde son compte et ses données : tu ne vois pas les séances des autres, ils ne voient pas les tiennes.</div>';
+}
+async function famShareCode(m) {
+  const text = "Rejoins mon abonnement Fiitday Premium Famille : " + famLink(m.code) + "\nOu dans l'appli : Réglages › Abonnement › « J'ai une invitation », code " + m.code + ".";
+  const copy = await ask({ title: "Invitation pour " + m.name, html: '<div class="xfer-code" aria-label="Code ' + esc(m.code.split("").join(" ")) + '">' + esc(m.code) + "</div>",
+    text: "Envoie-lui ce code ou le lien. Elle l'ouvre avec son compte Fiitday (ou en crée un) et rejoint ta famille.", ok: "Copier l'invitation", cancel: "Fermer" });
+  if (copy) { try { await navigator.clipboard.writeText(text); toast("Invitation copiée : envoie-la à " + m.name); } catch (e) { toast("Code d'invitation : " + m.code); } }
+}
 // Réglages : carte Abonnement (une fois lancé) et mode test (compte testeur seulement)
 function planSettings() {
   let h = "";
   const s = planState();
-  if (s !== "off") h += '<div class="card"><b>Abonnement</b><div class="small muted" style="margin-top:4px">' + esc(planStatus()) + '</div><a class="btn sm' + (s === "premium" ? "" : " primary") + '" style="margin-top:8px" href="#/premium">' + (s === "premium" ? "Voir Premium" : "Passer à Premium") + "</a></div>";
+  if (s !== "off") h += '<div class="card"><b>Abonnement</b><div class="small muted" style="margin-top:4px">' + esc(planStatus()) + "</div>" + (isFamily() ? familyBox() : "") + '<a class="btn sm' + (s === "premium" ? "" : " primary") + '" style="margin-top:8px" href="#/premium">' + (s === "premium" ? "Voir Premium" : "Passer à Premium") + "</a></div>";
   if (isPlanTester()) {
     const cur = planTesting() ? db.planTest : "";
     h += '<div class="card test-card"><div class="spread"><b>Mode test</b><span class="tag">Visible seulement par toi</span></div>' +
       '<div class="small muted" style="margin-top:4px">Pour voir l\'appli comme un utilisateur, sur cet appareil. Les autres comptes ne voient rien : pour eux, l\'appli reste complète. Tes données ne changent pas.</div>' +
-      '<div class="seg seg-wrap" role="group" style="margin-top:10px">' + [["", "Désactivé"], ["trial", "Essai en cours"], ["free", "Essai terminé"], ["premium", "Abonné"]].map(o =>
+      '<div class="seg seg-wrap" role="group" style="margin-top:10px">' + [["", "Désactivé"], ["trial", "Essai en cours"], ["free", "Essai terminé"], ["premium", "Abonné"], ["family", "Abonné Famille"]].map(o =>
         '<button class="' + (cur === o[0] ? "on" : "") + '" aria-pressed="' + (cur === o[0]) + '" data-act="plantest" data-val="' + o[0] + '">' + o[1] + "</button>").join("") + "</div>" +
       (cur === "trial" ? '<div class="row" style="margin-top:10px;flex-wrap:wrap;align-items:center"><span class="small">' + (trialLeft() ? "Encore " + trialLeft() + " jour" + (trialLeft() > 1 ? "s" : "") + " d'essai" : "Essai terminé") + '</span><button class="btn sm" data-act="plantestskip">Avancer d\'une semaine</button></div>' : "") +
       (s === "free" ? '<div class="small muted" style="margin-top:8px">En vrai, la synchro s\'arrête en version gratuite. En mode test, tes données continuent de se synchroniser.</div>' : "") + "</div>";
@@ -2764,10 +2794,26 @@ $app.addEventListener("click", async e => {
       if (!isPlanTester()) return;
       const val = b.dataset.val || "";
       db.planTest = val; if (val === "trial") db.planTestEnd = Date.now() + TRIAL_DAYS * DAY; saveNow(); render(); sync();
-      toast(val === "trial" ? "Mode test : essai en cours (30 jours)" : val === "free" ? "Mode test : essai terminé, version gratuite" : val === "premium" ? "Mode test : abonné Premium" : "Mode test désactivé");
+      toast(val === "trial" ? "Mode test : essai en cours (30 jours)" : val === "free" ? "Mode test : essai terminé, version gratuite" : val === "premium" ? "Mode test : abonné Premium" : val === "family" ? "Mode test : abonné Premium Famille" : "Mode test désactivé");
     } break;
     case "plantestskip": if (planTesting()) { db.planTestEnd = (db.planTestEnd || Date.now()) - 7 * DAY; saveNow(); render(); toast(trialLeft() ? "Encore " + trialLeft() + " jour" + (trialLeft() > 1 ? "s" : "") + " d'essai" : "Essai terminé : version gratuite"); } break;
     case "planbuy": toast("Le paiement arrive bientôt"); break;
+    case "faminvite": {
+      if (!isFamily() || famFree() <= 0) return;
+      const n = await ask({ title: "Inviter quelqu'un", text: "Son prénom, pour t'y retrouver dans la liste.", input: "", ok: "Créer l'invitation" });
+      if (!n) return;
+      const m = { id: "m" + uid(), name: n.slice(0, 30), code: famCode(), status: "invited", at: Date.now() };
+      famData().members.push(m); saveNow(); render(); famShareCode(m);
+    } break;
+    case "famshare": { const m = isFamily() && famData().members.find(x => x.id === b.dataset.id); if (m) famShareCode(m); } break;
+    case "famaccept": { const m = isFamily() && famData().members.find(x => x.id === b.dataset.id); if (!m) return; m.status = "member"; m.at = Date.now(); saveNow(); render(); toast(m.name + " a rejoint ta famille : Premium débloqué pour elle"); } break;
+    case "famcancel": { const f = famData(), m = isFamily() && f.members.find(x => x.id === b.dataset.id); if (!m) return; f.members = f.members.filter(x => x !== m); saveNow(); render(); toast("Invitation annulée : la place est libre"); } break;
+    case "famremove": {
+      const f = famData(), m = isFamily() && f.members.find(x => x.id === b.dataset.id); if (!m) return;
+      if (!await ask({ title: "Retirer " + m.name + " ?", text: m.name + " repasse en version gratuite, sans rien perdre de ses données. Sa place ne pourra être donnée à quelqu'un d'autre que dans 30 jours.", ok: "Retirer", danger: true })) return;
+      f.members = f.members.filter(x => x !== m); f.removed.push(Date.now()); saveNow(); render(); toast(m.name + " a été retiré(e) de ta famille");
+    } break;
+    case "famskip": if (isFamily()) { const f = famData(); f.removed = f.removed.map(t => t - FAM_WAIT); saveNow(); render(); toast("30 jours plus tard : la place est libre"); } break;
     case "planfor": premiumFor = b.dataset.val === "family" ? "family" : "solo"; render(); break;
     case "importvar": { const code = await ask({ title: "Importer une séance", text: "Colle le lien de la séance qu'on t'a envoyé.", input: "", ok: "Continuer" }); if (!code) return;
       if (dataLocked() && (/^\s*FIITDAY\d:/.test(code) || (XFER_RE.test(normCode(code)) && code.trim().length <= 12))) { premiumGate("Restaurer une sauvegarde et le code de transfert sont réservés aux abonnés Premium, pendant l'essai aussi. Faire une sauvegarde (bouton « Sauvegarde ») reste possible pour tout le monde."); return; }
