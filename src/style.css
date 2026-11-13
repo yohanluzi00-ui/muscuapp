@@ -579,3 +579,46 @@ html.is-dragging, html.is-dragging * { user-select: none; -webkit-user-select: n
 /* séance terminée : durée et tonnage */
 .sess-sum { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 4px 0 10px; }
 .stat-seg { display: grid; grid-template-columns: repeat(3, 1fr); }
+
+/* ---------- Premium : cadenas, bandeau d'essai, écran Premium, mode test */
+.lock-i { width: 14px; height: 14px; flex: none; vertical-align: -2px; margin-right: 5px; color: var(--muted); }
+.variant.locked { background: var(--soft); border-style: dashed; }
+.variant.locked b { color: var(--muted); }
+.variant.locked .tag { color: var(--muted); }
+.card.tpl.locked h2 { color: var(--muted); }
+.card.tpl.locked h2 .lock-i { width: 16px; height: 16px; }
+.plan-banner { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; text-decoration: none; margin-bottom: 12px; font-size: 14px; }
+.plan-banner.trial { border: 1.5px solid transparent; background: linear-gradient(var(--card), var(--card)) padding-box, var(--grad) border-box; }
+.plan-go { color: var(--accent); font-weight: 700; white-space: nowrap; }
+.plan-lock { display: flex; gap: 12px; align-items: flex-start; margin-top: 10px; }
+.plan-lock > .lock-i { width: 22px; height: 22px; margin: 2px 0 0; color: var(--accent); }
+.plan-lock > div { min-width: 0; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.plan-lock .btn { margin-top: 6px; }
+.locked-h { margin: 8px 0 4px; display: flex; align-items: center; }
+.locked-h .lock-i { width: 20px; height: 20px; }
+.plans { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 12px 0; }
+.plan-opt { display: flex; flex-direction: column; gap: 4px; position: relative; }
+.plan-opt.best { border: 2px solid transparent; background: linear-gradient(var(--card), var(--card)) padding-box, var(--grad) border-box; }
+.plan-opt .tag { align-self: flex-start; color: var(--accent); font-weight: 700; font-size: 12px; }
+.plan-price { font-family: var(--display); font-size: 24px; font-weight: 700; }
+.plan-price small { font-size: 13px; font-weight: 500; color: var(--muted); }
+.plan-table { overflow-x: auto; padding: 4px 10px; }
+.plan-table table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.plan-table th, .plan-table td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line2); vertical-align: top; }
+.plan-table tr:last-child th, .plan-table tr:last-child td { border-bottom: 0; }
+.plan-table thead th { font-family: var(--display); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.plan-table tbody th { font-weight: 600; }
+.plan-table td:nth-child(2) { color: var(--ok-ink); font-weight: 600; }
+.test-card { border-style: dashed; border-color: var(--accent); }
+.test-card .tag { color: var(--accent); font-weight: 700; font-size: 12px; }
+.seg-wrap button { min-height: 36px; padding: 0 12px; font-size: 13px; }
+.btn.locked-btn { color: var(--muted); border-style: dashed; }
+.link .lock-i, .linkbtn .lock-i { margin-right: 4px; }
+.lock-note { margin-top: 8px; color: var(--muted); }
+.lock-note .lock-i { color: var(--accent); }
+.lock-note .link { padding: 0; font-size: 13px; }
+.pk-row.pk-lock { cursor: default; color: var(--muted); }
+.pk-row.pk-lock .lock-i { width: 18px; height: 18px; color: var(--accent); }
+.stats.k1 { grid-template-columns: minmax(0, 1fr); }
+.tabs .lock-i { width: 12px; height: 12px; margin-right: 4px; }
+.btn[disabled] { opacity: .55; cursor: default; box-shadow: none; }

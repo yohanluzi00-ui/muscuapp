@@ -359,6 +359,7 @@ let syncTimer = null, syncing = false, syncAgain = false;
 function scheduleSync() { if (!db.auth) return; clearTimeout(syncTimer); syncTimer = setTimeout(sync, 2500); }
 async function sync() {
   if (!db.auth) return;
+  if (isFree() && !planTesting()) { syncState.status = "free"; updateSyncBadges(); return; } // version gratuite : les données restent sur l'appareil
   if (syncing) { syncAgain = true; return; }
   if (navigator.onLine === false) { syncState.status = "offline"; updateSyncBadges(); return; }
   syncing = true; if (syncState.status !== "ok") { syncState.status = "busy"; updateSyncBadges(); } // déjà synchronisé : la synchro de fond ne change pas le texte (pas de saut à l'écran)
@@ -416,7 +417,7 @@ function syncBadge() {
   if (!db.auth) return '<span class="sync"><span class="dot"></span>Hors ligne (sans compte)</span>';
   const s = syncState.status;
   const cls = s === "ok" ? "ok" : s === "err" ? "err" : s === "busy" ? "busy" : "";
-  const txt = s === "ok" ? "Synchronisé " + fmtTime(syncState.at) : s === "err" ? "Synchro en échec" : s === "busy" ? "Synchronisation…" : s === "offline" ? "Pas de réseau" : "En attente";
+  const txt = s === "free" ? "Synchro réservée à Premium" : s === "ok" ? "Synchronisé " + fmtTime(syncState.at) : s === "err" ? "Synchro en échec" : s === "busy" ? "Synchronisation…" : s === "offline" ? "Pas de réseau" : "En attente";
   return '<span class="sync" data-sync><span class="dot ' + cls + '"></span>' + esc(txt) + "</span>";
 }
 function updateSyncBadges() {
@@ -553,11 +554,12 @@ function renderNow() {
       break;
     }
     case "settings": body = viewSettings(); break;
+    case "premium": body = viewPremium(); break;
     case "faq": body = viewFaq(r.args[0]); if (r.args[0]) setTimeout(() => { const d = document.getElementById("faq-" + r.args[0]); if (d) d.scrollIntoView({ block: "start" }); }, 60); break;
     case "exercices": body = '<div id="exo-root"><div class="page-head"><h1>Exercices</h1></div><div class="card empty">Chargement des exercices…</div></div>'; break;
     default: body = viewHome();
   }
-  const tab = { faq: "settings", session: "home", program: "home", import: "home", s: "home", calendar: "progress", evolution: "progress", history: "progress", programs: "home", body: "progress" }[r.name] || (NAV.some(n => n[0] === r.name) ? r.name : "home");
+  const tab = { faq: "settings", premium: "settings", session: "home", program: "home", import: "home", s: "home", calendar: "progress", evolution: "progress", history: "progress", programs: "home", body: "progress" }[r.name] || (NAV.some(n => n[0] === r.name) ? r.name : "home");
   $app.innerHTML = '<div class="shell' + (immersive ? " hide-nav" : "") + '"><nav class="nav" aria-label="Navigation"><div class="brand">Fiitday</div>' +
     NAV.map(n => '<a href="#/' + n[0] + '" class="' + (n[0] === tab ? "on" : "") + '"' + (n[0] === tab ? ' aria-current="page"' : "") + ">" + ICON[n[2]] + "<span>" + n[1] + "</span></a>").join("") +
     '</nav><main class="main' + (wide ? " wide" : "") + '">' + body + "</main></div>";
@@ -714,7 +716,7 @@ function variantStats(t) {
 function viewHome() {
   const act = activeWorkout();
   let h = '<div class="page-head"><div><div class="muted small">' + esc(fmtDateLong(Date.now())) + '</div><h1>Bonjour' + (firstName() ? " " + esc(firstName()) : "") + '</h1></div></div>' +
-    homeStretch(act) +
+    homeStretch(act) + planBanner() +
     '<div class="home-actions"><button class="btn primary" data-act="newtpl">+ Nouveau programme</button><button class="btn" data-act="importvar">Importer</button></div>';
   if (act) {
     h += '<div class="hero"><div class="small" style="opacity:.75">Séance en cours</div><div style="font-size:21px;font-weight:800;margin-top:2px">' + esc(act.templateName) + " · " + esc(vLabel(act.variantName)) + "</div>" +
@@ -733,14 +735,15 @@ function viewHome() {
       const never = st.find(x => !x.last);
       sugg = never ? never.v.id : st.slice().sort((a, b) => a.last.startedAt - b.last.startedAt)[0].v.id;
     }
-    h += '<div class="card tpl" data-sort-id="' + t.id + '"><div class="spread"><h2>' + esc(t.name) + "</h2>" +
+    const pl = progLocked(t.id);
+    h += '<div class="card tpl' + (pl ? " locked" : "") + '" data-sort-id="' + t.id + '"><div class="spread"><h2>' + (pl ? LOCK : "") + esc(t.name) + "</h2>" +
       '<span class="tpl-side"><span class="muted small">' + (lastAny ? "Dernière : " + esc(fmtDate(lastAny.last.startedAt)) + " (" + esc(vLabel(lastAny.v.name)) + ")" : t.variants.length ? "Jamais faite" : "Aucune séance") + "</span>" +
       (ts.length > 1 ? '<span class="grip" data-drag title="Maintiens et fais glisser pour changer l\'ordre">' + GRIP + "</span>" : "") + "</span></div>" +
       '<div class="variants">' + st.map(x => {
-        const n = x.v.exercises.length;
-        return '<button class="variant' + (x.v.id === sugg ? " sugg" : "") + '" data-act="start" data-t="' + t.id + '" data-v="' + x.v.id + '"><b>' + esc(vLabel(x.v.name)) + "</b>" +
+        const n = x.v.exercises.length, lk = varLocked(t.id, x.v.id);
+        return '<button class="variant' + (x.v.id === sugg && !lk ? " sugg" : "") + (lk ? " locked" : "") + '" data-act="start" data-t="' + t.id + '" data-v="' + x.v.id + '"><b>' + (lk ? LOCK : "") + esc(vLabel(x.v.name)) + "</b>" +
           "<span>" + (n ? n + " exercice" + (n > 1 ? "s" : "") : "vide — à remplir") + "</span>" +
-          "<span>" + (x.v.id === sugg ? '<span class="tag">Suggérée</span> · ' : "") + (x.last ? esc(ago(x.last.startedAt)) : "jamais faite") + "</span></button>";
+          "<span>" + (lk ? '<span class="tag">Premium</span> · ' : x.v.id === sugg ? '<span class="tag">Suggérée</span> · ' : "") + (x.last ? esc(ago(x.last.startedAt)) : "jamais faite") + "</span></button>";
       }).join("") + '<button class="variant add" data-act="homeaddvar" data-t="' + t.id + '" aria-label="Nouvelle séance dans ' + esc(t.name) + '"><b>+ Nouvelle séance</b><span>Ajouter une séance à ce programme</span></button></div></div>';
   }
   h += "</div>";
@@ -772,6 +775,7 @@ const launchLabel = v => { const n = vLabel(v.name); return /^séance\b/i.test(n
 async function startWorkout(tid, vid, direct) {
   const t = getItem(tid); if (!t) return;
   const v = t.variants.find(x => x.id === vid); if (!v) return;
+  if (varLocked(tid, vid)) { lockedChoice(tid, vid); return; }
   if (!v.exercises.length) { toast("Ajoute d'abord des exercices à cette séance"); go("program/" + tid + "/" + vid); return; }
   const choice = direct ? "go" : await startChoice(t, v);
   if (choice === "edit") { go("program/" + tid + "/" + vid); return; }
@@ -1055,6 +1059,7 @@ function viewProgram(tid, vid) {
   const t = getItem(tid);
   if (!t) return '<a class="back" href="#/home">‹ Accueil</a><div class="card empty">Programme introuvable.</div>';
   const v = t.variants.find(x => x.id === vid) || t.variants[0];
+  if (v ? varLocked(t.id, v.id) : progLocked(t.id)) return viewLockedProgram(t, v);
   const launch = v ? '<button class="btn sm primary" data-act="launchvar" data-t="' + t.id + '" data-v="' + v.id + '">Lancer ' + esc(launchLabel(v)) + "</button>" : "";
   let h = '<div class="spread"><a class="back" href="#/home">‹ Accueil</a>' + launch + "</div>" +
     '<label class="fl" style="margin-top:8px">Nom du programme<input class="f" data-p="tname" maxlength="60" value="' + esc(t.name) + '" style="font-size:20px;font-weight:700"></label>' +
@@ -1065,7 +1070,7 @@ function viewProgram(tid, vid) {
   h += '<div class="tabs" data-sortable="var" data-axis="x">' +
     t.variants.map(x => '<button class="' + (v && x.id === v.id ? "on" : "") + '" data-act="tab" data-v="' + x.id + '" data-sort-id="' + x.id + '">' +
       (t.variants.length > 1 ? '<span class="grip" data-drag title="Maintiens et fais glisser pour changer l\'ordre">' + GRIP + "</span>" : "") +
-      "<span" + (v && x.id === v.id ? " data-vtab" : "") + ">" + esc(vLabel(x.name)) + "</span></button>").join("") +
+      (varLocked(t.id, x.id) ? LOCK : "") + "<span" + (v && x.id === v.id ? " data-vtab" : "") + ">" + esc(vLabel(x.name)) + "</span></button>").join("") +
     '<button data-act="addvar">+ Séance</button></div>';
   if (!v) return h;
   h += '<div class="card"><label class="fl">Nom de la séance<input class="f" data-p="vname" maxlength="60" value="' + esc(vLabel(v.name)) + '"></label>' +
@@ -1162,8 +1167,10 @@ function pickExercises(mode, title) {
         const found = searchExercises(qt), v = found.map(c => byKey.get(c.own ? "own:" + c.n : c.id)).filter(x => x && inFilt(x));
         if (!filt) found.forEach(c => { const x = !c.own && stretchKey.get(c.id); if (x) v.push(x); }); // étirements : après les exercices
         // « Créer » : en premier si rien ne correspond, sinon après les exercices trouvés
-        const mk = !etir && !exists ? row("new:" + qt.slice(0, 80), "+ Créer « " + qt.slice(0, 80) + " »", "Ton propre exercice, s'il n'est pas dans la liste", " pk-new") : "";
-        return h + (v.length ? v.map(x => row(x.id, x.n, sub(x))).join("") + mk : mk + '<p class="muted small" style="margin:8px 2px">Aucun ' + what + " de la liste ne correspond." + (mk ? " Coche « Créer » pour ajouter le tien." : "") + "</p>");
+        const full = !etir && !exists && isFree() && ownCount() + created.size >= FREE_OWN; // version gratuite : 5 exercices perso au plus
+        const mk = !etir && !exists && !full ? row("new:" + qt.slice(0, 80), "+ Créer « " + qt.slice(0, 80) + " »", "Ton propre exercice, s'il n'est pas dans la liste", " pk-new")
+          : full ? '<div class="pk-row pk-lock">' + LOCK + "<span><b>" + FREE_OWN + ' exercices perso au plus en version gratuite</b><span class="muted small">Avec Premium, tu peux créer « ' + esc(qt.slice(0, 80)) + " » et tous les exercices que tu veux.</span></span></div>" : "";
+        return h + (v.length ? v.map(x => row(x.id, x.n, sub(x))).join("") + mk : mk + '<p class="muted small" style="margin:8px 2px">Aucun ' + what + " de la liste ne correspond." + (mk && !full ? " Coche « Créer » pour ajouter le tien." : "") + "</p>");
       }
       const v = lib.concat(own).filter(inFilt);
       const secs = etir ? ["haut", "milieu", "bas"].map(z => [ZONE_NAMES[z], v.filter(x => x.zone === z)])
@@ -1428,9 +1435,10 @@ $app.addEventListener("click", e => {
   if (justSwiped || row === swOpen) { e.preventDefault(); e.stopPropagation(); if (!justSwiped) swClose(row); }
 }, true);
 function viewHistory() {
-  const ws = finished();
+  const every = finished(), cut = Date.now() - FREE_HIST_DAYS * DAY, ws = isFree() ? every.filter(w => w.startedAt >= cut) : every, hidden = every.length - ws.length;
   const head = '<div class="page-head"><h1>Stats</h1></div>' + statsTabs("history");
-  if (!ws.length) return head + '<div class="card empty">Aucune séance terminée pour l\'instant.</div>';
+  const more = hidden ? planCard(hidden + " séance" + (hidden > 1 ? "s" : "") + " de plus de " + FREE_HIST_DAYS + " jours " + (hidden > 1 ? "sont gardées" : "est gardée") + ". Avec Premium, tu revois tout ton historique.") : "";
+  if (!ws.length) return head + (hidden ? more : '<div class="card empty">Aucune séance terminée pour l\'instant.</div>');
   let h = head + '<p class="muted small" style="margin:0 2px 4px">' + ws.length + " séance" + (ws.length > 1 ? "s" : "") + " terminée" + (ws.length > 1 ? "s" : "") + ". Touche une séance pour la voir ou la corriger, glisse-la vers la gauche pour la supprimer.</p>", month = "";
   ws.slice(0, histLimit).forEach(w => {
     const m = dfMonth.format(w.startedAt);
@@ -1440,7 +1448,7 @@ function viewHistory() {
   h += "</div>";
   // longue liste : affichée par tranches de 100
   if (ws.length > histLimit) h += '<button class="btn block" data-act="histmore" style="margin-top:12px">Afficher les séances plus anciennes (' + (ws.length - histLimit) + ")</button>";
-  return h;
+  return h + more;
 }
 let histLimit = 100;
 
@@ -1489,8 +1497,9 @@ function viewProgress() {
   let streak = 0, wk = (perWeek[cur] || 0) >= goal ? cur : prevWeek(cur);
   while ((perWeek[wk] || 0) >= goal) { streak++; wk = prevWeek(wk); }
   const pct = Math.min(100, Math.round(100 * thisWeek / goal));
-  h += '<div class="stats k3">' +
-    '<div class="card stat"><div class="muted small">Cette semaine</div><div class="v num">' + thisWeek + " <small>/ " + goal + '</small></div><div class="meter" role="img" aria-label="' + thisWeek + " séances sur " + goal + '"><span style="width:' + pct + '%"></span></div></div>' +
+  const weekCard = '<div class="card stat"><div class="muted small">Cette semaine</div><div class="v num">' + thisWeek + " <small>/ " + goal + '</small></div><div class="meter" role="img" aria-label="' + thisWeek + " séances sur " + goal + '"><span style="width:' + pct + '%"></span></div></div>';
+  if (isFree()) return h + '<div class="stats k1">' + weekCard + "</div>" + planCard("En version gratuite, tu vois ta semaine en cours. Avec Premium : le mois, le total, les semaines d'affilée, le temps à la salle, le tonnage et les graphiques.");
+  h += '<div class="stats k3">' + weekCard +
     '<div class="card stat"><div class="muted small">Ce mois-ci</div><div class="v num">' + thisMonth + "</div></div>" +
     '<div class="card stat"><div class="muted small">Au total</div><div class="v num">' + ws.length + "</div></div>" +
     '<div class="card stat"><div class="muted small">Semaines objectif atteint</div><div class="v num">' + streak + " <small>d'affilée</small></div></div>" +
@@ -1597,6 +1606,7 @@ function evoListHtml() {
 }
 function viewEvolution() {
   let h = '<div class="page-head"><h1>Stats</h1></div>' + statsTabs("evolution");
+  if (isFree()) return h + planCard("La courbe de chaque exercice (charge, répétitions, tonnage, records) est réservée à Premium. Tes séances sont gardées : la courbe sera complète dès que tu t'abonnes.");
   if (!progressData().length) return h + '<div class="card empty">Termine une séance pour voir l\'évolution de tes exercices. Seuls les exercices faits pendant une séance terminée apparaissent ici.</div>';
   return h + '<label class="evo-search"><span class="sr">Rechercher un exercice</span><input type="search" class="f" data-evo-q placeholder="Rechercher un exercice" autocomplete="off" value="' + esc(evo.q) + '"></label>' +
     '<p class="muted small" style="margin:6px 2px 10px">Choisis un exercice pour voir sa courbe dans le temps. Seuls ceux que tu as faits en séance apparaissent.</p><div id="evo-list">' + evoListHtml() + "</div>";
@@ -1686,6 +1696,7 @@ function viewEvolutionDetail(key) {
   const all_ = progressData(); let p = all_.find(x => x.key === key);
   if (!p && key && !/^lib:/.test(key)) { const [nm, ty] = String(key).split("|"), lb = libFor(nm); if (lb) p = all_.find(x => x.key === "lib:" + lb.id + "|" + ty); } // ancien lien (nom de l'exercice)
   const back = '<a class="back" href="#/evolution">‹ Évolution</a>';
+  if (isFree()) return back + planCard("La courbe de chaque exercice est réservée à Premium.");
   if (!p) return back + '<div class="card empty">Pas encore de données pour cet exercice.</div>';
   const ms = evoMetrics(p), m = ms.includes(evo.m[key]) ? evo.m[key] : ms[0], M = EVO_M[m];
   const allT = p.entries.map(x => x.w.startedAt), fullSpan = allT[allT.length - 1] - allT[0];
@@ -1751,7 +1762,7 @@ function celebrate(rec) {
 /* ================= Stats : onglets ================= */
 function statsTabs(on) {
   return '<div class="tabs stabs" role="tablist">' + [["progress", "Séances"], ["evolution", "Évolution"], ["calendar", "Calendrier"], ["history", "Historique"]].map(t =>
-    '<a href="#/' + t[0] + '" class="tab' + (t[0] === on ? " on" : "") + '"' + (t[0] === on ? ' aria-current="page"' : "") + ">" + t[1] + "</a>").join("") + "</div>";
+    '<a href="#/' + t[0] + '" class="tab' + (t[0] === on ? " on" : "") + '"' + (t[0] === on ? ' aria-current="page"' : "") + ">" + (isFree() && (t[0] === "evolution" || t[0] === "calendar") ? LOCK : "") + t[1] + "</a>").join("") + "</div>";
 }
 
 /* ================= Calendrier ================= */
@@ -1762,6 +1773,7 @@ function viewCalendar(ym, day) {
   let y = now.getFullYear(), m = now.getMonth();
   if (/^\d{4}-\d{2}$/.test(ym || "")) { y = +ym.slice(0, 4); m = +ym.slice(5, 7) - 1; }
   const first = new Date(y, m, 1), days = new Date(y, m + 1, 0).getDate(), lead = (first.getDay() + 6) % 7;
+  if (isFree()) return '<div class="page-head"><h1>Stats</h1></div>' + statsTabs("calendar") + planCard("Le calendrier de tes séances est réservé à Premium. Ta semaine en cours est dans « Séances ».");
   const byDay = {}; finished().forEach(w => { const k = ymd(w.startedAt); (byDay[k] = byDay[k] || []).push(w); });
   const prev = new Date(y, m - 1, 1), next = new Date(y, m + 1, 1);
   const key = d => d.getFullYear() + "-" + pad(d.getMonth() + 1);
@@ -2231,6 +2243,109 @@ $app.addEventListener("input", e => {
   if (words.length && shown.length === 1) shown[0].open = true;
 });
 
+/* ================= Premium : abonnement, essai et version gratuite ================= */
+// MONETIZATION = false tant que l'abonnement n'est pas lancé : tout le monde garde l'appli complète, sans rien de Premium à l'écran.
+// Le compte testeur voit seulement le mode test (Réglages) pour essayer l'essai, la version gratuite et Premium sur son appareil.
+const MONETIZATION = false;
+const PLAN_TESTERS = ["8d8a867f-e766-41ca-b197-7694f5f5e1c4"];
+const TRIAL_DAYS = 30, FREE_VARIANTS = 2, FREE_OWN = 5, FREE_HIST_DAYS = 30, DAY = 86400000;
+const PRICES = { year: "19,90 €", month: "1,99 €", yearMonth: "1,66 €" };
+const isPlanTester = () => !!(db.auth && PLAN_TESTERS.includes(db.auth.user.id));
+const planTesting = () => isPlanTester() && ["trial", "free", "premium"].includes(db.planTest);
+const trialLeft = () => Math.max(0, Math.ceil(((planTesting() ? db.planTestEnd : db.plan && db.plan.trialEnds) - Date.now()) / DAY) || 0);
+// « off » : pas d'abonnement (appli complète) · « trial » : essai, tout comme Premium · « free » : version gratuite · « premium » : abonné
+function planState() {
+  if (planTesting()) return db.planTest === "trial" && trialLeft() <= 0 ? "free" : db.planTest;
+  if (!MONETIZATION) return "off";
+  const p = db.plan || {}; // à brancher au lancement : statut du compte envoyé par RevenueCat dans Supabase
+  return p.premium ? "premium" : p.trialEnds > Date.now() ? "trial" : "free";
+}
+const isFree = () => planState() === "free";
+const ownCount = () => knownNames().filter(n => !libFor(n)).length;
+async function premiumGate(text) {
+  if (await ask({ title: "Réservé à Premium", text: text + "\n\nAvec Premium : programmes, séances et exercices illimités, tout l'historique, toutes les stats et la synchro entre tes appareils.", ok: "Voir Premium", cancel: "Plus tard" })) go("premium");
+}
+// version gratuite : 1 programme actif et 2 séances actives (choisies librement) ; les autres restent visibles avec un cadenas
+let faCache = { key: "" };
+function freeActive() {
+  const ts = templates(), fa = settings().freeActive || {}, key = dataRev + "|" + JSON.stringify(fa);
+  if (faCache.key === key) return faCache.val;
+  let val = { t: null, v: [] };
+  if (ts.length) {
+    const cnt = {}, tc = {};
+    finished().forEach(w => { cnt[w.templateId + "|" + w.variantId] = (cnt[w.templateId + "|" + w.variantId] || 0) + 1; tc[w.templateId] = (tc[w.templateId] || 0) + 1; });
+    const t = ts.find(x => x.id === fa.t) || ts.slice().sort((a, b) => (tc[b.id] || 0) - (tc[a.id] || 0))[0]; // par défaut : le programme le plus utilisé
+    const ids = t.variants.map(v => v.id), v = (fa.t === t.id && Array.isArray(fa.v) ? fa.v : []).filter(id => ids.includes(id)).slice(0, FREE_VARIANTS);
+    t.variants.slice().sort((a, b) => (cnt[t.id + "|" + b.id] || 0) - (cnt[t.id + "|" + a.id] || 0)).forEach(x => { if (v.length < FREE_VARIANTS && !v.includes(x.id)) v.push(x.id); });
+    val = { t: t.id, v };
+  }
+  faCache = { key, val }; return val;
+}
+const progLocked = tid => isFree() && freeActive().t !== tid;
+const varLocked = (tid, vid) => isFree() && !(freeActive().t === tid && freeActive().v.includes(vid));
+const LOCK = '<svg class="lock-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>';
+// séance verrouillée touchée : la rendre active (à la place d'une autre), voir ses exercices, ou Premium
+async function lockedChoice(tid, vid) {
+  const t = getItem(tid), v = t && t.variants.find(x => x.id === vid); if (!v) return;
+  const fa = freeActive(), at = getItem(fa.t), opts = [];
+  if (fa.t === tid) fa.v.forEach(id => { const o = t.variants.find(x => x.id === id); if (o) opts.push(["swap:" + id, "Activer à la place de « " + vLabel(o.name) + " »", "« " + vLabel(o.name) + " » sera verrouillée, sans rien perdre"]); });
+  else opts.push(["prog", "Rendre ce programme actif", "« " + t.name + " » devient ton programme actif" + (at ? " à la place de « " + at.name + " »" : "") + ", avec cette séance"]);
+  opts.push(["peek", "Voir ses exercices", ""], ["premium", "Passer à Premium", "Toutes tes séances, sans limite"]);
+  const c = await choose("« " + vLabel(v.name) + " » est verrouillée", opts);
+  if (!c) return;
+  if (c === "peek") { peekVariant(tid, vid); return; }
+  if (c === "premium") { go("premium"); return; }
+  const nv = c === "prog" ? [vid] : fa.v.map(id => id === c.slice(5) ? vid : id);
+  setSetting("freeActive", { t: tid, v: nv });
+  toast("« " + vLabel(v.name) + " » est maintenant active");
+}
+function planBanner() {
+  const s = planState();
+  if (s === "trial") { const d = trialLeft(); return '<a class="card plan-banner trial" href="#/premium"><span><b>Essai Premium</b> · ' + d + " jour" + (d > 1 ? "s" : "") + " restant" + (d > 1 ? "s" : "") + '</span><span class="plan-go">Passer à Premium ›</span></a>'; }
+  if (s === "free") return '<a class="card plan-banner" href="#/premium"><span><b>Version gratuite</b> · 1 programme, 2 séances actives</span><span class="plan-go">Passer à Premium ›</span></a>';
+  return "";
+}
+const planCard = text => '<div class="card plan-lock">' + LOCK + '<div><b>Réservé à Premium</b><div class="small muted">' + text + '</div><a class="btn sm primary" href="#/premium">Voir Premium</a></div></div>';
+function planStatus() {
+  const s = planState(), d = trialLeft();
+  return s === "trial" ? "Essai Premium : encore " + d + " jour" + (d > 1 ? "s" : "") + ". À la fin, tu passes en version gratuite sans rien perdre."
+    : s === "free" ? "Version gratuite. Toutes tes données sont gardées : tout se débloque dès que tu t'abonnes."
+    : s === "premium" ? "Abonné Premium. Merci de soutenir Fiitday !" : "L'abonnement n'est pas encore ouvert : tu as toute l'appli.";
+}
+function viewPremium() {
+  const s = planState(), prev = (history.state && history.state.prev) || "#/settings";
+  const rows = [["Programmes et séances", "Illimités", "1 programme, 2 séances actives"], ["Exercices perso", "Illimités", "5 au plus"], ["Historique", "Complet", "30 derniers jours"],
+    ["Stats", "Temps, tonnage, Évolution, calendrier", "La semaine en cours"], ["Synchro téléphone ↔ ordinateur", "Oui", "Non"], ["Partager une séance", "Envoyer et recevoir", "Recevoir"],
+    ["Sauvegarde", "Enregistrer et restaurer, code de transfert", "Enregistrer"]];
+  const live = MONETIZATION && s !== "premium";
+  return '<a class="back" href="' + esc(prev) + '">‹ Retour</a><div class="page-head"><h1>Fiitday Premium</h1></div>' +
+    '<div class="card"><div class="small">' + esc(planStatus()) + "</div></div>" +
+    '<div class="plans">' +
+    '<div class="card plan-opt best"><span class="tag">2 mois offerts</span><b>Annuel</b><div class="plan-price num">' + PRICES.year + ' <small>/ an</small></div><div class="small muted">soit ' + PRICES.yearMonth + " par mois</div></div>" +
+    '<div class="card plan-opt"><b>Mensuel</b><div class="plan-price num">' + PRICES.month + ' <small>/ mois</small></div><div class="small muted">sans engagement</div></div></div>' +
+    (s === "premium" ? "" : '<button class="btn primary block big" ' + (live ? 'data-act="planbuy"' : "disabled") + ">" + (live ? "S'abonner" : "Paiement bientôt disponible") + "</button>") +
+    (planTesting() && s !== "premium" ? '<button class="link small" style="margin-top:8px" data-act="plantest" data-val="premium">Simuler l\'abonnement (mode test)</button>' : "") +
+    '<p class="small muted" style="margin:10px 2px 0">Essai gratuit d\'un mois à la création du compte. Résiliable à tout moment ; à la fin, tu gardes toutes tes données.</p>' +
+    '<div class="section-title">Premium ou gratuit</div><div class="card plan-table"><table><thead><tr><th></th><th>Premium</th><th>Gratuit</th></tr></thead><tbody>' +
+    rows.map(r => "<tr><th>" + esc(r[0]) + "</th><td>" + esc(r[1]) + "</td><td>" + esc(r[2]) + "</td></tr>").join("") + "</tbody></table></div>";
+}
+// Réglages : carte Abonnement (une fois lancé) et mode test (compte testeur seulement)
+function planSettings() {
+  let h = "";
+  const s = planState();
+  if (s !== "off") h += '<div class="card"><b>Abonnement</b><div class="small muted" style="margin-top:4px">' + esc(planStatus()) + '</div><a class="btn sm' + (s === "premium" ? "" : " primary") + '" style="margin-top:8px" href="#/premium">' + (s === "premium" ? "Voir Premium" : "Passer à Premium") + "</a></div>";
+  if (isPlanTester()) {
+    const cur = planTesting() ? db.planTest : "";
+    h += '<div class="card test-card"><div class="spread"><b>Mode test</b><span class="tag">Visible seulement par toi</span></div>' +
+      '<div class="small muted" style="margin-top:4px">Pour voir l\'appli comme un utilisateur, sur cet appareil. Les autres comptes ne voient rien : pour eux, l\'appli reste complète. Tes données ne changent pas.</div>' +
+      '<div class="seg seg-wrap" role="group" style="margin-top:10px">' + [["", "Désactivé"], ["trial", "Essai en cours"], ["free", "Essai terminé"], ["premium", "Abonné"]].map(o =>
+        '<button class="' + (cur === o[0] ? "on" : "") + '" aria-pressed="' + (cur === o[0]) + '" data-act="plantest" data-val="' + o[0] + '">' + o[1] + "</button>").join("") + "</div>" +
+      (cur === "trial" ? '<div class="row" style="margin-top:10px;flex-wrap:wrap;align-items:center"><span class="small">' + (trialLeft() ? "Encore " + trialLeft() + " jour" + (trialLeft() > 1 ? "s" : "") + " d'essai" : "Essai terminé") + '</span><button class="btn sm" data-act="plantestskip">Avancer d\'une semaine</button></div>' : "") +
+      (s === "free" ? '<div class="small muted" style="margin-top:8px">En vrai, la synchro s\'arrête en version gratuite. En mode test, tes données continuent de se synchroniser.</div>' : "") + "</div>";
+  }
+  return h;
+}
+
 function viewSettings() {
   const s = settings();
   const sv = k => s[k] || (k === "watch" ? "non" : k === "stretchTips" ? "oui" : "");
@@ -2238,7 +2353,9 @@ function viewSettings() {
   // même numéro sur le téléphone et sur le web : 1.<nombre de modifications du code>
   const num_ = (Native && Native.version && Native.version()) || window.APP_VERSION || "";
   const ver = "Fiitday " + (num_ && num_ !== "1.0-dev" ? "V" + num_ : "(version de développement)");
-  return '<div class="page-head"><h1>Réglages</h1></div><div class="stack">' +
+  const fr = isFree(), lk = fr ? " locked-btn" : "", li = fr ? LOCK : "";
+  const frNote = fr ? '<div class="small lock-note">' + LOCK + 'Restaurer et le code de transfert sont réservés aux abonnés Premium. <a class="link" href="#/premium">Voir Premium</a></div>' : "";
+  return '<div class="page-head"><h1>Réglages</h1></div><div class="stack">' + planSettings() +
     '<div class="card"><b>Apparence</b><div style="margin-top:10px">' + seg("theme", [["auto", "Auto"], ["clair", "Clair"], ["sombre", "Sombre"]]) + "</div></div>" +
     '<div class="card"><b>Alerte de fin de repos</b><div style="margin-top:10px">' + seg("alert", [["vibration", "Vibration"], ["son", "Son"], ["les deux", "Les deux"], ["aucune", "Aucune"]]) + "</div>" +
     '<button class="btn sm" style="margin-top:10px" data-act="testalert">Tester</button></div>' +
@@ -2246,10 +2363,10 @@ function viewSettings() {
     '<div class="card"><b>Objectif de séances par semaine</b><div style="margin-top:10px">' + seg("goal", [["2", "2"], ["3", "3"], ["4", "4"], ["5", "5"], ["6", "6"], ["7", "7"]]) + "</div></div>" +
     '<div class="card"><b>Données</b><div class="small muted" style="margin-top:4px">Tes programmes, séances et réglages.</div>' +
     '<div class="data-sec"><div class="data-t">Sauvegarde</div><div class="small muted">Un fichier à garder sur ton téléphone, ton ordinateur ou dans un cloud (Google Drive…).</div>' +
-    '<div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-act="filesave">Enregistrer une sauvegarde</button><button class="btn sm" data-act="fileopen">Restaurer une sauvegarde</button></div></div>' +
+    '<div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-act="filesave">Enregistrer une sauvegarde</button><button class="btn sm' + lk + '" data-act="fileopen">' + li + 'Restaurer une sauvegarde</button></div></div>' +
     '<div class="data-sec"><div class="data-t">Transfert vers un autre compte</div><div class="small muted">Un code de 8 caractères, valable 1 heure, à taper dans l\'autre compte.</div>' +
-    '<div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-act="xfercreate">Créer un code</button><button class="btn sm" data-act="xferuse">J\'ai un code</button></div></div>' +
-    '<div class="row" style="margin-top:6px;flex-wrap:wrap;gap:4px 14px"><a class="link small" style="padding:0;display:inline-flex;align-items:center" href="#/faq/sauvegarde">Comment ça marche ?</a><button class="link small" style="padding:0;text-align:left" data-act="import">Restaurer un ancien texte de sauvegarde (FIITDAY1:…)</button></div></div>' +
+    '<div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn sm' + lk + '" data-act="xfercreate">' + li + 'Créer un code</button><button class="btn sm' + lk + '" data-act="xferuse">' + li + 'J\'ai un code</button></div></div>' + frNote +
+    '<div class="row" style="margin-top:6px;flex-wrap:wrap;gap:4px 14px"><a class="link small" style="padding:0;display:inline-flex;align-items:center" href="#/faq/sauvegarde">Comment ça marche ?</a><button class="link small" style="padding:0;text-align:left" data-act="import">' + li + 'Restaurer un ancien texte de sauvegarde (FIITDAY1:…)</button></div></div>' +
     '<div class="card"><b>Compte</b><div style="margin-top:8px">' +
     (db.auth ? '<label class="fl" style="margin-bottom:8px">Prénom<input class="f" data-setname maxlength="40" autocomplete="given-name" value="' + esc(firstName()) + '" placeholder="Ton prénom"></label>' +
       '<div class="small">Connecté : ' + esc(db.auth.user.email) + "</div><div style=\"margin-top:6px\">" + syncBadge() + '</div><div class="small msg err" data-sync-error>' + (syncState.status === "err" ? esc(syncState.error) : "") + "</div>" +
@@ -2533,6 +2650,7 @@ $app.addEventListener("click", async e => {
 
     /* programmes */
     case "newtpl": {
+      if (isFree() && templates().length >= 1) { premiumGate("En version gratuite, tu as 1 programme."); return; }
       const n = await ask({ title: "Nouveau programme", input: "", ok: "Créer" });
       if (!n) return;
       const t = { id: "tpl-" + uid(), name: n.slice(0, 60), order: templates().length, variants: [] }; // aucune séance par défaut : l'utilisateur ajoute la première avec « + Nouvelle séance »
@@ -2559,13 +2677,14 @@ $app.addEventListener("click", async e => {
     case "foldall": { const { v } = currentProgram(); if (!v) return; blocks(v.exercises).forEach(x => { const k = "t:" + (x.groupId || x.items[0].e.id); if (b.dataset.v === "1") folded.add(k); else folded.delete(k); }); render(); } break;
     case "statm": statsMetric = ["n", "time", "ton"].includes(b.dataset.v) ? b.dataset.v : "n"; render(); break;
     case "tab": { const { t } = currentProgram(); if (t) go("program/" + t.id + "/" + b.dataset.v); } break;
-    case "homeaddvar": { const t = getItem(b.dataset.t); if (!t) return; const v = { id: "v" + uid(), name: "Séance " + (t.variants.length + 1), exercises: [] }; t.variants.push(v); put("template", t); go("program/" + t.id + "/" + v.id); } break;
-    case "addvar": { const { t } = currentProgram(); if (!t) return; const v = { id: "v" + uid(), name: "Séance " + (t.variants.length + 1), exercises: [] }; t.variants.push(v); put("template", t); go("program/" + t.id + "/" + v.id); } break;
+    case "homeaddvar": { const t = getItem(b.dataset.t); if (!t) return; if (isFree() && (progLocked(t.id) || t.variants.length >= FREE_VARIANTS)) { premiumGate("En version gratuite, un programme a 2 séances actives au plus."); return; } const v = { id: "v" + uid(), name: "Séance " + (t.variants.length + 1), exercises: [] }; t.variants.push(v); put("template", t); go("program/" + t.id + "/" + v.id); } break;
+    case "addvar": { const { t } = currentProgram(); if (!t) return; if (isFree() && (progLocked(t.id) || t.variants.length >= FREE_VARIANTS)) { premiumGate("En version gratuite, un programme a 2 séances actives au plus."); return; } const v = { id: "v" + uid(), name: "Séance " + (t.variants.length + 1), exercises: [] }; t.variants.push(v); put("template", t); go("program/" + t.id + "/" + v.id); } break;
     case "dupvar": {
       const { t, v } = currentProgram(); if (!v) return;
       const dest = await choose("Dupliquer « " + vLabel(v.name) + " » dans…", templates().map(x => [x.id, x.name + (x.id === t.id ? " (ce programme)" : ""), x.variants.length + " séance" + (x.variants.length > 1 ? "s" : "")]));
       if (!dest) return;
       const to = getItem(dest); if (!to) return;
+      if (isFree() && (progLocked(to.id) || to.variants.length >= FREE_VARIANTS)) { premiumGate("En version gratuite, un programme a 2 séances actives au plus."); return; }
       const gmap = {};
       const copy = v.exercises.map(e => { const c = Object.assign({}, e, { id: "e-" + uid() }); if (e.groupId) c.groupId = gmap[e.groupId] = gmap[e.groupId] || "g-" + uid(); return c; });
       let name = vLabel(v.name);
@@ -2587,6 +2706,7 @@ $app.addEventListener("click", async e => {
       const { t, v } = currentProgram(); if (!v) return;
       const f = v.exercises[+b.dataset.e]; if (!f || !f.groupId) return;
       const names = await askNames("Ajouter au " + (GROUP_LABEL[f.groupKind] || "groupe").toLowerCase(), 1); if (!names) return;
+      if (isFree() && !libFor(names[0]) && !knownNames().some(n => norm(n) === norm(names[0])) && ownCount() >= FREE_OWN) { premiumGate("En version gratuite, tu peux créer " + FREE_OWN + " exercices perso. Choisis un exercice de la liste, ou un de tes exercices."); return; }
       const last = v.exercises.reduce((m, e, k) => e.groupId === f.groupId ? k : m, -1);
       v.exercises.splice(last + 1, 0, Object.assign(newExercise(), { name: names[0], groupId: f.groupId, groupKind: f.groupKind, sets: f.sets, rest: f.rest }));
       cleanGroups(v); put("template", t); render();
@@ -2614,8 +2734,18 @@ $app.addEventListener("click", async e => {
     } break;
     case "delex": { const { t, v } = currentProgram(); if (!v) return; const ex = v.exercises[+b.dataset.e]; if (!await ask({ title: (ex.groupId ? "Retirer" : "Supprimer") + " « " + ex.name + " » ?", ok: ex.groupId ? "Retirer" : "Supprimer", danger: true })) return; v.exercises.splice(+b.dataset.e, 1); cleanGroups(v); put("template", t); render(); } break;
     case "up": case "down": { const { t, v } = currentProgram(); if (!v) return; if (moveBlock(v, +b.dataset.b, a === "up" ? -1 : 1)) { put("template", t); render(); } } break;
-    case "sharevar": { const { t, v } = currentProgram(); if (v) shareVariant(t, v); } break;
+    case "sharevar": { const { t, v } = currentProgram(); if (!v) return; if (isFree()) { premiumGate("En version gratuite, tu peux recevoir des séances, mais pas partager les tiennes."); return; } shareVariant(t, v); } break;
+    case "lockpick": lockedChoice(b.dataset.t, b.dataset.v); break;
+    case "plantest": {
+      if (!isPlanTester()) return;
+      const val = b.dataset.val || "";
+      db.planTest = val; if (val === "trial") db.planTestEnd = Date.now() + TRIAL_DAYS * DAY; saveNow(); render(); sync();
+      toast(val === "trial" ? "Mode test : essai en cours (30 jours)" : val === "free" ? "Mode test : essai terminé, version gratuite" : val === "premium" ? "Mode test : abonné Premium" : "Mode test désactivé");
+    } break;
+    case "plantestskip": if (planTesting()) { db.planTestEnd = (db.planTestEnd || Date.now()) - 7 * DAY; saveNow(); render(); toast(trialLeft() ? "Encore " + trialLeft() + " jour" + (trialLeft() > 1 ? "s" : "") + " d'essai" : "Essai terminé : version gratuite"); } break;
+    case "planbuy": toast("Le paiement arrive bientôt"); break;
     case "importvar": { const code = await ask({ title: "Importer une séance", text: "Colle le lien de la séance qu'on t'a envoyé.", input: "", ok: "Continuer" }); if (!code) return;
+      if (isFree() && (/^\s*FIITDAY\d:/.test(code) || (XFER_RE.test(normCode(code)) && code.trim().length <= 12))) { premiumGate("Restaurer une sauvegarde et le code de transfert sont réservés aux abonnés. Enregistrer une sauvegarde reste possible pour tout le monde."); return; }
       if (/^\s*FIITDAY\d:/.test(code)) { if (await ask({ title: "C'est une sauvegarde", text: "Ce texte est une sauvegarde complète (programmes, séances, réglages), pas un lien de séance. La restaurer dans ce compte ?", ok: "Restaurer" })) restoreBackup(code); return; }
       if (XFER_RE.test(normCode(code)) && code.trim().length <= 12) { if (await ask({ title: "C'est un code de transfert", text: "Ce code sert à récupérer toutes les données d'un autre compte (programmes, séances, réglages). Les récupérer dans ce compte ?", ok: "Récupérer" })) useTransferCode(code); return; }
       importShared(code); } break;
@@ -2644,11 +2774,13 @@ $app.addEventListener("click", async e => {
       else if (r === "error") toast("La sauvegarde n'a pas pu être enregistrée");
     } break;
     case "fileopen": {
+      if (isFree()) { premiumGate("Restaurer une sauvegarde et le code de transfert sont réservés aux abonnés. Enregistrer une sauvegarde reste possible pour tout le monde."); return; }
       const txt = await openFile();
       if (txt === false) toast("Ce fichier n'a pas pu être lu");
       else if (txt != null) restoreBackup(txt, "Ce fichier n'est pas une sauvegarde Fiitday");
     } break;
     case "xfercreate": {
+      if (isFree()) { premiumGate("Restaurer une sauvegarde et le code de transfert sont réservés aux abonnés. Enregistrer une sauvegarde reste possible pour tout le monde."); return; }
       if (!db.auth) { toast("Connecte-toi à ton compte pour créer un code"); return; }
       const txt = await backupText();
       let row; try { row = await rpc("create_transfer", { p_payload: txt }); } catch (err) { toast(xferErr(err)); return; }
@@ -2659,11 +2791,13 @@ $app.addEventListener("click", async e => {
       if (copy) { try { await navigator.clipboard.writeText(row.transfer_code); toast("Code copié"); } catch (err) { toast("Note le code : " + row.transfer_code); } }
     } break;
     case "xferuse": {
+      if (isFree()) { premiumGate("Restaurer une sauvegarde et le code de transfert sont réservés aux abonnés. Enregistrer une sauvegarde reste possible pour tout le monde."); return; }
       if (!db.auth) { toast("Connecte-toi au compte qui doit recevoir les données"); return; }
       const c = await ask({ title: "J'ai un code", text: "Tape le code de 8 caractères créé dans l'autre compte (Réglages › Données › Créer un code). Il n'est valable qu'1 heure.", input: "", code: true, ok: "Récupérer" });
       if (c) useTransferCode(c);
     } break;
     case "import": {
+      if (isFree()) { premiumGate("Restaurer une sauvegarde et le code de transfert sont réservés aux abonnés. Enregistrer une sauvegarde reste possible pour tout le monde."); return; }
       const txt = await ask({ title: "Restaurer une sauvegarde", text: "Colle le texte de la sauvegarde. Ce qui a été supprimé depuis revient ; ce que tu as modifié depuis garde sa version la plus récente.", input: "", multiline: true, ok: "Restaurer" });
       if (txt) restoreBackup(txt);
     } break;
@@ -2763,11 +2897,21 @@ function tplLine(e) {
   const n = Math.max(1, num(e.sets) || 1), tg = e.type === "dist" ? fmtNum(num(e.target) || 0) + " m" : e.type === "time" ? fmtHold(e.target) || "—" : (e.target || "—") + " reps";
   return n + " × " + tg + (e.type === "reps" && dropsOf(e) ? " · dégressif" : "") + " · repos " + fmtRest(e.rest);
 }
+const pvRows = v => blocks(v.exercises).map(b => b.groupId
+  ? '<li class="pv-group"><span class="pv-tag">' + esc(GROUP_LABEL[b.kind] || "Groupe") + "</span>" + b.items.map((x, k) => '<div class="pv-ex"><b>' + LETTERS[k] + ". " + esc(x.e.name) + '</b><span class="muted small">' + esc(tplLine(x.e)) + "</span></div>").join("") + "</li>"
+  : '<li><div class="pv-ex"><b>' + esc(b.items[0].e.name) + '</b><span class="muted small">' + esc(tplLine(b.items[0].e)) + "</span></div></li>").join("");
+// version gratuite : séance (ou programme) verrouillée, consultable seulement
+function viewLockedProgram(t, v) {
+  let h = '<a class="back" href="#/home">‹ Accueil</a><h1 class="locked-h">' + LOCK + esc(t.name) + "</h1>";
+  if (t.variants.length > 1) h += '<div class="tabs">' + t.variants.map(x => '<button class="' + (v && x.id === v.id ? "on" : "") + '" data-act="tab" data-v="' + x.id + '">' + (varLocked(t.id, x.id) ? LOCK : "") + "<span>" + esc(vLabel(x.name)) + "</span></button>").join("") + "</div>";
+  h += '<div class="card plan-lock">' + LOCK + "<div><b>" + (v ? "« " + esc(vLabel(v.name)) + " » est verrouillée" : "Ce programme est verrouillé") + '</b><div class="small muted">En version gratuite, 1 programme et 2 séances sont actifs. Tu peux consulter celle-ci, mais pas la lancer ni la modifier. Rien n\'est perdu.</div>' +
+    '<div class="row" style="margin-top:8px;flex-wrap:wrap">' + (v ? '<button class="btn sm" data-act="lockpick" data-t="' + t.id + '" data-v="' + v.id + '">Rendre active</button>' : "") + '<a class="btn sm primary" href="#/premium">Voir Premium</a></div></div></div>';
+  if (v) h += '<div class="section-title">Exercices (' + v.exercises.length + ")</div>" + (v.exercises.length ? '<div class="card"><ol class="pv-list">' + pvRows(v) + "</ol></div>" : '<div class="card empty">Pas encore d\'exercice dans cette séance.</div>');
+  return h;
+}
 function peekVariant(tid, vid) {
   const t = getItem(tid), v = t && t.variants.find(x => x.id === vid); if (!v) return;
-  const rows = blocks(v.exercises).map(b => b.groupId
-    ? '<li class="pv-group"><span class="pv-tag">' + esc(GROUP_LABEL[b.kind] || "Groupe") + "</span>" + b.items.map((x, k) => '<div class="pv-ex"><b>' + LETTERS[k] + ". " + esc(x.e.name) + '</b><span class="muted small">' + esc(tplLine(x.e)) + "</span></div>").join("") + "</li>"
-    : '<li><div class="pv-ex"><b>' + esc(b.items[0].e.name) + '</b><span class="muted small">' + esc(tplLine(b.items[0].e)) + "</span></div></li>").join("");
+  const rows = pvRows(v);
   const d = document.createElement("div"); d.className = "modal sheet";
   d.innerHTML = '<div class="modal-box pv" role="dialog" aria-modal="true" aria-label="' + esc(t.name + " · " + vLabel(v.name)) + '"><h3>' + esc(vLabel(v.name)) + '</h3><p class="muted small" style="margin:0">' + esc(t.name) + " · " + v.exercises.length + " exercice" + (v.exercises.length > 1 ? "s" : "") + "</p>" +
     (rows ? '<ol class="pv-list">' + rows + "</ol>" : '<p class="muted">Pas encore d\'exercice dans cette séance.</p>') +
