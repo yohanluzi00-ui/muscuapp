@@ -557,11 +557,12 @@ function renderNow() {
     case "settings": body = viewSettings(); break;
     case "famille": history.replaceState(history.state, "", "#/settings"); body = viewSettings(); setTimeout(() => famJoin(r.args[0] || ""), 0); break;
     case "premium": body = viewPremium(); break;
+    case "admin": body = viewAdmin(); break;
     case "faq": body = viewFaq(r.args[0]); if (r.args[0]) setTimeout(() => { const d = document.getElementById("faq-" + r.args[0]); if (d) d.scrollIntoView({ block: "start" }); }, 60); break;
     case "exercices": body = '<div id="exo-root"><div class="page-head"><h1>Exercices</h1></div><div class="card empty">Chargement des exercices…</div></div>'; break;
     default: body = viewHome();
   }
-  const tab = { faq: "settings", premium: "settings", famille: "settings", session: "home", program: "home", import: "home", s: "home", calendar: "progress", evolution: "progress", history: "progress", body: "progress" }[r.name] || (NAV.some(n => n[0] === r.name) ? r.name : "home");
+  const tab = { faq: "settings", premium: "settings", admin: "settings", famille: "settings", session: "home", program: "home", import: "home", s: "home", calendar: "progress", evolution: "progress", history: "progress", body: "progress" }[r.name] || (NAV.some(n => n[0] === r.name) ? r.name : "home");
   $app.innerHTML = '<div class="shell' + (immersive ? " hide-nav" : "") + '"><nav class="nav" aria-label="Navigation"><div class="brand">Fiitday</div>' +
     NAV.map(n => '<a href="#/' + n[0] + '" class="' + (n[0] === tab ? "on" : "") + '"' + (n[0] === tab ? ' aria-current="page"' : "") + ">" + ICON[n[2]] + "<span>" + n[1] + "</span></a>").join("") +
     '</nav><main class="main' + (wide ? " wide" : "") + '">' + body + "</main></div>";
@@ -2405,6 +2406,7 @@ function planSettings() {
   let h = "";
   const s = planState();
   if (s !== "off") h += '<div class="card"><b>Abonnement</b><div class="small muted" style="margin-top:4px">' + esc(planStatus()) + "</div>" + (isFamily() ? familyBox() : isMember() ? memberBox() : '<button class="btn sm fam-join" data-act="famjoin">J\'ai une invitation Famille</button>') + '<a class="btn sm' + (s === "premium" ? "" : " primary") + '" style="margin-top:8px" href="#/premium">' + (s === "premium" ? "Voir Premium" : "Passer à Premium") + "</a></div>";
+  if (isAdmin()) h += '<div class="card"><div class="spread"><b>Administration</b><span class="tag adm-tag">Visible seulement par toi</span></div><div class="small muted" style="margin-top:4px">Inscrits, utilisateurs actifs, séances, résumé de la semaine.</div><a class="btn sm primary" style="margin-top:8px" href="#/admin">Ouvrir le tableau de bord</a></div>';
   if (isPlanTester()) {
     const cur = planTesting() ? db.planTest : "";
     h += '<div class="card test-card"><div class="spread"><b>Mode test</b><span class="tag">Visible seulement par toi</span></div>' +
@@ -2423,6 +2425,60 @@ function alertSeg(a) {
   const b = (k, l, on) => '<button class="' + (on ? "on" : "") + '" aria-pressed="' + on + '" data-act="alertt" data-val="' + k + '">' + l + "</button>";
   return '<div class="seg" role="group" aria-label="Alerte de fin de repos">' + b("vibration", "Vibration", vib) + b("son", "Son", son) + b("aucune", "Aucune", none) + "</div>";
 }
+/* ================= Administration (ton compte seulement) ================= */
+// Les chiffres viennent de la fonction Supabase admin_kpis : des totaux, sans aucune donnée personnelle.
+// Le serveur refuse tout autre compte ; ici l'écran n'est même pas proposé aux autres.
+const isAdmin = () => isPlanTester();
+let adminKpi = null, adminErr = "", adminBusy = false;
+async function loadAdmin() {
+  if (adminBusy || !isAdmin()) return;
+  adminBusy = true; adminErr = "";
+  try { adminKpi = await rpc("admin_kpis"); }
+  catch (e) { adminErr = e.code === "42501" ? "Accès refusé : réservé à l'administrateur." : e.message === "Failed to fetch" ? "Pas de connexion internet." : "Les chiffres n'ont pas pu être chargés (" + e.message + ")."; }
+  finally { adminBusy = false; if (route().name === "admin") render(); }
+}
+function adminChart(weeks, key, label) {
+  const W = 360, H = 120, top = 16, bw = W / weeks.length, max = Math.max(1, ...weeks.map(x => x[key]));
+  const y = v => H - (v / max) * (H - top);
+  let svg = '<svg class="chart" viewBox="0 0 ' + W + " " + (H + 24) + '" role="img" aria-label="' + esc(label) + ' sur les 8 dernières semaines"><line class="base" x1="0" x2="' + W + '" y1="' + H + '" y2="' + H + '"></line>';
+  weeks.forEach((wk, n) => {
+    const v = wk[key], x = n * bw + bw * 0.22, w = bw * 0.56, d = new Date(wk.w + "T12:00:00"), lab = pad(d.getDate()) + "/" + pad(d.getMonth() + 1), last = n === weeks.length - 1;
+    svg += "<g><title>" + esc("Semaine du " + lab + " : " + v) + "</title>";
+    if (v > 0) { const hh = H - y(v), r = Math.min(4, hh / 2, w / 2); svg += '<path class="bar' + (last ? "" : " dim") + '" d="M' + x + "," + H + "V" + (y(v) + r) + "Q" + x + "," + y(v) + " " + (x + r) + "," + y(v) + "H" + (x + w - r) + "Q" + (x + w) + "," + y(v) + " " + (x + w) + "," + (y(v) + r) + "V" + H + 'Z"></path>'; }
+    svg += '<text x="' + (n * bw + bw / 2) + '" y="' + (H + 17) + '" text-anchor="middle">' + lab + "</text>";
+    if (v > 0) svg += '<text x="' + (n * bw + bw / 2) + '" y="' + (y(v) - 5) + '" text-anchor="middle" style="font-weight:700;fill:var(--ink)">' + v + "</text>";
+    svg += "</g>";
+  });
+  return '<div class="card" style="margin-top:10px"><div class="muted small" style="font-weight:600;margin-bottom:8px">' + esc(label) + "</div>" + svg + "</div>";
+}
+function viewAdmin() {
+  const back = '<a class="back" href="#/settings">‹ Réglages</a>';
+  if (!isAdmin()) return back + '<div class="card empty">Cette page n\'existe pas.</div>';
+  const head = back + '<div class="page-head"><div><h1>Administration</h1><div class="muted small">Visible seulement par toi · des totaux, aucune donnée personnelle</div></div></div>';
+  if (!adminKpi && !adminErr) { setTimeout(loadAdmin, 0); return head + '<div class="card empty">Chargement des chiffres…</div>'; }
+  if (!adminKpi) return head + '<div class="card"><p class="msg err" style="margin:0">' + esc(adminErr) + '</p><button class="btn sm" style="margin-top:10px" data-act="adminload">Réessayer</button></div>';
+  const k = adminKpi, wk = Array.isArray(k.weeks) ? k.weeks : [], cur = wk[wk.length - 1] || { n: 0, u: 0, i: 0 }, prev = wk[wk.length - 2] || { n: 0, u: 0, i: 0 };
+  const pct = (a, b) => b ? Math.round(100 * a / b) + " %" : "—";
+  const diff = (a, b) => { const d = a - b; return '<span class="adm-diff ' + (d > 0 ? "up" : d < 0 ? "down" : "") + '">' + (d > 0 ? "+" + d : d < 0 ? String(d) : "=") + "</span>"; };
+  const tile = (label, v, sub) => '<div class="card stat"><div class="muted small">' + label + '</div><div class="v num">' + v + "</div>" + (sub ? '<div class="muted small">' + sub + "</div>" : "") + "</div>";
+  return head +
+    '<div class="section-title">Résumé de la semaine</div><div class="card adm-week">' +
+    "<div><b class=\"num\">" + cur.i + "</b> inscription" + (cur.i > 1 ? "s" : "") + " " + diff(cur.i, prev.i) + "</div>" +
+    "<div><b class=\"num\">" + cur.n + "</b> séance" + (cur.n > 1 ? "s" : "") + " terminée" + (cur.n > 1 ? "s" : "") + " " + diff(cur.n, prev.n) + "</div>" +
+    "<div><b class=\"num\">" + cur.u + "</b> utilisateur" + (cur.u > 1 ? "s" : "") + " actif" + (cur.u > 1 ? "s" : "") + " " + diff(cur.u, prev.u) + "</div>" +
+    '<div class="muted small">Depuis lundi, comparé à la semaine dernière.</div></div>' +
+    '<div class="section-title">Utilisateurs</div><div class="stats">' +
+    tile("Comptes inscrits", k.users, "+" + k.users7 + " en 7 jours · +" + k.users30 + " en 30 jours") +
+    tile("Actifs sur 7 jours", k.active7, pct(k.active7, k.users) + " des inscrits") +
+    tile("Actifs sur 30 jours", k.active30, pct(k.active30, k.users) + " des inscrits") +
+    tile("Séances terminées", k.workouts, k.workouts7 + " en 7 jours") + "</div>" +
+    adminChart(wk, "n", "Séances terminées par semaine") + adminChart(wk, "u", "Utilisateurs actifs par semaine") + adminChart(wk, "i", "Inscriptions par semaine") +
+    '<div class="section-title">Partage et transferts</div><div class="stats">' +
+    tile("Séances partagées", k.shares, k.shares30 + " en 30 jours") + tile("Codes de transfert", k.transfers30, "créés en 30 jours") + "</div>" +
+    '<div class="section-title">Abonnements</div><div class="card"><p class="muted small" style="margin:0">Au lancement : essais en cours, taux de conversion, abonnés Solo / Famille / À vie, revenu mensuel, résiliations et familles signalées.</p></div>' +
+    '<div class="row" style="margin-top:14px;flex-wrap:wrap;align-items:center;gap:8px 12px"><button class="btn sm" data-act="adminload">' + (adminBusy ? "Mise à jour…" : "Actualiser") + '</button><span class="muted small">Chiffres du ' + esc(fmtDateLong(Date.parse(k.at) || Date.now())) + " à " + esc(fmtTime(Date.parse(k.at) || Date.now())) + "</span></div>";
+}
+
 function viewSettings() {
   const s = settings();
   const sv = k => s[k] || (k === "watch" ? "non" : k === "stretchTips" ? "oui" : "");
@@ -2821,6 +2877,7 @@ $app.addEventListener("click", async e => {
     } break;
     case "plantestskip": if (planTesting()) { db.planTestEnd = (db.planTestEnd || Date.now()) - 7 * DAY; saveNow(); render(); toast(trialLeft() ? "Encore " + trialLeft() + " jour" + (trialLeft() > 1 ? "s" : "") + " d'essai" : "Essai terminé : version gratuite"); } break;
     case "planbuy": toast("Le paiement arrive bientôt"); break;
+    case "adminload": adminKpi = adminKpi || null; adminErr = ""; render(); loadAdmin(); break;
     case "faminvite": {
       if (!isFamily() || famFree() <= 0) return;
       const n = await ask({ title: "Inviter quelqu'un", text: "Son prénom, pour t'y retrouver dans la liste.", input: "", ok: "Créer l'invitation" });

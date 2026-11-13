@@ -645,3 +645,10 @@ html.is-dragging, html.is-dragging * { user-select: none; -webkit-user-select: n
 .fam-row.wait > .lock-i { width: 20px; height: 20px; margin: 6px 7px 0; color: var(--muted); }
 .fam-row .link { align-self: flex-start; padding: 0; min-height: 30px; }
 .fam-join { margin: 8px 8px 0 0; }
+/* Administration */
+.adm-week { display: flex; flex-direction: column; gap: 6px; }
+.adm-week b { font-size: 20px; margin-right: 4px; }
+.adm-diff { font-size: 12px; font-weight: 700; padding: 1px 6px; border-radius: 999px; background: var(--soft); color: var(--muted); margin-left: 4px; }
+.adm-diff.up { background: var(--ok-bg); color: var(--ok-ink); }
+.adm-diff.down { color: var(--danger); }
+.adm-tag { color: var(--accent); font-weight: 700; font-size: 12px; }
