@@ -2252,7 +2252,10 @@ $app.addEventListener("input", e => {
 const MONETIZATION = false;
 const PLAN_TESTERS = ["8d8a867f-e766-41ca-b197-7694f5f5e1c4"];
 const TRIAL_DAYS = 30, FREE_VARIANTS = 2, FREE_OWN = 5, FREE_HIST_DAYS = 30, DAY = 86400000;
-const PRICES = { year: "19,90 €", month: "1,99 €", yearMonth: "1,66 €" };
+// Solo : 1 compte · Famille : l'acheteur + 4 personnes, chacune avec son propre compte (invitées depuis Réglages › Abonnement)
+const PRICES = { solo: { year: "19,90 €", month: "1,99 €", yearMonth: "1,66 €" }, family: { year: "69,90 €", month: "6,99 €", yearMonth: "5,83 €" } };
+const FAMILY_SIZE = 5;
+let premiumFor = "solo";
 const isPlanTester = () => !!(db.auth && PLAN_TESTERS.includes(db.auth.user.id));
 const planTesting = () => isPlanTester() && ["trial", "free", "premium"].includes(db.planTest);
 const trialLeft = () => Math.max(0, Math.ceil(((planTesting() ? db.planTestEnd : db.plan && db.plan.trialEnds) - Date.now()) / DAY) || 0);
@@ -2319,18 +2322,21 @@ function planStatus() {
 }
 function viewPremium() {
   const s = planState(), prev = (history.state && history.state.prev) || "#/settings";
-  const rows = [["Programmes et séances", "Illimités", "1 programme, 2 séances actives"], ["Exercices perso", "Illimités", "5 au plus"], ["Historique", "Complet", "30 derniers jours"],
+  const rows = [["Comptes", "1 (Solo) ou " + FAMILY_SIZE + " (Famille)", "1"], ["Programmes et séances", "Illimités", "1 programme, 2 séances actives"], ["Exercices perso", "Illimités", "5 au plus"], ["Historique", "Complet", "30 derniers jours"],
     ["Stats", "Temps, tonnage, Évolution, calendrier", "La semaine en cours"], ["Programmes Fiitday", "Prêts à l'emploi : musculation et circuit training", "Non"], ["Synchro téléphone ↔ ordinateur", "Oui", "Non"], ["Partager une séance", "Envoyer et recevoir", "Recevoir"],
     ["Sauvegarde", "Enregistrer et restaurer, code de transfert", "Enregistrer (pendant l'essai aussi)"]];
   const live = MONETIZATION && s !== "premium";
   return '<a class="back" href="' + esc(prev) + '">‹ Retour</a><div class="page-head"><h1>Fiitday Premium</h1></div>' +
     '<div class="card"><div class="small">' + esc(planStatus()) + "</div></div>" +
+    '<div class="seg plan-for" role="group" aria-label="Formule">' + [["solo", "Solo"], ["family", "Famille"]].map(([k, l]) => '<button class="' + (premiumFor === k ? "on" : "") + '" aria-pressed="' + (premiumFor === k) + '" data-act="planfor" data-val="' + k + '">' + l + "</button>").join("") + "</div>" +
+    '<p class="small muted plan-for-txt">' + (premiumFor === "family" ? "Pour " + FAMILY_SIZE + " personnes : toi + 4 proches. Chacun a son propre compte, ses programmes et son historique ; personne ne voit les données des autres." : "Pour toi seul, sur tous tes appareils.") + "</p>" +
     '<div class="plans">' +
-    '<div class="card plan-opt best"><span class="tag">2 mois offerts</span><b>Annuel</b><div class="plan-price num">' + PRICES.year + ' <small>/ an</small></div><div class="small muted">soit ' + PRICES.yearMonth + " par mois</div></div>" +
-    '<div class="card plan-opt"><b>Mensuel</b><div class="plan-price num">' + PRICES.month + ' <small>/ mois</small></div><div class="small muted">sans engagement</div></div></div>' +
+    '<div class="card plan-opt best"><span class="tag">2 mois offerts</span><b>Annuel</b><div class="plan-price num">' + PRICES[premiumFor].year + ' <small>/ an</small></div><div class="small muted">soit ' + PRICES[premiumFor].yearMonth + " par mois</div></div>" +
+    '<div class="card plan-opt"><b>Mensuel</b><div class="plan-price num">' + PRICES[premiumFor].month + ' <small>/ mois</small></div><div class="small muted">sans engagement</div></div></div>' +
     (s === "premium" ? "" : '<button class="btn primary block big" ' + (live ? 'data-act="planbuy"' : "disabled") + ">" + (live ? "S'abonner" : "Paiement bientôt disponible") + "</button>") +
     (planTesting() && s !== "premium" ? '<button class="link small" style="margin-top:8px" data-act="plantest" data-val="premium">Simuler l\'abonnement (mode test)</button>' : "") +
-    '<p class="small muted" style="margin:10px 2px 0">Essai gratuit d\'un mois à la création du compte. Résiliable à tout moment ; à la fin, tu gardes toutes tes données.</p>' +
+    '<p class="small muted" style="margin:10px 2px 0">Essai gratuit d\'un mois à la création du compte. Résiliable à tout moment ; à la fin, tu gardes toutes tes données.' +
+    (premiumFor === "family" ? " Formule Famille : tu invites tes proches depuis Réglages › Abonnement ; une personne retirée ne peut être remplacée qu\'après 30 jours. Déjà abonné en Solo ? Résilie-le avant de rejoindre une Famille, pour ne pas payer deux fois." : "") + "</p>" +
     '<div class="section-title">Premium ou gratuit</div><div class="card plan-table"><table><thead><tr><th></th><th>Premium</th><th>Gratuit</th></tr></thead><tbody>' +
     rows.map(r => "<tr><th>" + esc(r[0]) + "</th><td>" + esc(r[1]) + "</td><td>" + esc(r[2]) + "</td></tr>").join("") + "</tbody></table></div>";
 }
@@ -2755,6 +2761,7 @@ $app.addEventListener("click", async e => {
     } break;
     case "plantestskip": if (planTesting()) { db.planTestEnd = (db.planTestEnd || Date.now()) - 7 * DAY; saveNow(); render(); toast(trialLeft() ? "Encore " + trialLeft() + " jour" + (trialLeft() > 1 ? "s" : "") + " d'essai" : "Essai terminé : version gratuite"); } break;
     case "planbuy": toast("Le paiement arrive bientôt"); break;
+    case "planfor": premiumFor = b.dataset.val === "family" ? "family" : "solo"; render(); break;
     case "importvar": { const code = await ask({ title: "Importer une séance", text: "Colle le lien de la séance qu'on t'a envoyé.", input: "", ok: "Continuer" }); if (!code) return;
       if (dataLocked() && (/^\s*FIITDAY\d:/.test(code) || (XFER_RE.test(normCode(code)) && code.trim().length <= 12))) { premiumGate("Restaurer une sauvegarde et le code de transfert sont réservés aux abonnés Premium, pendant l'essai aussi. Faire une sauvegarde (bouton « Sauvegarde ») reste possible pour tout le monde."); return; }
       if (/^\s*FIITDAY\d:/.test(code)) { if (await ask({ title: "C'est une sauvegarde", text: "Ce texte est une sauvegarde complète (programmes, séances, réglages), pas un lien de séance. La restaurer dans ce compte ?", ok: "Restaurer" })) restoreBackup(code); return; }

@@ -630,3 +630,5 @@ html.is-dragging, html.is-dragging * { user-select: none; -webkit-user-select: n
 /* Stats : semaines où l'objectif de séances est atteint */
 .chart .bar.ok { fill: var(--ok-ink); }
 .prog-empty p { margin: 0; }
+.plan-for { margin-top: 12px; }
+.plan-for-txt { margin: 8px 2px 0; }
