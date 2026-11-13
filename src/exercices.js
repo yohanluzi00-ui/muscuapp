@@ -1719,7 +1719,7 @@ function renderList(root) {
   const et = ui.mode === "etir";
   root.innerHTML = '<div class="page-head"><h1>Exercices</h1><span class="muted small">' + (et ? STRETCHES.length + " étirements" : MUSCU.length + " exercices") + "</span></div>" +
     '<div class="exo-mode" role="group" aria-label="Type d\'exercices"><button type="button" data-exo-m="muscu" aria-pressed="' + !et + '">Musculation</button><button type="button" data-exo-m="etir" aria-pressed="' + et + '">Étirements</button></div>' +
-    (et ? '<a class="card exo-guide" href="#/exercices/conseils-etirements"><div><b>Bien s\'étirer : les conseils</b><div class="muted small">Souplesse ou retour au calme, durée, respiration, erreurs à éviter</div></div><span class="exo-go" aria-hidden="true">›</span></a>' +
+    (et ? '<a class="card exo-guide" href="#/exercices/conseils-etirements"><div><b>Bien s\'étirer : les conseils</b></div><span class="exo-go" aria-hidden="true">›</span></a>' +
       '<input class="f exo-q" id="exo-q" type="search" placeholder="Rechercher un étirement, un muscle" autocomplete="off" aria-label="Rechercher un étirement" value="' + esc(ui.qe) + '">' +
       '<div class="exo-chips" role="group" aria-label="Filtrer par zone">' + ZONES.map(([z, n]) => '<button class="chip-btn" data-exo-z="' + z + '" aria-pressed="' + (ui.zone === z) + '">' + n + "</button>").join("") + "</div>" +
       '<div id="exo-list">' + stretchListHtml() + "</div>"

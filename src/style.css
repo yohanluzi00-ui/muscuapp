@@ -622,3 +622,11 @@ html.is-dragging, html.is-dragging * { user-select: none; -webkit-user-select: n
 .stats.k1 { grid-template-columns: minmax(0, 1fr); }
 .tabs .lock-i { width: 12px; height: 12px; margin-right: 4px; }
 .btn[disabled] { opacity: .55; cursor: default; box-shadow: none; }
+/* Réglages : pastille de synchro + lien sur une ligne ; deux boutons côte à côte, même sur un petit téléphone */
+.sync-row { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; }
+.sync-row .link { padding: 0; }
+.row.duo { margin-top: 8px; flex-wrap: nowrap; gap: 8px; }
+.row.duo .btn { flex: 1 1 auto; min-width: 0; padding: 0 10px; white-space: nowrap; font-size: 13px; justify-content: center; text-align: center; }
+/* Stats : semaines où l'objectif de séances est atteint */
+.chart .bar.ok { fill: var(--ok-ink); }
+.prog-empty p { margin: 0; }

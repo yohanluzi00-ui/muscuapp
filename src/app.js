@@ -44,6 +44,7 @@ const ICON = {
   chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
   gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>',
   dumbbell: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6.5 7v10M3.5 9.5v5M17.5 7v10M20.5 9.5v5M6.5 12h11"/></svg>',
+  grid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>',
   play: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4l13 8-13 8z"/></svg>',
   stop: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>',
 };
@@ -515,7 +516,7 @@ async function askConsentIfNeeded() {
   const st = settings(); st.consentAt = new Date().toISOString(); st.consentVersion = LEGAL.version; put("settings", st);
 }
 // menu : 4 onglets ; l'historique est dans Stats, les programmes Fiitday (bientôt) en carte sur l'accueil
-const NAV = [["home", "Accueil", "home"], ["exercices", "Exercices", "dumbbell"], ["progress", "Stats", "chart"], ["settings", "Réglages", "gear"]];
+const NAV = [["home", "Accueil", "home"], ["exercices", "Exercices", "dumbbell"], ["progress", "Stats", "chart"], ["programs", "Programmes", "grid"], ["settings", "Réglages", "gear"]];
 // Remplacer l'écran retire le champ actif : son « blur »/« change » peut redemander un rendu pendant celui-ci.
 let rendering = false;
 function render() {
@@ -559,7 +560,7 @@ function renderNow() {
     case "exercices": body = '<div id="exo-root"><div class="page-head"><h1>Exercices</h1></div><div class="card empty">Chargement des exercices…</div></div>'; break;
     default: body = viewHome();
   }
-  const tab = { faq: "settings", premium: "settings", session: "home", program: "home", import: "home", s: "home", calendar: "progress", evolution: "progress", history: "progress", programs: "home", body: "progress" }[r.name] || (NAV.some(n => n[0] === r.name) ? r.name : "home");
+  const tab = { faq: "settings", premium: "settings", session: "home", program: "home", import: "home", s: "home", calendar: "progress", evolution: "progress", history: "progress", body: "progress" }[r.name] || (NAV.some(n => n[0] === r.name) ? r.name : "home");
   $app.innerHTML = '<div class="shell' + (immersive ? " hide-nav" : "") + '"><nav class="nav" aria-label="Navigation"><div class="brand">Fiitday</div>' +
     NAV.map(n => '<a href="#/' + n[0] + '" class="' + (n[0] === tab ? "on" : "") + '"' + (n[0] === tab ? ' aria-current="page"' : "") + ">" + ICON[n[2]] + "<span>" + n[1] + "</span></a>").join("") +
     '</nav><main class="main' + (wide ? " wide" : "") + '">' + body + "</main></div>";
@@ -748,7 +749,7 @@ function viewHome() {
   }
   h += "</div>";
   h += '<div class="section-title">Découvrir</div><div class="home-more"><a class="card" href="#/exercices/etirements"><b>Étirements</b><span class="muted small">Haut, milieu et bas du corps, avec les conseils</span></a>' +
-    '<a class="card" href="#/programs"><b>Programmes Fiitday</b><span class="muted small"><span class="tag">Bientôt</span> Programmes prêts à l\'emploi et cardio</span></a></div>';
+    '<a class="card" href="#/programs"><b>Programmes Fiitday</b><span class="muted small">Programmes prêts à l\'emploi et circuit training</span></a></div>';
   const recent = finished().slice(0, 3);
   if (recent.length) {
     h += '<div class="section-title">Dernières séances</div><div class="list">' + recent.map(historyRow).join("") + "</div>";
@@ -1034,10 +1035,12 @@ function startRest(sec, label) {
 /* ================= Écran : programmes ================= */
 const GRIP = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>';
 function viewPrograms() {
-  // page réservée au futur mode premium (programmes prêts à l'emploi, cardio) ; tes programmes se gèrent depuis l'accueil
-  return '<div class="page-head"><h1>Programmes</h1></div>' +
-    '<div class="card soon"><h2>Bientôt sur Fiitday</h2><p class="muted">Des programmes prêts à l\'emploi et le suivi cardio.</p></div>' +
-    '<p class="muted small">Tes propres programmes se créent et se modifient depuis l\'<a href="#/home">Accueil</a> : touche une séance, puis «&nbsp;Modifier&nbsp;».</p>';
+  // programmes Fiitday prêts à l'emploi (musculation, circuit training) ; tes propres programmes se gèrent depuis l'accueil
+  const sec = (title, text) => '<div class="section-title">' + title + '</div><div class="card prog-empty"><p class="muted small">' + text + "</p></div>";
+  return '<div class="page-head"><div><h1>Programmes</h1><div class="muted small">Prêts à l\'emploi, pour débutants et intermédiaires</div></div></div>' +
+    sec("Musculation", "Des programmes complets, séance par séance, à ajouter en un appui à tes programmes.") +
+    sec("Circuit training", "Des circuits à faire à la salle ou à la maison, avec ou sans matériel.") +
+    '<p class="muted small" style="margin-top:14px">Tes propres programmes se créent et se modifient depuis l\'<a href="#/home">Accueil</a>.</p>';
 }
 function exFields(e, k, letter, inGroup) {
   const time = e.type === "time", dist = e.type === "dist", rep = e.type === "rep", d = dropsOf(e);
@@ -1507,11 +1510,9 @@ function viewProgress() {
   // temps passé à la salle et tonnage
   const durWeek = {}, tonWeek = {}; let durAll = 0, tonAll = 0;
   ws.forEach(w => { const k = weekStart(w.startedAt), d = workoutDur(w), tn = workoutTon(w); durWeek[k] = (durWeek[k] || 0) + d; tonWeek[k] = (tonWeek[k] || 0) + tn; durAll += d; tonAll += tn; });
-  h += '<div class="stats k3" style="margin-top:10px">' +
-    '<div class="card stat"><div class="muted small">Temps à la salle cette semaine</div><div class="v num">' + fmtDurH(durWeek[cur] || 0) + "</div></div>" +
-    '<div class="card stat"><div class="muted small">Temps à la salle depuis le début</div><div class="v num">' + fmtDurH(durAll) + '</div><div class="muted small">' + (ws.length ? "moyenne " + fmtDurH(durAll / ws.length) + " par séance" : "") + "</div></div>" +
-    '<div class="card stat"><div class="muted small">Tonnage cette semaine</div><div class="v num">' + fmtTon(tonWeek[cur] || 0) + "</div></div>" +
-    '<div class="card stat"><div class="muted small">Tonnage depuis le début</div><div class="v num">' + fmtTon(tonAll) + "</div></div></div>";
+  h += '<div class="stats" style="margin-top:10px">' +
+    '<div class="card stat"><div class="muted small">Temps de sport cette semaine</div><div class="v num">' + fmtDurH(durWeek[cur] || 0) + "</div></div>" +
+    '<div class="card stat"><div class="muted small">Temps de sport depuis le début</div><div class="v num">' + fmtDurH(durAll) + '</div><div class="muted small">' + (ws.length ? "moyenne " + fmtDurH(durAll / ws.length) + " par séance" : "") + "</div></div></div>";
   // séances par semaine (8 dernières), avec la ligne d'objectif
   const weeks = []; let t = cur; for (let k = 0; k < 8; k++) { weeks.unshift(t); t = prevWeek(t); }
   const SM = statsMetric, src = SM === "time" ? durWeek : SM === "ton" ? tonWeek : perWeek, fmtV = v => SM === "time" ? fmtDurH(v) : SM === "ton" ? fmtTon(v) : String(v);
@@ -1523,14 +1524,14 @@ function viewProgress() {
     const v = vals[n], x = n * bw + bw * 0.22, w = bw * 0.56, d = new Date(k), lab = pad(d.getDate()) + "/" + pad(d.getMonth() + 1);
     const tip = "Semaine du " + lab + " : " + (SM === "n" ? v + " séance" + (v > 1 ? "s" : "") : fmtV(v));
     svg += "<g><title>" + esc(tip) + "</title>" + '<rect class="hit" x="' + n * bw + '" y="0" width="' + bw + '" height="' + H + '"></rect>';
-    if (v > 0) { const hh = H - y(v), r = Math.min(4, hh / 2, w / 2); svg += '<path class="bar' + (k === cur ? "" : " dim") + '" d="M' + x + "," + H + "V" + (y(v) + r) + "Q" + x + "," + y(v) + " " + (x + r) + "," + y(v) + "H" + (x + w - r) + "Q" + (x + w) + "," + y(v) + " " + (x + w) + "," + (y(v) + r) + "V" + H + 'Z"></path>'; }
+    if (v > 0) { const hh = H - y(v), r = Math.min(4, hh / 2, w / 2); svg += '<path class="bar' + (SM === "n" && v >= goal ? " ok" : "") + (k === cur ? "" : " dim") + '" d="M' + x + "," + H + "V" + (y(v) + r) + "Q" + x + "," + y(v) + " " + (x + r) + "," + y(v) + "H" + (x + w - r) + "Q" + (x + w) + "," + y(v) + " " + (x + w) + "," + (y(v) + r) + "V" + H + 'Z"></path>'; }
     svg += '<text x="' + (n * bw + bw / 2) + '" y="' + (H + 18) + '" text-anchor="middle">' + lab + "</text></g>";
     if (k === cur) svg += '<text x="' + (n * bw + bw / 2) + '" y="' + (y(v) - 6) + '" text-anchor="middle" style="font-weight:700;fill:var(--ink)">' + esc(fmtV(v)) + "</text>";
   });
   if (SM === "n") svg += '<line class="goal" x1="0" x2="' + W + '" y1="' + y(goal) + '" y2="' + y(goal) + '"></line><text x="4" y="' + (y(goal) - 6) + '">Objectif ' + goal + "</text>";
   svg += "</svg>";
   const segS = [["n", "Séances"], ["time", "Temps"], ["ton", "Tonnage"]].map(([k, l]) => '<button type="button" data-act="statm" data-v="' + k + '"' + (k === SM ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + ">" + l + "</button>").join("");
-  h += '<div class="card" style="margin-top:12px"><div class="seg evo-seg stat-seg" role="group" aria-label="Afficher par semaine">' + segS + '</div><div class="muted small" style="font-weight:600;margin:10px 0 8px">' + (SM === "time" ? "Temps à la salle par semaine" : SM === "ton" ? "Tonnage par semaine" : "Séances par semaine") + "</div>" + svg + "</div>";
+  h += '<div class="card" style="margin-top:12px"><div class="seg evo-seg stat-seg" role="group" aria-label="Afficher par semaine">' + segS + '</div><div class="muted small" style="font-weight:600;margin:10px 0 8px">' + (SM === "time" ? "Temps de sport par semaine" : SM === "ton" ? "Tonnage par semaine" : "Séances par semaine") + "</div>" + svg + "</div>";
   // par programme
   const byTpl = {};
   ws.forEach(w => { const k = w.templateId; (byTpl[k] = byTpl[k] || { name: w.templateName, n: 0, last: 0 }); byTpl[k].n++; byTpl[k].last = Math.max(byTpl[k].last, w.startedAt); const t = getItem(k); if (t) byTpl[k].name = t.name; });
@@ -2203,7 +2204,7 @@ const FAQ = [
     ["superset", "Comment faire un superset ou un dégressif ?", "Ajoute d'abord tes exercices, puis dans la configuration de la séance : « Enchaîner avec l'exercice suivant » relie deux exercices en superset ou biset (un 3e exercice ajouté au groupe en fait un triset), et le réglage « Dégressif » d'un exercice ajoute les baisses de charge. Dans un superset, le repos démarre seulement quand tout le tour est fini."]]],
   ["Pendant la séance", [
     ["repos", "Comment fonctionne le repos ?", "Quand tu valides une série (✓), le repos démarre tout seul avec la durée réglée pour l'exercice. Tu peux ajouter ou enlever 15 s, le passer ou le réduire. Après la dernière série d'un exercice, c'est le « Repos avant l'exercice suivant » qui démarre : il se règle dans la configuration de la séance."],
-    ["alerte", "Je ne suis pas prévenu à la fin du repos, que faire ?", "Vérifie <a href=\"#/settings\">Réglages</a> › Alerte de fin de repos (Vibration, Son ou Les deux) et appuie sur « Tester ». Dans l'appli Android, autorise les notifications de Fiitday : elles te préviennent même écran verrouillé. Limite d'Android : hors de l'appli, un repos de plus de 3 minutes peut ne pas sonner à la fin."],
+    ["alerte", "Je ne suis pas prévenu à la fin du repos, que faire ?", "Vérifie <a href=\"#/settings\">Réglages</a> › Alerte de fin de repos (Vibration, Son, ou les deux allumés ensemble) et appuie sur « Tester ». Dans l'appli Android, autorise les notifications de Fiitday : elles te préviennent même écran verrouillé. Limite d'Android : hors de l'appli, un repos de plus de 3 minutes peut ne pas sonner à la fin."],
     ["chrono", "Comment marche le chrono du gainage et des étirements ?", "Appuie sur ▶ « Chrono » : tu as 5 secondes pour te mettre en position, puis le chrono démarre. Quand tu l'arrêtes, le temps s'inscrit tout seul dans la série (il ne se modifie pas à la main). Pour la course et l'Hyrox, tu peux aussi taper ton temps : « 405 » devient 4:05."],
     ["gris", "À quoi servent les chiffres en gris ?", "Ce sont tes valeurs de la dernière fois pour cet exercice. Le bouton ✓ les reprend si tu as fait pareil ; sinon, tape simplement tes nouveaux chiffres."]]],
   ["Progrès et exercices", [
@@ -2214,7 +2215,7 @@ const FAQ = [
     ["mannequin", "Comment utiliser le mannequin 3D ?", "Fais glisser l'image pour tourner autour du mannequin, pince pour zoomer et appuie deux fois pour revenir au cadrage de départ. Fais glisser la fiche (sous l'image) vers la gauche ou la droite pour passer à l'exercice suivant ou précédent."]]],
   ["Données et compte", [
     ["synchro", "Mes données sont-elles sur mon téléphone et sur mon ordinateur ?", "Oui : avec ton compte, tout se synchronise automatiquement entre l'appli et fiitday.com. L'heure de la dernière synchro est dans Réglages › Compte. Sans réseau, fais ta séance normalement : elle sera envoyée au retour du réseau."],
-    ["sauvegarde", "Comment faire une sauvegarde de mes données ?", "<a href=\"#/settings\">Réglages</a> › Données › « Enregistrer une sauvegarde » crée un fichier à garder sur ton téléphone, ton ordinateur ou dans un cloud (Google Drive…). « Restaurer une sauvegarde » le relit : ce qui a été supprimé depuis revient, et ce que tu as modifié depuis garde sa version la plus récente."],
+    ["sauvegarde", "Comment faire une sauvegarde de mes données ?", "<a href=\"#/settings\">Réglages</a> › Données › « Sauvegarde » crée un fichier à garder sur ton téléphone, ton ordinateur ou dans un cloud (Google Drive…). « Restaurer » le relit : ce qui a été supprimé depuis revient, et ce que tu as modifié depuis garde sa version la plus récente."],
     ["transfert", "Comment passer mes données sur un autre compte ?", "Dans l'ancien compte : Réglages › Données › « Créer un code ». Tu obtiens un code de 8 caractères, valable 1 heure. Dans le nouveau compte : « J'ai un code », puis tape-le. Ne le donne à personne d'autre : il donne accès à toutes tes données."],
     ["partage", "Comment partager une séance avec un ami ?", "Dans la configuration de la séance, appuie sur « Partager » et envoie le lien (WhatsApp, SMS…). Ton ami, connecté à son compte Fiitday, ouvre le lien ou le colle dans Accueil › Importer, puis choisit où ajouter la séance."],
     ["supprimer-compte", "Comment supprimer mon compte ?", "Réglages › Compte › « Supprimer mon compte », puis tape SUPPRIMER pour confirmer. Ton compte et toutes tes données sont effacés définitivement : fais une sauvegarde avant si tu veux les garder."]]],
@@ -2348,6 +2349,12 @@ function planSettings() {
   return h;
 }
 
+// alerte de fin de repos : Vibration et Son s'activent chacun de leur côté (les deux ensemble possibles), Aucune les coupe
+function alertSeg(a) {
+  const vib = a === "vibration" || a === "les deux", son = a === "son" || a === "les deux", none = !vib && !son;
+  const b = (k, l, on) => '<button class="' + (on ? "on" : "") + '" aria-pressed="' + on + '" data-act="alertt" data-val="' + k + '">' + l + "</button>";
+  return '<div class="seg" role="group" aria-label="Alerte de fin de repos">' + b("vibration", "Vibration", vib) + b("son", "Son", son) + b("aucune", "Aucune", none) + "</div>";
+}
 function viewSettings() {
   const s = settings();
   const sv = k => s[k] || (k === "watch" ? "non" : k === "stretchTips" ? "oui" : "");
@@ -2359,24 +2366,24 @@ function viewSettings() {
   const frNote = fr ? '<div class="small lock-note">' + LOCK + 'Restaurer et le code de transfert sont réservés aux abonnés Premium' + (planState() === "trial" ? ", pendant l\'essai aussi" : "") + '. <a class="link" href="#/premium">Voir Premium</a></div>' : "";
   return '<div class="page-head"><h1>Réglages</h1></div><div class="stack">' + planSettings() +
     '<div class="card"><b>Apparence</b><div style="margin-top:10px">' + seg("theme", [["auto", "Auto"], ["clair", "Clair"], ["sombre", "Sombre"]]) + "</div></div>" +
-    '<div class="card"><b>Alerte de fin de repos</b><div style="margin-top:10px">' + seg("alert", [["vibration", "Vibration"], ["son", "Son"], ["les deux", "Les deux"], ["aucune", "Aucune"]]) + "</div>" +
+    '<div class="card"><b>Alerte de fin de repos</b><div style="margin-top:10px">' + alertSeg(sv("alert")) + "</div>" +
     '<button class="btn sm" style="margin-top:10px" data-act="testalert">Tester</button></div>' +
     '<div class="card"><b>Étirements après la séance</b><div class="small muted" style="margin-top:4px">À la fin d\'une séance, l\'accueil propose pendant 15 minutes des étirements adaptés aux muscles travaillés.</div><div style="margin-top:10px">' + seg("stretchTips", [["oui", "Activés"], ["non", "Désactivés"]]) + "</div></div>" +
     '<div class="card"><b>Objectif de séances par semaine</b><div style="margin-top:10px">' + seg("goal", [["2", "2"], ["3", "3"], ["4", "4"], ["5", "5"], ["6", "6"], ["7", "7"]]) + "</div></div>" +
     '<div class="card"><b>Données</b><div class="small muted" style="margin-top:4px">Tes programmes, séances et réglages.</div>' +
     '<div class="data-sec"><div class="data-t">Sauvegarde</div><div class="small muted">Un fichier à garder sur ton téléphone, ton ordinateur ou dans un cloud (Google Drive…).</div>' +
-    '<div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-act="filesave">Enregistrer une sauvegarde</button><button class="btn sm' + lk + '" data-act="fileopen">' + li + 'Restaurer une sauvegarde</button></div></div>' +
+    '<div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-act="filesave">Sauvegarde</button><button class="btn sm' + lk + '" data-act="fileopen">' + li + 'Restaurer</button></div></div>' +
     '<div class="data-sec"><div class="data-t">Transfert vers un autre compte</div><div class="small muted">Un code de 8 caractères, valable 1 heure, à taper dans l\'autre compte.</div>' +
     '<div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn sm' + lk + '" data-act="xfercreate">' + li + 'Créer un code</button><button class="btn sm' + lk + '" data-act="xferuse">' + li + 'J\'ai un code</button></div></div>' + frNote +
     '<div class="row" style="margin-top:6px;flex-wrap:wrap;gap:4px 14px"><a class="link small" style="padding:0;display:inline-flex;align-items:center" href="#/faq/sauvegarde">Comment ça marche ?</a><button class="link small" style="padding:0;text-align:left" data-act="import">' + li + 'Restaurer un ancien texte de sauvegarde (FIITDAY1:…)</button></div></div>' +
     '<div class="card"><b>Compte</b><div style="margin-top:8px">' +
     (db.auth ? '<label class="fl" style="margin-bottom:8px">Prénom<input class="f" data-setname maxlength="40" autocomplete="given-name" value="' + esc(firstName()) + '" placeholder="Ton prénom"></label>' +
-      '<div class="small">Connecté : ' + esc(db.auth.user.email) + "</div><div style=\"margin-top:6px\">" + syncBadge() + '</div><div class="small msg err" data-sync-error>' + (syncState.status === "err" ? esc(syncState.error) : "") + "</div>" +
-      '<div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-act="syncnow">Synchroniser maintenant</button><button class="btn sm" data-act="logout">Se déconnecter</button><button class="btn sm danger" data-act="delaccount">Supprimer mon compte</button></div>'
+      '<div class="small">Connecté : ' + esc(db.auth.user.email) + "</div><div class=\"sync-row\">" + syncBadge() + '<button class="link small" data-act="syncnow">Synchroniser maintenant</button></div><div class="small msg err" data-sync-error>' + (syncState.status === "err" ? esc(syncState.error) : "") + "</div>" +
+      '<div class="row duo"><button class="btn sm" data-act="logout">Se déconnecter</button><button class="btn sm danger" data-act="delaccount">Supprimer mon compte</button></div>'
       : '<div class="small muted">Sans compte : tes données restent sur cet appareil.</div><button class="btn sm primary" style="margin-top:8px" data-act="tologin">Se connecter / créer un compte</button>') +
     "</div></div>" +
     '<div class="card"><b>Aide</b><div class="small muted" style="margin-top:4px">Les réponses aux questions les plus fréquentes : séances, repos, sauvegarde, montre…</div><a class="btn sm" style="margin-top:8px" href="#/faq">Questions fréquentes</a></div>' +
-    '<div class="card"><b>Informations légales</b><div class="row" style="margin-top:8px;flex-wrap:wrap">' +
+    '<div class="card"><b>Informations légales</b><div class="row duo">' +
     '<a class="btn sm" href="' + LEGAL.privacy + '" target="_blank" rel="noopener">Politique de confidentialité</a>' +
     '<a class="btn sm" href="' + LEGAL.legal + '" target="_blank" rel="noopener">Mentions légales</a></div></div>' +
     '<div class="credit"><div class="appver">' + esc(ver) + '</div>Créé par YL</div></div>';
@@ -2747,7 +2754,7 @@ $app.addEventListener("click", async e => {
     case "plantestskip": if (planTesting()) { db.planTestEnd = (db.planTestEnd || Date.now()) - 7 * DAY; saveNow(); render(); toast(trialLeft() ? "Encore " + trialLeft() + " jour" + (trialLeft() > 1 ? "s" : "") + " d'essai" : "Essai terminé : version gratuite"); } break;
     case "planbuy": toast("Le paiement arrive bientôt"); break;
     case "importvar": { const code = await ask({ title: "Importer une séance", text: "Colle le lien de la séance qu'on t'a envoyé.", input: "", ok: "Continuer" }); if (!code) return;
-      if (dataLocked() && (/^\s*FIITDAY\d:/.test(code) || (XFER_RE.test(normCode(code)) && code.trim().length <= 12))) { premiumGate("Restaurer une sauvegarde et le code de transfert sont réservés aux abonnés Premium, pendant l'essai aussi. Enregistrer une sauvegarde reste possible pour tout le monde."); return; }
+      if (dataLocked() && (/^\s*FIITDAY\d:/.test(code) || (XFER_RE.test(normCode(code)) && code.trim().length <= 12))) { premiumGate("Restaurer une sauvegarde et le code de transfert sont réservés aux abonnés Premium, pendant l'essai aussi. Faire une sauvegarde (bouton « Sauvegarde ») reste possible pour tout le monde."); return; }
       if (/^\s*FIITDAY\d:/.test(code)) { if (await ask({ title: "C'est une sauvegarde", text: "Ce texte est une sauvegarde complète (programmes, séances, réglages), pas un lien de séance. La restaurer dans ce compte ?", ok: "Restaurer" })) restoreBackup(code); return; }
       if (XFER_RE.test(normCode(code)) && code.trim().length <= 12) { if (await ask({ title: "C'est un code de transfert", text: "Ce code sert à récupérer toutes les données d'un autre compte (programmes, séances, réglages). Les récupérer dans ce compte ?", ok: "Récupérer" })) useTransferCode(code); return; }
       importShared(code); } break;
@@ -2756,6 +2763,11 @@ $app.addEventListener("click", async e => {
 
     /* réglages */
     case "set": setSetting(b.dataset.k, b.dataset.val); break;
+    case "alertt": {
+      const a = settings().alert; let vib = a === "vibration" || a === "les deux", son = a === "son" || a === "les deux";
+      if (b.dataset.val === "aucune") vib = son = false; else if (b.dataset.val === "vibration") vib = !vib; else son = !son;
+      setSetting("alert", vib && son ? "les deux" : vib ? "vibration" : son ? "son" : "aucune");
+    } break;
     case "testwatch": {
       if (!nativeWatch() || typeof Native.testWatch !== "function") return;
       askNotif(); Native.testWatch();
@@ -2776,13 +2788,13 @@ $app.addEventListener("click", async e => {
       else if (r === "error") toast("La sauvegarde n'a pas pu être enregistrée");
     } break;
     case "fileopen": {
-      if (dataLocked()) { premiumGate("Restaurer une sauvegarde et le code de transfert sont réservés aux abonnés Premium, pendant l'essai aussi. Enregistrer une sauvegarde reste possible pour tout le monde."); return; }
+      if (dataLocked()) { premiumGate("Restaurer une sauvegarde et le code de transfert sont réservés aux abonnés Premium, pendant l'essai aussi. Faire une sauvegarde (bouton « Sauvegarde ») reste possible pour tout le monde."); return; }
       const txt = await openFile();
       if (txt === false) toast("Ce fichier n'a pas pu être lu");
       else if (txt != null) restoreBackup(txt, "Ce fichier n'est pas une sauvegarde Fiitday");
     } break;
     case "xfercreate": {
-      if (dataLocked()) { premiumGate("Restaurer une sauvegarde et le code de transfert sont réservés aux abonnés Premium, pendant l'essai aussi. Enregistrer une sauvegarde reste possible pour tout le monde."); return; }
+      if (dataLocked()) { premiumGate("Restaurer une sauvegarde et le code de transfert sont réservés aux abonnés Premium, pendant l'essai aussi. Faire une sauvegarde (bouton « Sauvegarde ») reste possible pour tout le monde."); return; }
       if (!db.auth) { toast("Connecte-toi à ton compte pour créer un code"); return; }
       const txt = await backupText();
       let row; try { row = await rpc("create_transfer", { p_payload: txt }); } catch (err) { toast(xferErr(err)); return; }
@@ -2793,13 +2805,13 @@ $app.addEventListener("click", async e => {
       if (copy) { try { await navigator.clipboard.writeText(row.transfer_code); toast("Code copié"); } catch (err) { toast("Note le code : " + row.transfer_code); } }
     } break;
     case "xferuse": {
-      if (dataLocked()) { premiumGate("Restaurer une sauvegarde et le code de transfert sont réservés aux abonnés Premium, pendant l'essai aussi. Enregistrer une sauvegarde reste possible pour tout le monde."); return; }
+      if (dataLocked()) { premiumGate("Restaurer une sauvegarde et le code de transfert sont réservés aux abonnés Premium, pendant l'essai aussi. Faire une sauvegarde (bouton « Sauvegarde ») reste possible pour tout le monde."); return; }
       if (!db.auth) { toast("Connecte-toi au compte qui doit recevoir les données"); return; }
       const c = await ask({ title: "J'ai un code", text: "Tape le code de 8 caractères créé dans l'autre compte (Réglages › Données › Créer un code). Il n'est valable qu'1 heure.", input: "", code: true, ok: "Récupérer" });
       if (c) useTransferCode(c);
     } break;
     case "import": {
-      if (dataLocked()) { premiumGate("Restaurer une sauvegarde et le code de transfert sont réservés aux abonnés Premium, pendant l'essai aussi. Enregistrer une sauvegarde reste possible pour tout le monde."); return; }
+      if (dataLocked()) { premiumGate("Restaurer une sauvegarde et le code de transfert sont réservés aux abonnés Premium, pendant l'essai aussi. Faire une sauvegarde (bouton « Sauvegarde ») reste possible pour tout le monde."); return; }
       const txt = await ask({ title: "Restaurer une sauvegarde", text: "Colle le texte de la sauvegarde. Ce qui a été supprimé depuis revient ; ce que tu as modifié depuis garde sa version la plus récente.", input: "", multiline: true, ok: "Restaurer" });
       if (txt) restoreBackup(txt);
     } break;
