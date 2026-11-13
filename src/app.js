@@ -281,7 +281,7 @@ function vibrate() {
 function signal(noVib) { const a = settings().alert; if (a === "son" || a === "les deux") beep(); if (!noVib && (a === "vibration" || a === "les deux")) vibrate(); }
 // montre connectée (appli Android) : le repos et le chrono arrivent sur la montre, qui vibre à la fin
 const nativeWatch = () => !!(Native && typeof Native.startChrono === "function");
-const watchOn = () => nativeWatch() && settings().watch === "oui";
+const watchOn = () => nativeWatch(); // toujours activé dans l'appli Android : chacun choisit ensuite s'il autorise les notifications sur sa montre
 let screenOn = null;
 function keepScreen(on) { if (on === screenOn) return; screenOn = on; try { if (Native && Native.keepScreenOn) Native.keepScreenOn(on); } catch (e) { } }
 
@@ -2186,7 +2186,7 @@ const FAQ = [
     ["partage", "Comment partager une séance avec un ami ?", "Dans la configuration de la séance, appuie sur « Partager » et envoie le lien (WhatsApp, SMS…). Ton ami, connecté à son compte Fiitday, ouvre le lien ou le colle dans Accueil › Importer, puis choisit où ajouter la séance."],
     ["supprimer-compte", "Comment supprimer mon compte ?", "Réglages › Compte › « Supprimer mon compte », puis tape SUPPRIMER pour confirmer. Ton compte et toutes tes données sont effacés définitivement : fais une sauvegarde avant si tu veux les garder."]]],
   ["Appli et montre", [
-    ["montre", "Comment être prévenu sur ma montre ?", "Dans l'appli Android : Réglages › Montre connectée › « Activée ». La montre vibre à la fin du repos et quand l'objectif d'un chrono est atteint, avec « Terminer » pour arrêter le chrono. Sur Galaxy Watch, dans l'appli Galaxy Wearable › Paramètres de la montre › Notifications : autorise Fiitday et choisis « Toujours afficher sur les deux » dans « Notifications du téléphone sur la montre »."],
+    ["montre", "Comment être prévenu sur ma montre ?", "C'est automatique dans l'appli Android : la montre vibre à la fin du repos et quand l'objectif d'un chrono est atteint, avec « Terminer » pour arrêter le chrono. Sur Galaxy Watch, dans l'appli Galaxy Wearable › Paramètres de la montre › Notifications : autorise Fiitday et choisis « Toujours afficher sur les deux » dans « Notifications du téléphone sur la montre »."],
     ["version", "Comment mettre à jour Fiitday ?", "Le site fiitday.com est toujours à jour. L'appli Android se met à jour avec Obtainium, sans perdre tes données. Ta version est écrite en bas de la page <a href=\"#/settings\">Réglages</a> (« Fiitday V1.… »)."]]]
 ];
 // espaces insécables de la typographie française : « ? », « : », « » » ne passent jamais seuls à la ligne
@@ -2221,11 +2221,6 @@ function viewSettings() {
     '<div class="card"><b>Apparence</b><div style="margin-top:10px">' + seg("theme", [["auto", "Auto"], ["clair", "Clair"], ["sombre", "Sombre"]]) + "</div></div>" +
     '<div class="card"><b>Alerte de fin de repos</b><div style="margin-top:10px">' + seg("alert", [["vibration", "Vibration"], ["son", "Son"], ["les deux", "Les deux"], ["aucune", "Aucune"]]) + "</div>" +
     '<button class="btn sm" style="margin-top:10px" data-act="testalert">Tester</button></div>' +
-    (nativeWatch() ? '<div class="card"><b>Montre connectée</b><div class="small muted" style="margin-top:4px">Galaxy Watch, Pixel Watch… : la montre vibre à la fin du repos et quand l\'objectif d\'un chrono est atteint (avec « Terminer » pour arrêter le chrono), même quand Fiitday est ouvert sur le téléphone.</div>' +
-      '<div style="margin-top:10px">' + seg("watch", [["non", "Désactivée"], ["oui", "Activée"]]) + "</div>" +
-      (watchOn() ? '<button class="btn sm" style="margin-top:10px" data-act="testwatch">Tester sur la montre</button>' +
-        '<div class="small muted" style="margin-top:8px">Rien sur la montre ? Dans l\'appli Galaxy Wearable › Paramètres de la montre › Notifications : autorise Fiitday, et dans « Notifications du téléphone sur la montre », choisis « Toujours afficher sur les deux » (sinon la montre ne reçoit rien tant que l\'écran du téléphone est allumé, et Fiitday le garde allumé pendant la séance).</div>' : "") +
-      '<a class="link small" style="padding:0;display:inline-flex;align-items:center;margin-top:6px" href="#/faq/montre">Aide pour la montre</a></div>' : "") +
     '<div class="card"><b>Étirements après la séance</b><div class="small muted" style="margin-top:4px">À la fin d\'une séance, l\'accueil propose pendant 15 minutes des étirements adaptés aux muscles travaillés.</div><div style="margin-top:10px">' + seg("stretchTips", [["oui", "Activés"], ["non", "Désactivés"]]) + "</div></div>" +
     '<div class="card"><b>Objectif de séances par semaine</b><div style="margin-top:10px">' + seg("goal", [["2", "2"], ["3", "3"], ["4", "4"], ["5", "5"], ["6", "6"], ["7", "7"]]) + "</div></div>" +
     '<div class="card"><b>Données</b><div class="small muted" style="margin-top:4px">Tes programmes, séances et réglages.</div>' +
