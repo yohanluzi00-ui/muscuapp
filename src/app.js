@@ -1299,19 +1299,63 @@ function homeStretch(act) {
 }
 // étirements conseillés : ceux des muscles travaillés (retour au calme), et ceux des zones reposées (souplesse) ;
 // une séance qui fait travailler tout le corps n'a que le retour au calme ; les étirements déjà faits pendant la séance ne sont pas reproposés
+// exercice perso → exercice de la bibliothèque le plus proche (mots, abréviations, acronymes, fautes de frappe) ; null si pas assez sûr
+const FILLER = new Set(["a", "au", "aux", "de", "du", "des", "la", "le", "les", "l", "d", "en", "et", "avec", "sur", "sans", "the", "with", "prise", "serree", "large", "lourd", "leger", "lent", "lente", "explosif", "tempo", "pause", "serie", "series", "kg", "rpe", "max", "variante", "perso", "mon", "ma"]);
+const matchCache = {};
+function matchLib(name) {
+  const exact = libFor(name); if (exact) return exact;
+  const key = norm(name); if (key in matchCache) return matchCache[key];
+  const toks = words(name).filter(t => !FILLER.has(t) && !/^\d+$/.test(t));
+  let best = null, bestSc = 0;
+  if (toks.length) for (const c of EXO_LIB) {
+    if (c.cat === "etirement") continue;
+    let sc = 0, hit = 0, strong = false, firstHit = false;
+    const head = { w: [c.w[0]] }; // 1er mot du nom de la bibliothèque : le mouvement (Squat, Curl, Développé, Oiseau…)
+    for (const t of toks) {
+      const v = tokScore(t, c); if (!v) continue;
+      hit++; sc += v; if (v >= 2.7) strong = true;
+      if (direct(t, head) >= 3) firstHit = true;
+      // abréviation / nom anglais qui donne le nom complet (« skull » → barre au front, « bench » → développé couché)
+      if (SYN[t] && SYN[t].split("|").some(alt => { const ws = alt.split(" "); return direct(ws[0], head) >= 3 && ws.every(x => direct(x, c) >= 3); })) { firstHit = true; strong = true; }
+    }
+    // un mot qui correspond vraiment, et plus de la moitié des mots retrouvés (ou le mot du mouvement)
+    if (!strong || !(hit / toks.length > 0.5 || firstHit)) continue;
+    sc += 2 * hit / toks.length + (firstHit ? 2 : 0);
+    if (sc > bestSc) { best = c; bestSc = sc; }
+  }
+  return (matchCache[key] = best);
+}
+// muscles cités dans le nom (« machine pecs », « jambes », « fessiers élastique »…) : utilisés si aucun exercice ne correspond
+const MUSCLE_WORDS = [[/^pecs?$|pecto|chest|torse/, ["Pectoraux"]], [/bicep|^bi$/, ["Biceps"]], [/tricep|^tri$/, ["Triceps"]],
+  [/epaul|deltoid|delt|shoulder/, ["Deltoïdes antérieurs", "Deltoïdes latéraux", "Deltoïdes postérieurs"]], [/^dos$|dorsa|^back$/, ["Dorsaux"]], [/trap/, ["Trapèzes"]],
+  [/lombaire|lowerback/, ["Lombaires"]], [/abdo|^abs?$|^core$/, ["Abdominaux"]], [/oblique/, ["Obliques"]], [/quadri|^quads?$|cuisse/, ["Quadriceps"]], [/ischio|hamstring/, ["Ischio-jambiers"]],
+  [/fess|glute|booty/, ["Fessiers"]], [/adduct/, ["Adducteurs"]], [/abduct/, ["Abducteurs (moyen fessier)"]], [/mollet|^calf$|calves/, ["Mollets"]], [/avantbras|forearm|poignet/, ["Avant-bras"]],
+  [/^jambes?$|^legs?$/, ["Quadriceps", "Ischio-jambiers", "Fessiers"], 1], [/^bras$|^arms?$/, ["Biceps", "Triceps"], 1]];
+// vague (1) : « jambes », « bras » désignent souvent la partie du corps qui bouge (« Relevé de jambes ») : seulement si aucun exercice ne correspond
+function musclesOf(name, precise) {
+  const ws = words(name.replace(/avant[- ]bras/i, "avantbras").replace(/lower back/i, "lowerback")), out = new Set();
+  if (ws.length && ws.every(w => FILLER.has(w) || MUSCLE_WORDS.some(([re]) => re.test(w)))) precise = false; // le nom n'est fait que de muscles (« Jambes », « Pecs triceps »)
+  ws.forEach(w => MUSCLE_WORDS.forEach(([re, ms, vague]) => { if (re.test(w) && !(precise && vague)) ms.forEach(m => out.add(m)); }));
+  return Array.from(out);
+}
+window.__fiitdayMatch = n => { const om = words(n).every(x => FILLER.has(x) || MUSCLE_WORDS.some(([re]) => re.test(x))), m = om ? null : matchLib(n), named = musclesOf(n, !!m), keep = m && !(named.length && !m.mus.split(", ").some(x => named.includes(x))); return { lib: keep ? m : null, mus: keep ? [] : named }; }; // vérification de la concordance (tests)
 function stretchPlan(w) {
   const lib = EXO_LIB.filter(x => x.cat === "etirement"), done = new Set(), mus = {}, zones = new Set();
   const used = w.exercises.filter(exHasData), list = used.length ? used : w.exercises;
   for (const e of w.exercises) { const l = libFor(e.name); if (l && l.cat === "etirement" && (exHasData(e) || !used.length)) done.add(l.id); }
   for (const e of list) {
     const l = libFor(e.name); if (l && l.cat === "etirement") continue;
-    if (l) l.mus.split(", ").forEach(m => { mus[norm(m)] = (mus[norm(m)] || 0) + 1; });
-    zonesOf(e).forEach(z => zones.add(z));
+    // muscles travaillés : ceux de l'exercice de la bibliothèque, ou de celui qui correspond à ton exercice perso, sinon ceux cités dans son nom
+    const named0 = l ? [] : musclesOf(e.name, false), onlyMus = !l && words(e.name).every(x => FILLER.has(x) || MUSCLE_WORDS.some(([re]) => re.test(x)));
+    const m = l || (onlyMus ? null : matchLib(e.name)), named = l ? [] : onlyMus ? named0 : musclesOf(e.name, !!m);
+    // un muscle cité dans le nom que l'exercice trouvé ne travaille pas (« Machine pecs », « Calf raise ») : c'est le nom qui compte
+    const ms = m && !(named.length && !m.mus.split(", ").some(x => named.includes(x))) ? m.mus.split(", ") : named;
+    ms.forEach(x => { mus[norm(x)] = (mus[norm(x)] || 0) + 1; });
+    ms.forEach(x => { const z = ZONE_OF[words(x)[0]] || (/^deltoide|^avant/.test(norm(x)) ? "haut" : /^ischio|^abducteur/.test(norm(x)) ? "bas" : null); if (z) zones.add(z); });
   }
   const left = lib.filter(x => !done.has(x.id));
   const score = x => x.mus.split(", ").reduce((n, m) => n + (mus[norm(m)] || 0), 0);
   let calm = left.filter(x => score(x) > 0);
-  if (!calm.length) calm = left.filter(x => zones.has(x.zone)); // exercices perso : d'après la zone
   if (calm.length > 8) { const keep = new Set(calm.slice().sort((a, b) => score(b) - score(a) || a.k - b.k).slice(0, 8)); calm = calm.filter(x => keep.has(x)); }
   const worked = ["haut", "milieu", "bas"].filter(z => zones.has(z)), rested = ["haut", "milieu", "bas"].filter(z => !zones.has(z));
   const flex = worked.length && worked.length < 3 ? left.filter(x => rested.includes(x.zone) && !calm.includes(x)) : [];
@@ -1924,8 +1968,20 @@ const libFor = name => (name ? libByName[norm(name)] || null : null);
 const SYN = { bench: "developpe couche", dc: "developpe couche", di: "developpe incline", ohp: "developpe militaire", military: "militaire", sdt: "souleve terre", deadlift: "souleve terre",
   rdl: "roumain", lunge: "fentes", lunges: "fentes", fente: "fentes", pec: "pectoraux", pecs: "pectoraux", torse: "pectoraux", epaule: "deltoides", epaules: "deltoides", dos: "dorsaux|trapezes|lombaires",
   jambe: "quadriceps|ischio|fessiers", jambes: "quadriceps|ischio|fessiers", cuisse: "quadriceps", cuisses: "quadriceps", fesse: "fessiers", fesses: "fessiers", abdo: "abdominaux", abdos: "abdominaux",
-  planche: "gainage", plank: "gainage", lat: "tirage vertical", row: "rowing", pull: "tirage|tractions", pullup: "tractions", traction: "tractions", tricep: "triceps", bicep: "biceps", mollet: "mollets",
-  butterfly: "pec deck", fly: "ecarte", flys: "ecarte", haltere: "halteres", dumbbell: "halteres", press: "presse|developpe", pushup: "pompes", pompe: "pompes", crunchs: "crunch", kb: "kettlebell" };
+  planche: "gainage", plank: "gainage", lat: "tirage vertical|laterales", rear: "oiseau|pec deck inverse", row: "rowing", pull: "tirage|tractions", pullup: "tractions", traction: "tractions", tricep: "triceps", bicep: "biceps", mollet: "mollets",
+  butterfly: "pec deck", fly: "ecarte", flys: "ecarte", haltere: "halteres", dumbbell: "halteres", press: "presse|developpe", pushup: "pompes", pompe: "pompes", crunchs: "crunch", kb: "kettlebell",
+  // abréviations et acronymes courants en salle
+  dm: "developpe militaire", dmh: "developpe militaire halteres", dch: "developpe couche halteres", dih: "developpe incline halteres", dd: "pompes declinees", dev: "developpe", dvp: "developpe", devlp: "developpe",
+  ht: "hip thrust", hipthrust: "hip thrust", thrust: "hip thrust", rdl: "roumain", sdtr: "roumain", sdtjt: "roumain", jt: "roumain", goodmorning: "roumain", bulgarian: "bulgare", split: "bulgare", fentes: "fentes",
+  pulldown: "tirage vertical", latpulldown: "tirage vertical", tv: "tirage vertical", th: "tirage horizontal", seatedrow: "tirage horizontal", tbar: "rowing", rm: "rowing menton", uprightrow: "rowing menton",
+  pushdown: "extension triceps poulie", skull: "barre au front", skullcrusher: "barre au front", crusher: "barre au front", french: "barre au front|extension nuque", kickback: "kickback", hammer: "marteau", preacher: "pupitre", larry: "pupitre", spider: "curl",
+  shrug: "shrugs", haussement: "shrugs", raise: "elevations", lateral: "laterales", elev: "elevations", elevation: "elevations", oiseaux: "oiseau", reardelt: "oiseau|pec deck inverse", facepull: "face pull",
+  legext: "leg extension", extension: "extension", legpress: "presse", presse: "presse", hack: "hack squat", goblet: "squat goblet", calf: "mollets", calves: "mollets", mollets: "mollets",
+  adduction: "adducteurs", abduction: "abducteurs", adducteur: "adducteurs", abducteur: "abducteurs", glute: "fessiers", glutes: "fessiers", fessier: "fessiers", quad: "quadriceps", quads: "quadriceps",
+  ischios: "ischio", hamstring: "ischio", hamstrings: "ischio", chest: "pectoraux", pecto: "pectoraux", shoulder: "deltoides", shoulders: "deltoides", delt: "deltoides", delts: "deltoides",
+  back: "dorsaux", dorsal: "dorsaux", lats: "dorsaux", trap: "trapezes", traps: "trapezes", abs: "abdominaux", ab: "abdominaux", core: "gainage", gainage: "gainage", tri: "triceps", bi: "biceps",
+  mc: "mountain climbers", climber: "mountain climbers", climbers: "mountain climbers", swing: "kettlebell swing", wheel: "roue abdominale", rollout: "roue abdominale", leg: "leg|jambes", legs: "quadriceps|ischio|fessiers",
+  sit: "crunch", situp: "crunch", relevé: "releve", releve: "releve", knee: "genoux", knees: "genoux", russian: "russian twist", burpee: "burpees", jumpingjack: "jumping jacks", rameur: "rameur", row: "rowing|rameur" };
 // distance d'édition (fautes de frappe, lettres inversées)
 function lev(a, b) {
   const d = Array.from({ length: a.length + 1 }, (_, i) => [i]);
