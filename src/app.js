@@ -1292,7 +1292,7 @@ const STRETCH_MIN = 15; // la carte reste 15 min en haut de l'accueil après la 
 let stretchTimer = null;
 function homeStretch(act) {
   clearTimeout(stretchTimer);
-  const w = finished()[0]; if (act || !w || stretchDismissed(w.id)) return "";
+  const w = finished()[0]; if (act || !w || stretchDismissed(w.id) || settings().stretchTips === "non") return ""; // désactivable dans Réglages
   const left = w.endedAt + STRETCH_MIN * 60000 - Date.now(); if (left <= 0) return "";
   stretchTimer = setTimeout(() => { if (route().name === "home") softRender(); }, left + 500); // disparaît toute seule
   return stretchCard(w, true);
@@ -2129,7 +2129,7 @@ const FAQ = [
     ["progression", "Comment voir ma progression sur un exercice ?", "Dans <a href=\"#/evolution\">Stats › Évolution</a>, cherche un exercice déjà fait : tu vois sa courbe (charge, 1RM estimé, répétitions ou temps), ton record et ton historique, sur 1 mois, 3 mois, 6 mois, 1 an ou depuis le début."],
     ["record", "Comment est calculé un record ?", "Pour un exercice avec poids, Fiitday estime ton 1RM (la charge que tu pourrais soulever une seule fois) avec la formule d'Epley : charge × (1 + répétitions ÷ 30). Un record est fêté quand ce 1RM dépasse ton meilleur, à partir de ta 2e séance avec cet exercice. Pour la course, le record est ton meilleur temps."],
     ["corriger", "Comment corriger ou supprimer une séance terminée ?", "Ouvre-la depuis l'accueil (Dernières séances) ou <a href=\"#/history\">Stats › Historique</a> pour corriger une valeur. Pour la supprimer, fais glisser sa ligne de droite à gauche, puis appuie sur « Supprimer »."],
-    ["etirements", "Quand et comment m'étirer ?", "L'onglet <a href=\"#/exercices/etirements\">Exercices › Étirements</a> propose 23 étirements avec le mannequin 3D, et le guide « Bien s'étirer » explique quand et comment le faire. Après une séance, l'accueil te propose pendant 15 minutes des étirements adaptés aux muscles travaillés."],
+    ["etirements", "Quand et comment m'étirer ?", "L'onglet <a href=\"#/exercices/etirements\">Exercices › Étirements</a> propose 23 étirements avec le mannequin 3D, et le guide « Bien s'étirer » explique quand et comment le faire. Après une séance, l'accueil te propose pendant 15 minutes des étirements adaptés aux muscles travaillés (tu peux couper ces propositions dans Réglages › Étirements après la séance)."],
     ["mannequin", "Comment utiliser le mannequin 3D ?", "Fais glisser l'image pour tourner autour du mannequin, pince pour zoomer et appuie deux fois pour revenir au cadrage de départ. Fais glisser la fiche (sous l'image) vers la gauche ou la droite pour passer à l'exercice suivant ou précédent."]]],
   ["Données et compte", [
     ["synchro", "Mes données sont-elles sur mon téléphone et sur mon ordinateur ?", "Oui : avec ton compte, tout se synchronise automatiquement entre l'appli et fiitday.com. L'heure de la dernière synchro est dans Réglages › Compte. Sans réseau, fais ta séance normalement : elle sera envoyée au retour du réseau."],
@@ -2164,7 +2164,7 @@ $app.addEventListener("input", e => {
 
 function viewSettings() {
   const s = settings();
-  const sv = k => s[k] || (k === "watch" ? "non" : "");
+  const sv = k => s[k] || (k === "watch" ? "non" : k === "stretchTips" ? "oui" : "");
   const seg = (k, opts) => '<div class="seg" role="group">' + opts.map(o => '<button class="' + (sv(k) === o[0] ? "on" : "") + '" aria-pressed="' + (sv(k) === o[0]) + '" data-act="set" data-k="' + k + '" data-val="' + o[0] + '">' + o[1] + "</button>").join("") + "</div>";
   // même numéro sur le téléphone et sur le web : 1.<nombre de modifications du code>
   const num_ = (Native && Native.version && Native.version()) || window.APP_VERSION || "";
@@ -2178,6 +2178,7 @@ function viewSettings() {
       (watchOn() ? '<button class="btn sm" style="margin-top:10px" data-act="testwatch">Tester sur la montre</button>' +
         '<div class="small muted" style="margin-top:8px">Rien sur la montre ? Dans l\'appli Galaxy Wearable › Paramètres de la montre › Notifications : autorise Fiitday, et dans « Notifications du téléphone sur la montre », choisis « Toujours afficher sur les deux » (sinon la montre ne reçoit rien tant que l\'écran du téléphone est allumé, et Fiitday le garde allumé pendant la séance).</div>' : "") +
       '<a class="link small" style="padding:0;display:inline-flex;align-items:center;margin-top:6px" href="#/faq/montre">Aide pour la montre</a></div>' : "") +
+    '<div class="card"><b>Étirements après la séance</b><div class="small muted" style="margin-top:4px">À la fin d\'une séance, l\'accueil propose pendant 15 minutes des étirements adaptés aux muscles travaillés.</div><div style="margin-top:10px">' + seg("stretchTips", [["oui", "Activés"], ["non", "Désactivés"]]) + "</div></div>" +
     '<div class="card"><b>Objectif de séances par semaine</b><div style="margin-top:10px">' + seg("goal", [["2", "2"], ["3", "3"], ["4", "4"], ["5", "5"], ["6", "6"], ["7", "7"]]) + "</div></div>" +
     '<div class="card"><b>Données</b><div class="small muted" style="margin-top:4px">Tes programmes, séances et réglages.</div>' +
     '<div class="data-sec"><div class="data-t">Sauvegarde</div><div class="small muted">Un fichier à garder sur ton téléphone, ton ordinateur ou dans un cloud (Google Drive…).</div>' +
