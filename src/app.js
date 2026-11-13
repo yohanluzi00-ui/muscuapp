@@ -2425,6 +2425,136 @@ function alertSeg(a) {
   const b = (k, l, on) => '<button class="' + (on ? "on" : "") + '" aria-pressed="' + on + '" data-act="alertt" data-val="' + k + '">' + l + "</button>";
   return '<div class="seg" role="group" aria-label="Alerte de fin de repos">' + b("vibration", "Vibration", vib) + b("son", "Son", son) + b("aucune", "Aucune", none) + "</div>";
 }
+/* ================= Double authentification (Administration) et mot de passe ================= */
+// appels au service de connexion Supabase avec la session en cours
+async function authApi(method, path, body) {
+  await ensureToken();
+  const go = () => fetch(SUPABASE_URL + "/auth/v1/" + path, { method, body: body ? JSON.stringify(body) : undefined,
+    headers: { apikey: SUPABASE_KEY, Authorization: "Bearer " + db.auth.access_token, "Content-Type": "application/json" } });
+  let r = await go();
+  if (r.status === 401) { await ensureToken(true); r = await go(); }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error(j.msg || j.message || j.error_description || j.error || ("Erreur " + r.status)); e.status = r.status; e.code = j.error_code || j.code; throw e; }
+  return j;
+}
+// niveau de la session : « aal2 » une fois le code à 6 chiffres validé
+function jwtClaims() {
+  try { const p = db.auth.access_token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"); return JSON.parse(decodeURIComponent(escape(atob(p + "===".slice((p.length + 3) % 4))))); }
+  catch (e) { return {}; }
+}
+const isAal2 = () => !!db.auth && jwtClaims().aal === "aal2";
+let mfa = { factors: null, enroll: null, err: "", busy: false };
+async function mfaLoad() {
+  try { const u = await authApi("GET", "user"); mfa.factors = (u.factors || []).filter(f => f.factor_type === "totp"); }
+  catch (e) { mfa.err = e.message === "Failed to fetch" ? "Pas de connexion internet." : e.message; mfa.factors = []; }
+  if (route().name === "admin") render();
+}
+function mfaMessage(e) {
+  const m = String(e.message || "");
+  if (/invalid|incorrect|expired/i.test(m) && /code|totp|challenge/i.test(m)) return "Code incorrect ou expiré. Vérifie que l'heure du téléphone est automatique, puis tape le nouveau code.";
+  if (/disabled|not enabled/i.test(m)) return "La double authentification n'est pas activée dans Supabase (Authentication › Multi-Factor).";
+  if (m === "Failed to fetch") return "Pas de connexion internet.";
+  return m;
+}
+function mfaBox() {
+  if (mfa.factors === null) { if (!mfa.busy) { mfa.busy = true; mfaLoad().finally(() => { mfa.busy = false; }); } return '<div class="card empty">Vérification de la sécurité…</div>'; }
+  const ok = mfa.factors.find(f => f.status === "verified"), codeIn = '<label class="fl" style="margin-top:10px">Code à 6 chiffres<input class="f code" id="mfa-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]*" placeholder="123456"></label>';
+  const err = mfa.err ? '<p class="msg err" style="margin:8px 0 0">' + esc(mfa.err) + "</p>" : "";
+  if (ok && !mfa.enroll) return '<div class="card mfa-card">' + LOCK + '<div><b>Double authentification</b><div class="small muted">Ouvre ton appli d\'authentification (Google Authenticator, Microsoft Authenticator…) et tape le code affiché pour Fiitday.</div>' + codeIn +
+    '<button class="btn primary" style="margin-top:10px" data-act="mfaverify">Valider</button>' + err + "</div></div>";
+  if (mfa.enroll) return '<div class="card mfa-card">' + LOCK + '<div><b>Activer la double authentification</b><ol class="small mfa-steps"><li>Installe une appli d\'authentification sur ton téléphone : Google Authenticator ou Microsoft Authenticator (gratuites).</li><li>Dans l\'appli, « Ajouter un compte » puis scanne ce code :</li></ol>' +
+    '<div class="mfa-qr"><img src="' + esc(mfa.enroll.qr) + '" alt="QR code à scanner avec ton appli d\'authentification" width="180" height="180"></div>' +
+    '<div class="small muted">Pas de scan possible ? Tape cette clé dans l\'appli :</div><div class="mfa-secret num">' + esc(mfa.enroll.secret.replace(/(.{4})/g, "$1 ").trim()) + "</div>" +
+    '<ol class="small mfa-steps" start="3"><li>Tape ici le code à 6 chiffres que l\'appli affiche.</li></ol>' + codeIn +
+    '<div class="row" style="margin-top:10px;flex-wrap:wrap"><button class="btn primary" data-act="mfaverify">Activer</button><button class="btn" data-act="mfacancel">Annuler</button></div>' + err + "</div></div>";
+  return '<div class="card mfa-card">' + LOCK + '<div><b>Protège l\'Administration</b><div class="small muted">Pour ouvrir le tableau de bord, il faudra ton mot de passe <b>et</b> un code à 6 chiffres qui change toutes les 30 secondes, affiché par une appli sur ton téléphone. Même avec ton mot de passe, personne d\'autre ne peut entrer.</div>' +
+    '<button class="btn primary" style="margin-top:10px" data-act="mfaenroll">Activer la double authentification</button>' + err + "</div></div>";
+}
+// le QR code arrive en « data:image/svg+xml;utf-8,<svg…> » non encodé : un « # » dans le SVG le casserait, on le ré-encode
+function qrSrc(q) {
+  const m = String(q).match(/^data:image\/svg\+xml;(?:utf-?8|charset=utf-?8),(.*)$/is);
+  if (!m) return q;
+  let svg = m[1]; try { if (/^%3C/i.test(svg)) svg = decodeURIComponent(svg); } catch (e) { }
+  return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+}
+async function mfaEnroll() {
+  mfa.err = "";
+  try {
+    for (const f of (mfa.factors || []).filter(f => f.status !== "verified")) { try { await authApi("DELETE", "factors/" + f.id); } catch (e) { } } // essai précédent non terminé
+    const j = await authApi("POST", "factors", { factor_type: "totp", friendly_name: "Fiitday " + new Date().toISOString().slice(0, 16), issuer: "Fiitday" });
+    mfa.enroll = { id: j.id, qr: qrSrc((j.totp || {}).qr_code || ""), secret: (j.totp || {}).secret || "" };
+  } catch (e) { mfa.err = mfaMessage(e); }
+  render();
+}
+async function mfaVerify() {
+  const inp = document.getElementById("mfa-code"), code = inp ? inp.value.replace(/\D/g, "") : "";
+  if (code.length !== 6) { mfa.err = "Tape les 6 chiffres du code."; render(); return; }
+  const f = mfa.enroll ? { id: mfa.enroll.id } : (mfa.factors || []).find(x => x.status === "verified"); if (!f) return;
+  mfa.err = "";
+  try {
+    const ch = await authApi("POST", "factors/" + f.id + "/challenge", {});
+    const j = await authApi("POST", "factors/" + f.id + "/verify", { challenge_id: ch.id, code });
+    if (j && j.access_token && j.user) setSession(j); // la session passe au niveau aal2
+    const first = !!mfa.enroll;
+    mfa = { factors: null, enroll: null, err: "", busy: false }; adminKpi = null; adminErr = "";
+    toast(first ? "Double authentification activée" : "Code validé"); render();
+  } catch (e) { mfa.err = mfaMessage(e); render(); }
+}
+// Réglages › Compte : changer le mot de passe (ancien mot de passe vérifié, nouveau de 12 caractères au moins)
+function pwStrength(p) {
+  let s = 0; if (p.length >= 12) s++; if (p.length >= 16) s++; if (/[a-z]/.test(p) && /[A-Z]/.test(p)) s++; if (/\d/.test(p)) s++; if (/[^A-Za-z0-9]/.test(p)) s++;
+  return s <= 2 ? ["Faible", "weak"] : s <= 3 ? ["Moyen", "mid"] : ["Très solide", "strong"];
+}
+function askPassword() {
+  return new Promise(res => {
+    const d = document.createElement("div"); d.className = "modal";
+    d.innerHTML = '<div class="modal-box" role="dialog" aria-modal="true" aria-label="Changer mon mot de passe"><h3>Changer mon mot de passe</h3>' +
+      '<label class="fl">Mot de passe actuel<input class="f" type="password" id="pw-cur" autocomplete="current-password"></label>' +
+      '<label class="fl">Nouveau mot de passe<input class="f" type="password" id="pw-new" autocomplete="new-password"></label>' +
+      '<div class="small pw-meter" id="pw-meter">12 caractères au moins. Le plus sûr : une phrase de 4 ou 5 mots avec un chiffre et un symbole, ou un mot de passe créé par un gestionnaire.</div>' +
+      '<label class="fl">Confirme le nouveau mot de passe<input class="f" type="password" id="pw-new2" autocomplete="new-password"></label>' +
+      '<label class="pw-show small"><input type="checkbox" id="pw-show"> Afficher les mots de passe</label>' +
+      '<p class="msg err" data-m></p><div class="modal-btns"><button class="btn" data-r="0">Annuler</button><button class="btn primary" data-r="1">Changer</button></div></div>';
+    document.body.appendChild(d);
+    const $i = id => d.querySelector("#" + id), m = d.querySelector("[data-m]");
+    $i("pw-cur").focus();
+    $i("pw-new").addEventListener("input", e => { const v = e.target.value, st = pwStrength(v); $i("pw-meter").innerHTML = v ? 'Solidité : <b class="pw-' + st[1] + '">' + st[0] + "</b> · " + v.length + " caractères" : "12 caractères au moins."; });
+    $i("pw-show").addEventListener("change", e => { ["pw-cur", "pw-new", "pw-new2"].forEach(id => { $i(id).type = e.target.checked ? "text" : "password"; }); });
+    d.addEventListener("click", e => {
+      if (e.target === d) { d.remove(); res(null); return; }
+      const b = e.target.closest("[data-r]"); if (!b) return;
+      if (b.dataset.r !== "1") { d.remove(); res(null); return; }
+      const cur = $i("pw-cur").value, nw = $i("pw-new").value, nw2 = $i("pw-new2").value;
+      if (!cur) { m.textContent = "Tape ton mot de passe actuel."; return; }
+      if (nw.length < 12) { m.textContent = "Le nouveau mot de passe doit faire 12 caractères au moins."; return; }
+      if (nw !== nw2) { m.textContent = "Les deux nouveaux mots de passe ne sont pas identiques."; return; }
+      if (nw === cur) { m.textContent = "Choisis un mot de passe différent de l'actuel."; return; }
+      if (pwStrength(nw)[1] === "weak") { m.textContent = "Trop facile à deviner : allonge-le ou mélange majuscules, chiffres et symboles."; return; }
+      d.remove(); res({ cur, nw });
+    });
+  });
+}
+async function changePassword() {
+  if (!db.auth) return;
+  const p = await askPassword(); if (!p) return;
+  try { await authReq("token?grant_type=password", { email: db.auth.user.email, password: p.cur }); } // vérifie l'ancien mot de passe (session non utilisée)
+  catch (e) { toast(e.status === 400 ? "Mot de passe actuel incorrect" : authMessage(e)); return; }
+  const put = body => authApi("PUT", "user", body);
+  try { await put({ password: p.nw }); }
+  catch (e) {
+    const m = String(e.message || "") + " " + (e.code || "");
+    if (/reauthenticat/i.test(m)) { // option « changement sécurisé » de Supabase : code reçu par e-mail
+      try { await authApi("GET", "reauthenticate"); } catch (er) { toast(authMessage(er)); return; }
+      const nonce = await ask({ title: "Code de sécurité", text: "Pour confirmer, tape le code reçu par e-mail.", input: "", code: true, ok: "Confirmer" });
+      if (!nonce) return;
+      try { await put({ password: p.nw, nonce: nonce.trim() }); } catch (er) { toast(authMessage(er)); return; }
+    } else if (/aal2|mfa/i.test(m)) { toast("Valide d'abord ton code à 6 chiffres dans Réglages › Administration, puis recommence"); return; }
+    else if (/same/i.test(m)) { toast("Choisis un mot de passe différent de l'actuel"); return; }
+    else { toast(authMessage(e)); return; }
+  }
+  toast("Mot de passe changé");
+}
+
 /* ================= Administration (ton compte seulement) ================= */
 // Les chiffres viennent de la fonction Supabase admin_kpis : des totaux, sans aucune donnée personnelle.
 // Le serveur refuse tout autre compte ; ici l'écran n'est même pas proposé aux autres.
@@ -2434,7 +2564,7 @@ async function loadAdmin() {
   if (adminBusy || !isAdmin()) return;
   adminBusy = true; adminErr = "";
   try { adminKpi = await rpc("admin_kpis"); }
-  catch (e) { adminErr = e.code === "42501" ? "Accès refusé : réservé à l'administrateur." : e.message === "Failed to fetch" ? "Pas de connexion internet." : "Les chiffres n'ont pas pu être chargés (" + e.message + ")."; }
+  catch (e) { adminErr = /MFA/.test(e.message) ? "mfa" : e.code === "42501" ? "Accès refusé : réservé à l'administrateur." : e.message === "Failed to fetch" ? "Pas de connexion internet." : "Les chiffres n'ont pas pu être chargés (" + e.message + ")."; }
   finally { adminBusy = false; if (route().name === "admin") render(); }
 }
 function adminChart(weeks, key, label) {
@@ -2455,6 +2585,7 @@ function viewAdmin() {
   const back = '<a class="back" href="#/settings">‹ Réglages</a>';
   if (!isAdmin()) return back + '<div class="card empty">Cette page n\'existe pas.</div>';
   const head = back + '<div class="page-head"><div><h1>Administration</h1><div class="muted small">Visible seulement par toi · des totaux, aucune donnée personnelle</div></div></div>';
+  if (!isAal2() || adminErr === "mfa") { adminKpi = null; return head + mfaBox(); } // double authentification d'abord
   if (!adminKpi && !adminErr) { setTimeout(loadAdmin, 0); return head + '<div class="card empty">Chargement des chiffres…</div>'; }
   if (!adminKpi) return head + '<div class="card"><p class="msg err" style="margin:0">' + esc(adminErr) + '</p><button class="btn sm" style="margin-top:10px" data-act="adminload">Réessayer</button></div>';
   const k = adminKpi, wk = Array.isArray(k.weeks) ? k.weeks : [], cur = wk[wk.length - 1] || { n: 0, u: 0, i: 0 }, prev = wk[wk.length - 2] || { n: 0, u: 0, i: 0 };
@@ -2503,7 +2634,7 @@ function viewSettings() {
     '<div class="card"><b>Compte</b><div style="margin-top:8px">' +
     (db.auth ? '<label class="fl" style="margin-bottom:8px">Prénom<input class="f" data-setname maxlength="40" autocomplete="given-name" value="' + esc(firstName()) + '" placeholder="Ton prénom"></label>' +
       '<div class="small">Connecté : ' + esc(db.auth.user.email) + "</div><div class=\"sync-row\">" + syncBadge() + '<button class="link small" data-act="syncnow">Synchroniser maintenant</button></div><div class="small msg err" data-sync-error>' + (syncState.status === "err" ? esc(syncState.error) : "") + "</div>" +
-      '<div class="row duo"><button class="btn sm" data-act="logout">Se déconnecter</button><button class="btn sm danger" data-act="delaccount">Supprimer mon compte</button></div>'
+      '<button class="btn sm pw-btn" data-act="pwchange">Changer mon mot de passe</button><div class="row duo"><button class="btn sm" data-act="logout">Se déconnecter</button><button class="btn sm danger" data-act="delaccount">Supprimer mon compte</button></div>'
       : '<div class="small muted">Sans compte : tes données restent sur cet appareil.</div><button class="btn sm primary" style="margin-top:8px" data-act="tologin">Se connecter / créer un compte</button>') +
     "</div></div>" +
     '<div class="card"><b>Aide</b><div class="small muted" style="margin-top:4px">Les réponses aux questions les plus fréquentes : séances, repos, sauvegarde, montre…</div><a class="btn sm" style="margin-top:8px" href="#/faq">Questions fréquentes</a></div>' +
@@ -2877,7 +3008,11 @@ $app.addEventListener("click", async e => {
     } break;
     case "plantestskip": if (planTesting()) { db.planTestEnd = (db.planTestEnd || Date.now()) - 7 * DAY; saveNow(); render(); toast(trialLeft() ? "Encore " + trialLeft() + " jour" + (trialLeft() > 1 ? "s" : "") + " d'essai" : "Essai terminé : version gratuite"); } break;
     case "planbuy": toast("Le paiement arrive bientôt"); break;
-    case "adminload": adminKpi = adminKpi || null; adminErr = ""; render(); loadAdmin(); break;
+    case "adminload": adminErr = ""; render(); loadAdmin(); break;
+    case "mfaenroll": mfaEnroll(); break;
+    case "mfaverify": mfaVerify(); break;
+    case "mfacancel": { const id = mfa.enroll && mfa.enroll.id; mfa.enroll = null; mfa.err = ""; render(); if (id) authApi("DELETE", "factors/" + id).catch(() => { }); } break;
+    case "pwchange": changePassword(); break;
     case "faminvite": {
       if (!isFamily() || famFree() <= 0) return;
       const n = await ask({ title: "Inviter quelqu'un", text: "Son prénom, pour t'y retrouver dans la liste.", input: "", ok: "Créer l'invitation" });

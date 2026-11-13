@@ -652,3 +652,15 @@ html.is-dragging, html.is-dragging * { user-select: none; -webkit-user-select: n
 .adm-diff.up { background: var(--ok-bg); color: var(--ok-ink); }
 .adm-diff.down { color: var(--danger); }
 .adm-tag { color: var(--accent); font-weight: 700; font-size: 12px; }
+/* double authentification et mot de passe */
+.mfa-card { display: flex; gap: 12px; align-items: flex-start; }
+.mfa-card > .lock-i { width: 22px; height: 22px; margin: 2px 0 0; color: var(--accent); }
+.mfa-card > div { min-width: 0; flex: 1; }
+.mfa-steps { margin: 8px 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.mfa-qr { background: #FFFFFF; border-radius: 12px; padding: 10px; width: max-content; max-width: 100%; margin: 6px 0 10px; }
+.mfa-qr img { display: block; width: 180px; height: 180px; max-width: 100%; }
+.mfa-secret { font-family: var(--display); font-size: 15px; letter-spacing: .06em; word-break: break-all; background: var(--soft); border-radius: 8px; padding: 8px 10px; margin: 4px 0 6px; -webkit-user-select: all; user-select: all; }
+.pw-btn { margin-top: 10px; }
+.pw-meter { color: var(--muted); margin: -2px 2px 4px; }
+.pw-weak { color: var(--danger); } .pw-mid { color: var(--accent); } .pw-strong { color: var(--ok-ink); }
+.pw-show { display: flex; gap: 8px; align-items: center; margin: 4px 2px; }

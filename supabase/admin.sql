@@ -1,6 +1,6 @@
 -- Fiitday : tableau de bord de l'administration (Réglages › Administration).
 -- Une seule fonction, en lecture seule : elle renvoie des totaux (aucun e-mail, prénom ni contenu de séance)
--- et refuse de répondre à tout autre compte que celui de l'administrateur.
+-- et refuse de répondre à tout autre compte que celui de l'administrateur, et sans double authentification (code à 6 chiffres).
 
 create or replace function public.admin_kpis()
 returns jsonb
@@ -16,6 +16,10 @@ declare
 begin
   if auth.uid() is distinct from '8d8a867f-e766-41ca-b197-7694f5f5e1c4'::uuid then
     raise exception 'Réservé à l''administrateur' using errcode = '42501';
+  end if;
+  -- double authentification obligatoire : la session doit avoir été validée avec le code à 6 chiffres (niveau aal2)
+  if coalesce(auth.jwt() ->> 'aal', '') <> 'aal2' then
+    raise exception 'Double authentification requise (MFA)' using errcode = '42501';
   end if;
 
   with fin as ( -- séances terminées : compte et date de début (en millisecondes)
