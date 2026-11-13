@@ -644,3 +644,4 @@ html.is-dragging, html.is-dragging * { user-select: none; -webkit-user-select: n
 .fam-row.wait { background: var(--soft); }
 .fam-row.wait > .lock-i { width: 20px; height: 20px; margin: 6px 7px 0; color: var(--muted); }
 .fam-row .link { align-self: flex-start; padding: 0; min-height: 30px; }
+.fam-join { margin: 8px 8px 0 0; }
