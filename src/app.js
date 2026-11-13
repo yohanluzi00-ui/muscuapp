@@ -893,7 +893,8 @@ function viewSession(id) {
     '<div class="page-head"><div><div class="muted small">' + esc(vLabel(w.variantName)) + " · " + esc(fmtDateLong(w.startedAt)) + "</div><h1>" + esc(w.templateName) + "</h1></div>" +
     '<div class="row"><span class="num" style="font-size:18px;font-weight:700" data-tick="elapsed" data-id="' + w.id + '"></span>' +
     (active ? '<button class="btn sm" data-act="cancel">Annuler</button>' : "") + "</div></div>";
-  if (!active) h += '<div class="banner">Séance terminée. Tu peux encore corriger les valeurs.</div>';
+  if (!active) { const tn = workoutTon(w); h += '<div class="sess-sum"><div class="card stat"><div class="muted small">Durée</div><div class="v num">' + fmtDurH(workoutDur(w)) + '</div></div><div class="card stat"><div class="muted small">Tonnage</div><div class="v num">' + (tn ? fmtTon(tn) : "—") + "</div></div></div>" +
+    '<div class="banner">Séance terminée. Tu peux encore corriger les valeurs.</div>'; }
   h += wide ? sessionTable(w) : sessionCards(w);
   h += '<div class="add-row" style="margin-top:16px"><button class="btn" data-act="addex">+ Ajouter un exercice</button><button class="btn" data-act="sessstretch">+ Ajouter un étirement</button></div>';
   if (active) h += '<div class="restpop" data-restpop hidden><div class="rp-box" role="timer" aria-label="Minuteur de repos"><div class="rp-label">Repos</div>' +
@@ -1387,7 +1388,7 @@ function historyRow(w) {
   // glisser la ligne de droite à gauche fait apparaître « Supprimer »
   return '<div class="swipe"><button type="button" class="swipe-del" data-act="swipedel" data-id="' + esc(w.id) + '" tabindex="-1">Supprimer</button>' +
     '<a class="swipe-row" draggable="false" href="#/session/' + w.id + '"><div><b>' + esc(w.templateName) + '</b> <span class="muted">· ' + esc(vLabel(w.variantName)) + '</span><div class="muted small">' +
-    esc(fmtDate(w.startedAt)) + " · " + w.exercises.length + " exercices · " + done + ' séries</div></div><span class="muted small num">' + fmtDur((w.endedAt || Date.now()) - w.startedAt) + "</span></a></div>";
+    esc(fmtDate(w.startedAt)) + " · " + w.exercises.length + " exercices · " + done + " séries" + (workoutTon(w) ? " · " + fmtTon(workoutTon(w)) : "") + '</div></div><span class="muted small num">' + fmtDur((w.endedAt || Date.now()) - w.startedAt) + "</span></a></div>";
 }
 // glisser pour supprimer : la ligne suit le doigt (ou la souris) horizontalement ; le défilement vertical reste normal
 const SW_W = 104;
@@ -1445,19 +1446,26 @@ function viewHistory() {
 let histLimit = 100;
 
 /* ================= Écran : progression ================= */
+// tonnage (kg × reps des séries remplies, baisses comprises ; exercices « poids × reps ») et temps passé à la salle
+const setTon = st => { let t = 0; const k = num(st.kg), r = num(st.reps); if (k > 0 && r > 0) t += k * r; (st.drops || []).forEach(d => { const dk = num(d.kg), dr = num(d.reps); if (dk > 0 && dr > 0) t += dk * dr; }); return t; };
+const exTon = e => (!e.type || e.type === "reps") ? e.sets.reduce((a, st) => a + setTon(st), 0) : 0;
+const workoutTon = w => w.exercises.reduce((a, e) => a + exTon(e), 0);
+const workoutDur = w => { const d = (w.endedAt || 0) - (w.startedAt || 0); return d > 60000 ? Math.min(d, 5 * 3600e3) : 0; }; // une séance oubliée ouverte compte 5 h au plus
+const fmtDurH = ms => { const m = Math.round(ms / 60000), hh = Math.floor(m / 60); return hh ? hh + " h " + pad(m % 60) : m + " min"; };
+const fmtTon = v => v >= 10000 ? (v / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 }) + " t" : Math.round(v).toLocaleString("fr-FR") + " kg";
 function progressData() {
   const map = {};
   for (const w of finished().slice().reverse()) {
     for (const e of w.exercises) {
       if (!exHasData(e)) continue;
-      const key = norm(e.name) + "|" + e.type;
+      const lb = libFor(e.name), key = (lb ? "lib:" + lb.id : norm(e.name)) + "|" + e.type; // ancien et nouveau nom d'un même exercice de la bibliothèque : une seule courbe
       const D = e.type === "dist", T = e.type === "time" || D, RO = e.type === "rep", vs = e.sets.map(s => num(T ? s.sec : RO ? s.reps : s.kg)).filter(x => x != null && (!D || x > 0));
       const best = vs.length ? (D ? Math.min(...vs) : Math.max(...vs)) : -Infinity;
       const reps = T ? null : Math.max(...e.sets.map(s => num(s.reps)).filter(x => x != null), -Infinity);
       const orm = T || RO ? null : Math.max(...e.sets.map(s => e1rm(num(s.kg), num(s.reps))).filter(x => x != null), -Infinity);
       const kgs = e.sets.map(s => num(s.kg)).filter(x => x != null && x > 0), kg = kgs.length ? Math.max(...kgs) : null;
-      const sec = T && vs.length ? (D ? Math.min(...vs) : Math.max(...vs)) : null;
-      (map[key] = map[key] || { key, name: e.name, type: e.type, entries: [] }).entries.push({ w, e, best: best === -Infinity ? null : best, reps: reps === -Infinity ? null : reps, orm: orm === -Infinity ? null : orm, kg, sec });
+      const sec = T && vs.length ? (D ? Math.min(...vs) : Math.max(...vs)) : null, tn = exTon(e);
+      (map[key] = map[key] || { key, name: e.name, type: e.type, entries: [] }).entries.push({ w, e, best: best === -Infinity ? null : best, reps: reps === -Infinity ? null : reps, orm: orm === -Infinity ? null : orm, kg, sec, ton: tn > 0 ? tn : null });
       map[key].name = e.name;
     }
   }
@@ -1469,6 +1477,7 @@ const fmtVal = (p, v) => (p.type === "dist" ? fmtClock(v) : p.type === "time" ? 
 const noRM = p => p.type === "time" || p.type === "dist" || p.type === "rep";
 function weekStart(t) { const d = new Date(t); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); }
 function prevWeek(t) { const d = new Date(t); d.setDate(d.getDate() - 7); return d.getTime(); }
+let statsMetric = "n"; // graphique de Stats › Séances : séances, temps ou tonnage par semaine
 function viewProgress() {
   const ws = finished(), now = Date.now(), goal = num(settings().goal) || 5;
   let h = '<div class="page-head"><h1>Stats</h1></div>' + statsTabs("progress");
@@ -1487,22 +1496,33 @@ function viewProgress() {
     '<div class="card stat"><div class="muted small">Au total</div><div class="v num">' + ws.length + "</div></div>" +
     '<div class="card stat"><div class="muted small">Semaines objectif atteint</div><div class="v num">' + streak + " <small>d'affilée</small></div></div>" +
     "</div>";
+  // temps passé à la salle et tonnage
+  const durWeek = {}, tonWeek = {}; let durAll = 0, tonAll = 0;
+  ws.forEach(w => { const k = weekStart(w.startedAt), d = workoutDur(w), tn = workoutTon(w); durWeek[k] = (durWeek[k] || 0) + d; tonWeek[k] = (tonWeek[k] || 0) + tn; durAll += d; tonAll += tn; });
+  h += '<div class="stats k3" style="margin-top:10px">' +
+    '<div class="card stat"><div class="muted small">Temps à la salle cette semaine</div><div class="v num">' + fmtDurH(durWeek[cur] || 0) + "</div></div>" +
+    '<div class="card stat"><div class="muted small">Temps à la salle depuis le début</div><div class="v num">' + fmtDurH(durAll) + '</div><div class="muted small">' + (ws.length ? "moyenne " + fmtDurH(durAll / ws.length) + " par séance" : "") + "</div></div>" +
+    '<div class="card stat"><div class="muted small">Tonnage cette semaine</div><div class="v num">' + fmtTon(tonWeek[cur] || 0) + "</div></div>" +
+    '<div class="card stat"><div class="muted small">Tonnage depuis le début</div><div class="v num">' + fmtTon(tonAll) + "</div></div></div>";
   // séances par semaine (8 dernières), avec la ligne d'objectif
   const weeks = []; let t = cur; for (let k = 0; k < 8; k++) { weeks.unshift(t); t = prevWeek(t); }
-  const vals = weeks.map(k => perWeek[k] || 0), max = Math.max(goal, ...vals, 1);
+  const SM = statsMetric, src = SM === "time" ? durWeek : SM === "ton" ? tonWeek : perWeek, fmtV = v => SM === "time" ? fmtDurH(v) : SM === "ton" ? fmtTon(v) : String(v);
+  const vals = weeks.map(k => src[k] || 0), max = Math.max(SM === "n" ? goal : 0, ...vals, 1);
   const W = 360, H = 150, top = 18, bw = W / weeks.length, y = v => H - (v / max) * (H - top);
   let svg = '<svg class="chart" viewBox="0 0 ' + W + " " + (H + 26) + '" role="img" aria-label="Séances par semaine sur les 8 dernières semaines, objectif ' + goal + '">';
   svg += '<line class="base" x1="0" x2="' + W + '" y1="' + H + '" y2="' + H + '"></line>';
   weeks.forEach((k, n) => {
     const v = vals[n], x = n * bw + bw * 0.22, w = bw * 0.56, d = new Date(k), lab = pad(d.getDate()) + "/" + pad(d.getMonth() + 1);
-    const tip = "Semaine du " + lab + " : " + v + " séance" + (v > 1 ? "s" : "");
+    const tip = "Semaine du " + lab + " : " + (SM === "n" ? v + " séance" + (v > 1 ? "s" : "") : fmtV(v));
     svg += "<g><title>" + esc(tip) + "</title>" + '<rect class="hit" x="' + n * bw + '" y="0" width="' + bw + '" height="' + H + '"></rect>';
     if (v > 0) { const hh = H - y(v), r = Math.min(4, hh / 2, w / 2); svg += '<path class="bar' + (k === cur ? "" : " dim") + '" d="M' + x + "," + H + "V" + (y(v) + r) + "Q" + x + "," + y(v) + " " + (x + r) + "," + y(v) + "H" + (x + w - r) + "Q" + (x + w) + "," + y(v) + " " + (x + w) + "," + (y(v) + r) + "V" + H + 'Z"></path>'; }
     svg += '<text x="' + (n * bw + bw / 2) + '" y="' + (H + 18) + '" text-anchor="middle">' + lab + "</text></g>";
-    if (k === cur) svg += '<text x="' + (n * bw + bw / 2) + '" y="' + (y(v) - 6) + '" text-anchor="middle" style="font-weight:700;fill:var(--ink)">' + v + "</text>";
+    if (k === cur) svg += '<text x="' + (n * bw + bw / 2) + '" y="' + (y(v) - 6) + '" text-anchor="middle" style="font-weight:700;fill:var(--ink)">' + esc(fmtV(v)) + "</text>";
   });
-  svg += '<line class="goal" x1="0" x2="' + W + '" y1="' + y(goal) + '" y2="' + y(goal) + '"></line><text x="4" y="' + (y(goal) - 6) + '">Objectif ' + goal + "</text></svg>";
-  h += '<div class="card" style="margin-top:12px"><div class="muted small" style="font-weight:600;margin-bottom:8px">Séances par semaine</div>' + svg + "</div>";
+  if (SM === "n") svg += '<line class="goal" x1="0" x2="' + W + '" y1="' + y(goal) + '" y2="' + y(goal) + '"></line><text x="4" y="' + (y(goal) - 6) + '">Objectif ' + goal + "</text>";
+  svg += "</svg>";
+  const segS = [["n", "Séances"], ["time", "Temps"], ["ton", "Tonnage"]].map(([k, l]) => '<button type="button" data-act="statm" data-v="' + k + '"' + (k === SM ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + ">" + l + "</button>").join("");
+  h += '<div class="card" style="margin-top:12px"><div class="seg evo-seg stat-seg" role="group" aria-label="Afficher par semaine">' + segS + '</div><div class="muted small" style="font-weight:600;margin:10px 0 8px">' + (SM === "time" ? "Temps à la salle par semaine" : SM === "ton" ? "Tonnage par semaine" : "Séances par semaine") + "</div>" + svg + "</div>";
   // par programme
   const byTpl = {};
   ws.forEach(w => { const k = w.templateId; (byTpl[k] = byTpl[k] || { name: w.templateName, n: 0, last: 0 }); byTpl[k].n++; byTpl[k].last = Math.max(byTpl[k].last, w.startedAt); const t = getItem(k); if (t) byTpl[k].name = t.name; });
@@ -1514,6 +1534,7 @@ function viewProgress() {
 // courbes possibles selon le type d'exercice ; « low » : plus bas = mieux (temps d'un exercice à distance)
 const EVO_M = {
   kg: { label: "Charge max", short: "Charge", unit: " kg" },
+  ton: { label: "Tonnage de l'exercice", short: "Tonnage", unit: " kg", ton: true },
   orm: { label: "1RM estimé", short: "1RM estimé", unit: " kg" },
   reps: { label: "Répétitions max", short: "Répétitions", unit: " reps" },
   sec: { label: "Temps max", short: "Temps", unit: " s" },
@@ -1527,15 +1548,15 @@ function evoMetrics(p) {
   if (p.type === "time") return ["sec"];
   if (p.type === "dist") return ["run"].concat(has("kg") ? ["kg"] : []);
   if (p.type === "rep") return ["reps"];
-  const out = []; if (has("kg")) out.push("kg", "orm"); if (has("reps")) out.push("reps");
+  const out = []; if (has("kg")) out.push("kg", "orm"); if (has("reps")) out.push("reps"); if (has("ton")) out.push("ton");
   return out.length ? out : ["reps"];
 }
-const evoFmt = (m, v) => (v == null ? "—" : EVO_M[m].clock ? fmtClock(v) : m === "sec" ? fmtHold(v) : fmtNum(m === "orm" ? Math.round(v * 2) / 2 : v) + EVO_M[m].unit);
+const evoFmt = (m, v) => (v == null ? "—" : EVO_M[m].clock ? fmtClock(v) : m === "sec" ? fmtHold(v) : m === "ton" ? fmtTon(v) : fmtNum(m === "orm" ? Math.round(v * 2) / 2 : v) + EVO_M[m].unit);
 function evoDiff(m, d) {
   if (d == null) return "—";
   const r = Math.round(Math.abs(d) * (m === "orm" ? 2 : 100)) / (m === "orm" ? 2 : 100);
   if (!r) return "Stable";
-  return (d > 0 ? "+" : "−") + (EVO_M[m].clock ? fmtClock(r) : m === "sec" ? fmtHold(r) : fmtNum(r) + EVO_M[m].unit);
+  return (d > 0 ? "+" : "−") + (EVO_M[m].clock ? fmtClock(r) : m === "sec" ? fmtHold(r) : m === "ton" ? fmtTon(r) : fmtNum(r) + EVO_M[m].unit);
 }
 // recherche parmi les exercices déjà faits (mêmes règles que la recherche d'exercices : fautes, synonymes, muscles)
 function evoCands() {
@@ -2536,6 +2557,7 @@ $app.addEventListener("click", async e => {
     } break;
     case "fold": { const k = b.dataset.k; if (folded.has(k)) folded.delete(k); else folded.add(k); render(); } break;
     case "foldall": { const { v } = currentProgram(); if (!v) return; blocks(v.exercises).forEach(x => { const k = "t:" + (x.groupId || x.items[0].e.id); if (b.dataset.v === "1") folded.add(k); else folded.delete(k); }); render(); } break;
+    case "statm": statsMetric = ["n", "time", "ton"].includes(b.dataset.v) ? b.dataset.v : "n"; render(); break;
     case "tab": { const { t } = currentProgram(); if (t) go("program/" + t.id + "/" + b.dataset.v); } break;
     case "homeaddvar": { const t = getItem(b.dataset.t); if (!t) return; const v = { id: "v" + uid(), name: "Séance " + (t.variants.length + 1), exercises: [] }; t.variants.push(v); put("template", t); go("program/" + t.id + "/" + v.id); } break;
     case "addvar": { const { t } = currentProgram(); if (!t) return; const v = { id: "v" + uid(), name: "Séance " + (t.variants.length + 1), exercises: [] }; t.variants.push(v); put("template", t); go("program/" + t.id + "/" + v.id); } break;
