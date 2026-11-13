@@ -2253,7 +2253,11 @@ const MONETIZATION = false;
 const PLAN_TESTERS = ["8d8a867f-e766-41ca-b197-7694f5f5e1c4"];
 const TRIAL_DAYS = 30, FREE_VARIANTS = 2, FREE_OWN = 5, FREE_HIST_DAYS = 30, DAY = 86400000;
 // Solo : 1 compte · Famille : l'acheteur + 4 personnes, chacune avec son propre compte (invitées depuis Réglages › Abonnement)
-const PRICES = { solo: { year: "19,90 €", month: "1,99 €", yearMonth: "1,66 €" }, family: { year: "69,90 €", month: "6,99 €", yearMonth: "5,83 €" } };
+const PRICES = { solo: { year: "19,90 €", month: "1,99 €", yearMonth: "1,66 €", life: "49,90 €", lifeAfter: "79,90 €", lifeVs: "moins cher que 3 ans d'abonnement annuel (59,70 €)" },
+  family: { year: "69,90 €", month: "6,99 €", yearMonth: "5,83 €", life: "149,90 €", lifeAfter: "229,90 €", lifeVs: "moins cher que 3 ans d'abonnement annuel (209,70 €)" } };
+// Premium à vie : prix de lancement jusqu'au 31 décembre 2027, puis prix normal (affiché tout seul à partir de cette date).
+// Pas de prix barré : la loi demande qu'un prix barré ait vraiment été pratiqué dans les 30 jours d'avant.
+const LIFE_END = new Date(2028, 0, 1).getTime(), LIFE_END_TXT = "1er janvier 2028";
 const FAMILY_SIZE = 5;
 let premiumFor = "solo";
 const isPlanTester = () => !!(db.auth && PLAN_TESTERS.includes(db.auth.user.id));
@@ -2332,7 +2336,10 @@ function viewPremium() {
     '<p class="small muted plan-for-txt">' + (premiumFor === "family" ? "Pour " + FAMILY_SIZE + " personnes : toi + 4 proches. Chacun a son propre compte, ses programmes et son historique ; personne ne voit les données des autres." : "Pour toi seul, sur tous tes appareils.") + "</p>" +
     '<div class="plans">' +
     '<div class="card plan-opt best"><span class="tag">2 mois offerts</span><b>Annuel</b><div class="plan-price num">' + PRICES[premiumFor].year + ' <small>/ an</small></div><div class="small muted">soit ' + PRICES[premiumFor].yearMonth + " par mois</div></div>" +
-    '<div class="card plan-opt"><b>Mensuel</b><div class="plan-price num">' + PRICES[premiumFor].month + ' <small>/ mois</small></div><div class="small muted">sans engagement</div></div></div>' +
+    '<div class="card plan-opt"><b>Mensuel</b><div class="plan-price num">' + PRICES[premiumFor].month + ' <small>/ mois</small></div><div class="small muted">sans engagement</div></div>' +
+    (pr => Date.now() < LIFE_END
+      ? '<div class="card plan-opt life"><span class="tag">Offre de lancement</span><b>À vie</b><div class="plan-price num">' + pr.life + ' <small>en une fois</small></div><div class="small">Prix de lancement, puis ' + pr.lifeAfter + " à partir du " + LIFE_END_TXT + '.</div><div class="small muted">Sans abonnement, ' + pr.lifeVs + ".</div></div>"
+      : '<div class="card plan-opt life"><b>À vie</b><div class="plan-price num">' + pr.lifeAfter + ' <small>en une fois</small></div><div class="small muted">Sans abonnement : un seul paiement.</div></div>')(PRICES[premiumFor]) + "</div>" +
     (s === "premium" ? "" : '<button class="btn primary block big" ' + (live ? 'data-act="planbuy"' : "disabled") + ">" + (live ? "S'abonner" : "Paiement bientôt disponible") + "</button>") +
     (planTesting() && s !== "premium" ? '<button class="link small" style="margin-top:8px" data-act="plantest" data-val="premium">Simuler l\'abonnement (mode test)</button>' : "") +
     '<p class="small muted" style="margin:10px 2px 0">Essai gratuit d\'un mois à la création du compte. Résiliable à tout moment ; à la fin, tu gardes toutes tes données.' +

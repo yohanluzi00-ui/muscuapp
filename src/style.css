@@ -632,3 +632,4 @@ html.is-dragging, html.is-dragging * { user-select: none; -webkit-user-select: n
 .prog-empty p { margin: 0; }
 .plan-for { margin-top: 12px; }
 .plan-for-txt { margin: 8px 2px 0; }
+.plan-opt.life { grid-column: 1 / -1; }
