@@ -1684,7 +1684,8 @@ function evoFit() {
 window.addEventListener("resize", () => { if (document.querySelector(".evo-svg")) evoFit(); });
 function viewEvolutionDetail(key) {
   evoCur = null;
-  const p = progressData().find(x => x.key === key);
+  const all_ = progressData(); let p = all_.find(x => x.key === key);
+  if (!p && key && !/^lib:/.test(key)) { const [nm, ty] = String(key).split("|"), lb = libFor(nm); if (lb) p = all_.find(x => x.key === "lib:" + lb.id + "|" + ty); } // ancien lien (nom de l'exercice)
   const back = '<a class="back" href="#/evolution">‹ Évolution</a>';
   if (!p) return back + '<div class="card empty">Pas encore de données pour cet exercice.</div>';
   const ms = evoMetrics(p), m = ms.includes(evo.m[key]) ? evo.m[key] : ms[0], M = EVO_M[m];
