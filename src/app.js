@@ -2261,6 +2261,8 @@ function planState() {
   return p.premium ? "premium" : p.trialEnds > Date.now() ? "trial" : "free";
 }
 const isFree = () => planState() === "free";
+// restaurer une sauvegarde et le code de transfert : abonnés seulement, même pendant l'essai (sinon un nouveau compte par mois avec un nouvel essai, et tout transféré)
+const dataLocked = () => { const s = planState(); return s === "free" || s === "trial"; };
 const ownCount = () => knownNames().filter(n => !libFor(n)).length;
 async function premiumGate(text) {
   if (await ask({ title: "Réservé à Premium", text: text + "\n\nAvec Premium : programmes, séances et exercices illimités, tout l'historique, toutes les stats et la synchro entre tes appareils.", ok: "Voir Premium", cancel: "Plus tard" })) go("premium");
@@ -2316,7 +2318,7 @@ function viewPremium() {
   const s = planState(), prev = (history.state && history.state.prev) || "#/settings";
   const rows = [["Programmes et séances", "Illimités", "1 programme, 2 séances actives"], ["Exercices perso", "Illimités", "5 au plus"], ["Historique", "Complet", "30 derniers jours"],
     ["Stats", "Temps, tonnage, Évolution, calendrier", "La semaine en cours"], ["Synchro téléphone ↔ ordinateur", "Oui", "Non"], ["Partager une séance", "Envoyer et recevoir", "Recevoir"],
-    ["Sauvegarde", "Enregistrer et restaurer, code de transfert", "Enregistrer"]];
+    ["Sauvegarde", "Enregistrer et restaurer, code de transfert", "Enregistrer (pendant l'essai aussi)"]];
   const live = MONETIZATION && s !== "premium";
   return '<a class="back" href="' + esc(prev) + '">‹ Retour</a><div class="page-head"><h1>Fiitday Premium</h1></div>' +
     '<div class="card"><div class="small">' + esc(planStatus()) + "</div></div>" +
@@ -2353,8 +2355,8 @@ function viewSettings() {
   // même numéro sur le téléphone et sur le web : 1.<nombre de modifications du code>
   const num_ = (Native && Native.version && Native.version()) || window.APP_VERSION || "";
   const ver = "Fiitday " + (num_ && num_ !== "1.0-dev" ? "V" + num_ : "(version de développement)");
-  const fr = isFree(), lk = fr ? " locked-btn" : "", li = fr ? LOCK : "";
-  const frNote = fr ? '<div class="small lock-note">' + LOCK + 'Restaurer et le code de transfert sont réservés aux abonnés Premium. <a class="link" href="#/premium">Voir Premium</a></div>' : "";
+  const fr = dataLocked(), lk = fr ? " locked-btn" : "", li = fr ? LOCK : "";
+  const frNote = fr ? '<div class="small lock-note">' + LOCK + 'Restaurer et le code de transfert sont réservés aux abonnés Premium' + (planState() === "trial" ? ", pendant l\'essai aussi" : "") + '. <a class="link" href="#/premium">Voir Premium</a></div>' : "";
   return '<div class="page-head"><h1>Réglages</h1></div><div class="stack">' + planSettings() +
     '<div class="card"><b>Apparence</b><div style="margin-top:10px">' + seg("theme", [["auto", "Auto"], ["clair", "Clair"], ["sombre", "Sombre"]]) + "</div></div>" +
     '<div class="card"><b>Alerte de fin de repos</b><div style="margin-top:10px">' + seg("alert", [["vibration", "Vibration"], ["son", "Son"], ["les deux", "Les deux"], ["aucune", "Aucune"]]) + "</div>" +
@@ -2745,7 +2747,7 @@ $app.addEventListener("click", async e => {
     case "plantestskip": if (planTesting()) { db.planTestEnd = (db.planTestEnd || Date.now()) - 7 * DAY; saveNow(); render(); toast(trialLeft() ? "Encore " + trialLeft() + " jour" + (trialLeft() > 1 ? "s" : "") + " d'essai" : "Essai terminé : version gratuite"); } break;
     case "planbuy": toast("Le paiement arrive bientôt"); break;
     case "importvar": { const code = await ask({ title: "Importer une séance", text: "Colle le lien de la séance qu'on t'a envoyé.", input: "", ok: "Continuer" }); if (!code) return;
-      if (isFree() && (/^\s*FIITDAY\d:/.test(code) || (XFER_RE.test(normCode(code)) && code.trim().length <= 12))) { premiumGate("Restaurer une sauvegarde et le code de transfert sont réservés aux abonnés. Enregistrer une sauvegarde reste possible pour tout le monde."); return; }
+      if (dataLocked() && (/^\s*FIITDAY\d:/.test(code) || (XFER_RE.test(normCode(code)) && code.trim().length <= 12))) { premiumGate("Restaurer une sauvegarde et le code de transfert sont réservés aux abonnés Premium, pendant l'essai aussi. Enregistrer une sauvegarde reste possible pour tout le monde."); return; }
       if (/^\s*FIITDAY\d:/.test(code)) { if (await ask({ title: "C'est une sauvegarde", text: "Ce texte est une sauvegarde complète (programmes, séances, réglages), pas un lien de séance. La restaurer dans ce compte ?", ok: "Restaurer" })) restoreBackup(code); return; }
       if (XFER_RE.test(normCode(code)) && code.trim().length <= 12) { if (await ask({ title: "C'est un code de transfert", text: "Ce code sert à récupérer toutes les données d'un autre compte (programmes, séances, réglages). Les récupérer dans ce compte ?", ok: "Récupérer" })) useTransferCode(code); return; }
       importShared(code); } break;
@@ -2774,13 +2776,13 @@ $app.addEventListener("click", async e => {
       else if (r === "error") toast("La sauvegarde n'a pas pu être enregistrée");
     } break;
     case "fileopen": {
-      if (isFree()) { premiumGate("Restaurer une sauvegarde et le code de transfert sont réservés aux abonnés. Enregistrer une sauvegarde reste possible pour tout le monde."); return; }
+      if (dataLocked()) { premiumGate("Restaurer une sauvegarde et le code de transfert sont réservés aux abonnés Premium, pendant l'essai aussi. Enregistrer une sauvegarde reste possible pour tout le monde."); return; }
       const txt = await openFile();
       if (txt === false) toast("Ce fichier n'a pas pu être lu");
       else if (txt != null) restoreBackup(txt, "Ce fichier n'est pas une sauvegarde Fiitday");
     } break;
     case "xfercreate": {
-      if (isFree()) { premiumGate("Restaurer une sauvegarde et le code de transfert sont réservés aux abonnés. Enregistrer une sauvegarde reste possible pour tout le monde."); return; }
+      if (dataLocked()) { premiumGate("Restaurer une sauvegarde et le code de transfert sont réservés aux abonnés Premium, pendant l'essai aussi. Enregistrer une sauvegarde reste possible pour tout le monde."); return; }
       if (!db.auth) { toast("Connecte-toi à ton compte pour créer un code"); return; }
       const txt = await backupText();
       let row; try { row = await rpc("create_transfer", { p_payload: txt }); } catch (err) { toast(xferErr(err)); return; }
@@ -2791,13 +2793,13 @@ $app.addEventListener("click", async e => {
       if (copy) { try { await navigator.clipboard.writeText(row.transfer_code); toast("Code copié"); } catch (err) { toast("Note le code : " + row.transfer_code); } }
     } break;
     case "xferuse": {
-      if (isFree()) { premiumGate("Restaurer une sauvegarde et le code de transfert sont réservés aux abonnés. Enregistrer une sauvegarde reste possible pour tout le monde."); return; }
+      if (dataLocked()) { premiumGate("Restaurer une sauvegarde et le code de transfert sont réservés aux abonnés Premium, pendant l'essai aussi. Enregistrer une sauvegarde reste possible pour tout le monde."); return; }
       if (!db.auth) { toast("Connecte-toi au compte qui doit recevoir les données"); return; }
       const c = await ask({ title: "J'ai un code", text: "Tape le code de 8 caractères créé dans l'autre compte (Réglages › Données › Créer un code). Il n'est valable qu'1 heure.", input: "", code: true, ok: "Récupérer" });
       if (c) useTransferCode(c);
     } break;
     case "import": {
-      if (isFree()) { premiumGate("Restaurer une sauvegarde et le code de transfert sont réservés aux abonnés. Enregistrer une sauvegarde reste possible pour tout le monde."); return; }
+      if (dataLocked()) { premiumGate("Restaurer une sauvegarde et le code de transfert sont réservés aux abonnés Premium, pendant l'essai aussi. Enregistrer une sauvegarde reste possible pour tout le monde."); return; }
       const txt = await ask({ title: "Restaurer une sauvegarde", text: "Colle le texte de la sauvegarde. Ce qui a été supprimé depuis revient ; ce que tu as modifié depuis garde sa version la plus récente.", input: "", multiline: true, ok: "Restaurer" });
       if (txt) restoreBackup(txt);
     } break;
