@@ -111,6 +111,15 @@ function purgeBody() {
     dataRev++; save(); scheduleSync();
   }
 }
+// notes : chaque séance garde sa propre note ; les anciennes séances (où la note était celle du programme) reçoivent une fois la note actuelle
+function freezeNotes() {
+  for (const it of Object.values(db.items)) {
+    if (it.kind !== "workout" || it.deleted || !it.data || !Array.isArray(it.data.exercises)) continue;
+    const w = it.data; let ch = false;
+    w.exercises.forEach(e => { if (e.note === undefined) { const te = tplExercise(w, e.exId); e.note = te && te.note ? te.note : ""; ch = true; } });
+    if (ch) put("workout", w);
+  }
+}
 function renameVariants() {
   for (const it of Object.values(db.items)) {
     if (it.kind !== "template" || it.deleted) continue;
@@ -376,7 +385,7 @@ async function sync() {
     }
     db.lastServerAt = maxSeen;
     purgeBody(); // plus de page Corps : les anciennes mesures sont effacées, contenu compris
-    renameVariants(); // après la récupération : les données sont à jour, aucun risque d'écraser une modif récente
+    freezeNotes(); renameVariants(); // après la récupération : les données sont à jour, aucun risque d'écraser une modif récente
     // 2) envoyer ce qui a changé ici
     const dirty = Object.values(db.items).filter(i => i.dirty);
     for (let k = 0; k < dirty.length; k += 200) {
@@ -523,7 +532,7 @@ function renderNow() {
   if (!db.auth && db.mode !== "local") { keepScreen(false); $app.innerHTML = viewLogin(); return; }
   // un nouvel utilisateur arrive sur une page vierge : plus de programmes créés d'office
   // (les programmes déjà enregistrés dans un compte ne sont pas touchés)
-  if (!db.auth && !localFixed) { localFixed = true; renameVariants(); purgeBody(); }
+  if (!db.auth && !localFixed) { localFixed = true; freezeNotes(); renameVariants(); purgeBody(); }
   const r = route();
   let body, wide = false, immersive = false;
   switch (r.name) {
@@ -775,7 +784,7 @@ async function startWorkout(tid, vid, direct) {
   }
   const w = {
     id: "w-" + uid(), templateId: t.id, variantId: v.id, templateName: t.name, variantName: v.name, startedAt: Date.now(), endedAt: null,
-    exercises: v.exercises.map(e => ({ exId: e.id, name: e.name, type: e.type, target: e.target, rest: e.rest, load: !!e.load, restNext: restNextOf(e, v), drops: dropsOf(e), groupId: e.groupId || null, groupKind: e.groupKind || null,
+    exercises: v.exercises.map(e => ({ exId: e.id, name: e.name, note: e.note || "", type: e.type, target: e.target, rest: e.rest, load: !!e.load, restNext: restNextOf(e, v), drops: dropsOf(e), groupId: e.groupId || null, groupKind: e.groupKind || null,
       dropScope: e.dropScope === "last" ? "last" : "all",
       sets: (n => Array.from({ length: n }, (_, k) => blankSet(dropsFor(e, k, n))))(Math.max(1, num(e.sets) || 1)) })),
   };
@@ -844,7 +853,7 @@ function setActions(idx, count, word) {
     (count > 1 ? '<button class="btn sm" data-act="delset" data-g="' + g + '">− ' + word + "</button>" : "") + "</div>";
 }
 function noteBox(w, e, i, letter) {
-  const te = tplExercise(w, e.exId), note = te ? te.note : (e.note || "");
+  const te = e.note == null ? tplExercise(w, e.exId) : null, note = e.note != null ? e.note : (te && te.note) || ""; // la note de CETTE séance
   return '<textarea class="f" data-f="note" data-i="' + i + '" placeholder="Notes' + (letter ? " " + letter + " · " + esc(e.name) : " (réglages, sensations…)") + '" aria-label="Notes ' + esc(e.name) + '">' + esc(note) + "</textarea>";
 }
 function exCard(w, e, i) {
@@ -2554,8 +2563,9 @@ $app.addEventListener("input", e => {
     const w = currentWorkout(); if (!w) return;
     const ex = w.exercises[+el.dataset.i]; if (!ex) return;
     if (el.dataset.f === "note") {
-      const t = getItem(w.templateId), te = tplExercise(w, ex.exId);
-      if (t && te) { te.note = el.value; putLater("template", t); } else { ex.note = el.value; putLater("workout", w); }
+      // la note reste dans cette séance ; pendant la séance en cours, elle est aussi gardée pour la prochaine fois (programme)
+      ex.note = el.value; putLater("workout", w);
+      if (!w.endedAt) { const t = getItem(w.templateId), te = tplExercise(w, ex.exId); if (t && te) { te.note = el.value; putLater("template", t); } }
       return;
     }
     const set = ex.sets[+el.dataset.s]; if (!set) return;
