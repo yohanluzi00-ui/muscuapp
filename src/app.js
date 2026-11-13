@@ -844,7 +844,8 @@ function exHead(w, e, i, letter) {
   const chips = (lib ? '<button class="chip-mini" data-act="exoview" data-id="' + lib.id + '">' + ICON.play + "Voir le mouvement</button>" : "") +
     (live && !letter ? '<button class="chip-mini" data-act="sesspick" data-sf="rest" data-i="' + i + '">Repos ' + esc(fmtSecs(num(e.rest) || 0)) + " ✎</button>" : "") +
     (live && time ? '<button class="chip-mini" data-act="sesspick" data-sf="target" data-i="' + i + '">Objectif ' + esc(fmtSecs(num(e.target) || 0)) + " ✎</button>" : "");
-  return '<div class="spread"><div class="ex-name">' + (letter ? '<span class="letter">' + letter + "</span>" : "") + esc(e.name) + '</div><button class="link" data-act="rename" data-i="' + i + '">Renommer</button></div>' +
+  const nm = (letter ? '<span class="letter">' + letter + "</span>" : "") + esc(e.name), fk = letter ? null : "w:" + w.id + ":" + (e.exId || i);
+  return '<div class="spread">' + (fk ? foldTitle(fk, '<span class="ex-name">' + nm + "</span>", folded.has(fk)) : '<div class="ex-name">' + nm + "</div>") + '<button class="link" data-act="rename" data-i="' + i + '">Renommer</button></div>' +
     '<div class="ex-meta">' + metaText(e, !!letter, live) + "</div>" + (chips ? '<div class="ex-chips">' + chips + "</div>" : "");
 }
 function setActions(idx, count, word) {
@@ -859,13 +860,18 @@ function noteBox(w, e, i, letter) {
 function exCard(w, e, i) {
   let rows = '<div class="h">Série</div><div class="h hdr">' + (e.type === "time" ? "<span>Temps</span>" : e.type === "rep" ? "<span>Reps</span>" : e.type === "dist" ? (e.load ? "<span>Kg</span>" : "") + "<span>Temps</span>" : "<span>Kg</span><span>Reps</span>") + '</div><div class="h"></div>';
   e.sets.forEach((s, k) => { rows += setRows(w, e, i, k, k + 1); });
-  return '<section class="card ex">' + exHead(w, e, i, "") + '<div class="sets">' + rows + "</div>" + setActions([i], e.sets.length, "Série") + noteBox(w, e, i, "") + "</section>";
+  const f = folded.has("w:" + w.id + ":" + (e.exId || i)), dn = e.sets.filter(x => x.done).length;
+  return '<section class="card ex' + (f ? " folded" : "") + '">' + exHead(w, e, i, "") + (f ? '<div class="fold-sum muted small">' + dn + " / " + e.sets.length + " série" + (e.sets.length > 1 ? "s" : "") + " validée" + (dn > 1 ? "s" : "") + "</div>" :
+    '<div class="blk-body"><div class="sets">' + rows + "</div>" + setActions([i], e.sets.length, "Série") + noteBox(w, e, i, "") + "</div>") + "</section>";
 }
 function groupCard(w, blk) {
   const first = blk.items[0].e, rounds = Math.max(...blk.items.map(x => x.e.sets.length));
   const gi = blk.items[0].i, live = !w.endedAt;
-  let h = '<section class="card ex group"><div class="group-tag">' + esc(GROUP_LABEL[first.groupKind] || "Enchaînement") + " · " + rounds + " tour" + (rounds > 1 ? "s" : "") +
-    (live ? "" : " · repos " + esc(fmtRest(first.rest)) + " après chaque tour") + "</div>" +
+  const fk = "w:" + w.id + ":" + (first.groupId || gi), fo = folded.has(fk);
+  let h = '<section class="card ex group' + (fo ? " folded" : "") + '">' + foldTitle(fk, '<span class="group-tag">' + esc(GROUP_LABEL[first.groupKind] || "Enchaînement") + " · " + rounds + " tour" + (rounds > 1 ? "s" : "") +
+    (live ? "" : " · repos " + esc(fmtRest(first.rest)) + " après chaque tour") + "</span>", fo);
+  if (fo) return h + '<div class="fold-sum muted small">' + blk.items.map((x, n) => LETTERS[n] + ". " + esc(x.e.name)).join(" · ") + "</div></section>";
+  h += '<div class="blk-body">' +
     (live ? '<div class="ex-chips"><button class="chip-mini" data-act="sesspick" data-sf="grest" data-i="' + gi + '">Repos après chaque tour ' + esc(fmtSecs(num(first.rest) || 0)) + " ✎</button></div>" : "");
   blk.items.forEach((x, n) => { h += '<div class="member">' + exHead(w, x.e, x.i, LETTERS[n]) + "</div>"; });
   for (let k = 0; k < rounds; k++) {
@@ -875,7 +881,7 @@ function groupCard(w, blk) {
   }
   h += setActions(blk.items.map(x => x.i), rounds, "Tour");
   blk.items.forEach((x, n) => { h += noteBox(w, x.e, x.i, LETTERS[n]); });
-  return h + "</section>";
+  return h + "</div></section>";
 }
 function viewSession(id) {
   const w = getItem(id);
@@ -1065,7 +1071,9 @@ function viewProgram(tid, vid) {
     '<div class="row" style="margin-top:10px;flex-wrap:wrap">' +
     '<button class="btn sm" data-act="dupvar">Dupliquer</button><button class="btn sm" data-act="sharevar">Partager</button>' +
     '<button class="btn sm danger" data-act="delvar">Supprimer cette séance</button>' + "</div></div>";
-  h += '<div class="section-title">Exercices (' + v.exercises.length + ')</div><div class="stack">';
+  const allKeys = blocks(v.exercises).map(b => "t:" + (b.groupId || b.items[0].e.id)), allFolded = allKeys.length && allKeys.every(k => folded.has(k));
+  h += '<div class="spread ex-title-row"><div class="section-title">Exercices (' + v.exercises.length + ")</div>" + (allKeys.length > 1 ? '<button type="button" class="link small" data-act="foldall" data-v="' + (allFolded ? 0 : 1) + '">' + (allFolded ? "Tout déplier" : "Tout réduire") + "</button>" : "") + '</div><div class="stack" data-sortable="blk">';
+  const grip = allKeys.length > 1 ? '<span class="grip" data-drag title="Maintiens et fais glisser pour changer l\'ordre">' + GRIP + "</span>" : "";
   const bl = blocks(v.exercises);
   bl.forEach((blk, bi) => {
     const nextField = bi < bl.length - 1 ? '<div class="fl next-rest"><span>Repos avant l\'exercice suivant</span><button type="button" class="f pick" data-act="picksec" data-sf="next" data-e="' + blk.items[0].i + '">' + fmtSecs(restNextOf(blk.items[0].e, v)) + "</button>" +
@@ -1074,7 +1082,10 @@ function viewProgram(tid, vid) {
       (bi < bl.length - 1 ? '<button class="btn sm" data-act="down" data-b="' + bi + '" aria-label="Descendre">↓</button>' : "");
     if (blk.groupId) {
       const f = blk.items[0].e, fi = blk.items[0].i, label = GROUP_LABEL[f.groupKind] || "Enchaînement";
-      h += '<div class="card group"><div class="spread"><div class="group-tag">' + esc(label) + " · " + blk.items.length + ' exercices enchaînés</div><div class="row">' + moves + "</div></div>" +
+      const k = "t:" + blk.groupId, fo = folded.has(k);
+      h += '<div class="card group' + (fo ? " folded" : "") + '" data-sort-id="' + esc(k) + '"><div class="spread">' + grip + foldTitle(k, '<span class="group-tag">' + esc(label) + " · " + blk.items.length + " exercices enchaînés</span>", fo) + '<div class="row">' + moves + "</div></div>";
+      if (fo) { h += '<div class="fold-sum muted small">' + blk.items.map((y, n) => LETTERS[n] + ". " + esc(y.e.name)).join(" · ") + " — " + esc(f.sets) + " tours</div></div>"; return; }
+      h += '<div class="blk-body">' +
         '<div class="ed-grid"><label class="fl">Enchaînement<select class="f" data-p="gkind" data-e="' + fi + '">' +
         (blk.items.length >= 3 ? '<option value="triset" selected>Triset</option>' : '<option value="superset"' + (f.groupKind !== "biset" ? " selected" : "") + '>Superset</option><option value="biset"' + (f.groupKind === "biset" ? " selected" : "") + ">Biset</option>") + "</select></label>" +
         '<label class="fl">Tours (séries)<input class="f" type="number" min="1" max="20" inputmode="numeric" data-p="gsets" data-e="' + fi + '" value="' + esc(f.sets) + '"></label>' +
@@ -1082,17 +1093,21 @@ function viewProgram(tid, vid) {
       blk.items.forEach((x, n) => { h += '<div class="member">' + exFields(x.e, x.i, LETTERS[n], true) + "</div>"; });
       h += nextField;
       h += '<div class="row" style="margin-top:12px;flex-wrap:wrap">' + (blk.items.length < 4 ? '<button class="btn sm" data-act="addmember" data-e="' + fi + '">+ Ajouter un exercice au ' + esc(label.toLowerCase()) + "</button>" : "") +
-        '<button class="btn sm" data-act="ungroup" data-e="' + fi + '">Séparer</button><button class="btn sm danger" data-act="delgroup" data-e="' + fi + '">Supprimer</button></div></div>';
+        '<button class="btn sm" data-act="ungroup" data-e="' + fi + '">Séparer</button><button class="btn sm danger" data-act="delgroup" data-e="' + fi + '">Supprimer</button></div></div></div>';
     } else {
       const x = blk.items[0];
-      h += '<div class="card"><div class="spread"><b><span data-title="' + x.i + '">' + esc(x.e.name) + '</span></b><div class="row">' + moves +
-        '<button class="btn sm danger" data-act="delex" data-e="' + x.i + '">Supprimer</button></div></div>' + exFields(x.e, x.i, "", false) + nextField +
-        (bi < bl.length - 1 && !bl[bi + 1].groupId ? '<button class="link" style="margin-top:6px" data-act="link" data-b="' + bi + '">Enchaîner avec l\'exercice suivant (superset / biset)</button>' : "") + "</div>";
+      const k = "t:" + x.e.id, f = folded.has(k);
+      h += '<div class="card' + (f ? " folded" : "") + '" data-sort-id="' + esc(k) + '"><div class="spread">' + grip + foldTitle(k, '<b><span data-title="' + x.i + '">' + esc(x.e.name) + "</span></b>", f) + '<div class="row">' + moves +
+        '<button class="btn sm danger" data-act="delex" data-e="' + x.i + '">Supprimer</button></div></div>' + (f ? '<div class="fold-sum muted small">' + esc(tplLine(x.e)) + "</div>" : '<div class="blk-body">' + exFields(x.e, x.i, "", false) + nextField +
+        (bi < bl.length - 1 && !bl[bi + 1].groupId ? '<button class="link" style="margin-top:6px" data-act="link" data-b="' + bi + '">Enchaîner avec l\'exercice suivant (superset / biset)</button>' : "") + "</div>") + "</div>";
     }
   });
   h += '<div class="add-row"><button class="btn" data-act="addtplex">+ Ajouter un exercice</button><button class="btn" data-act="addstretch">+ Ajouter un étirement</button></div></div>' + delTpl;
   return h;
 }
+// blocs réduits (configuration d'une séance et séance en cours) : un appui sur le nom réduit / déplie le bloc
+const folded = new Set();
+const foldTitle = (k, inner, f) => '<button type="button" class="fold-t" data-act="fold" data-k="' + esc(k) + '" aria-expanded="' + !f + '" title="' + (f ? "Déplier" : "Réduire") + '">' + inner + '<span class="fold-i" aria-hidden="true">' + (f ? "▸" : "▾") + "</span></button>";
 function moveBlock(v, bi, dir) {
   const bl = blocks(v.exercises), j = bi + dir;
   if (j < 0 || j >= bl.length) return false;
@@ -1213,21 +1228,11 @@ function orderNew(list, news, what) {
     document.body.appendChild(d);
     const L = d.querySelector(".ord-list");
     const last = L.lastElementChild; if (last) setTimeout(() => last.scrollIntoView({ block: "nearest" }), 0);
-    let drag = null;
     L.addEventListener("pointerdown", e => {
-      const h = e.target.closest("[data-odrag]"); if (!h) return;
-      e.preventDefault(); drag = { row: h.closest(".ord-row"), id: e.pointerId }; drag.row.classList.add("dragging");
-      try { h.setPointerCapture(e.pointerId); } catch (err) { }
+      const h = e.target.closest("[data-odrag]"); if (!h || e.button) return;
+      e.preventDefault(); e.stopPropagation();
+      liveDrag(e, h.closest(".ord-row"), { axis: "y", scroller: L, items: () => [...L.children], onDrop: () => { } });
     });
-    L.addEventListener("pointermove", e => {
-      if (!drag || e.pointerId !== drag.id) return; e.preventDefault();
-      let before = null;
-      for (const r of L.children) { if (r === drag.row) continue; const bb = r.getBoundingClientRect(); if (e.clientY < bb.top + bb.height / 2) { before = r; break; } }
-      if (drag.row.nextElementSibling !== before) L.insertBefore(drag.row, before);
-      const lb = L.getBoundingClientRect(); if (e.clientY < lb.top + 30) L.scrollTop -= 12; else if (e.clientY > lb.bottom - 30) L.scrollTop += 12;
-    });
-    const end = () => { if (drag) { drag.row.classList.remove("dragging"); drag = null; } };
-    L.addEventListener("pointerup", end); L.addEventListener("pointercancel", end);
     d.addEventListener("click", e => {
       if (e.target === d) { d.remove(); res(null); return; }
       const m = e.target.closest("[data-om]");
@@ -1886,44 +1891,87 @@ window.__fiitdayPending = () => {
 };
 
 /* ================= Glisser-déposer pour l'ordre des programmes et des séances ================= */
-let drag = null, lastDragEnd = 0;
+let lastDragEnd = 0;
+// glisser-déposer « en direct » : l'élément saisi suit le doigt, les autres s'écartent pour lui faire de la place,
+// la liste défile toute seule près des bords ; au lâcher, l'élément prend sa nouvelle place (onDrop reçoit le nouvel ordre)
+function liveDrag(e, item, opts) {
+  const axis = opts.axis === "x" ? "x" : "y", els = opts.items(), i0 = els.indexOf(item);
+  if (i0 < 0 || els.length < 2) return;
+  const sc = opts.scroller || null;
+  const A = r => axis === "y" ? r.top : r.left, S = r => axis === "y" ? r.height : r.width, P = ev => axis === "y" ? ev.clientY : ev.clientX;
+  const scrollPos = () => sc ? (axis === "y" ? sc.scrollTop : sc.scrollLeft) : (axis === "y" ? window.scrollY : window.scrollX);
+  const rects = els.map(x => x.getBoundingClientRect()), s0 = scrollPos(), p0 = P(e);
+  const gap = Math.max(0, A(rects[1]) - A(rects[0]) - S(rects[0])), size = S(rects[i0]) + gap;
+  const T = v => axis === "y" ? "translate3d(0," + v + "px,0)" : "translate3d(" + v + "px,0,0)";
+  let target = i0, raf = 0, last = e, moved = false;
+  item.classList.add("dragging"); Object.assign(item.style, { transition: "none", position: "relative", zIndex: "6", willChange: "transform" });
+  els.forEach(x => { if (x !== item) x.style.transition = "transform .18s ease"; });
+  document.documentElement.classList.add("is-dragging");
+  const update = () => {
+    raf = 0;
+    const d = P(last) - p0 + (scrollPos() - s0); if (Math.abs(d) > 3) moved = true;
+    item.style.transform = T(d);
+    const c = A(rects[i0]) + S(rects[i0]) / 2 + d;
+    target = els.reduce((n, x, j) => n + (j !== i0 && A(rects[j]) + S(rects[j]) / 2 < c ? 1 : 0), 0);
+    els.forEach((x, j) => {
+      if (j === i0) return;
+      const sh = i0 < target && j > i0 && j <= target ? -size : target < i0 && j >= target && j < i0 ? size : 0;
+      x.style.transform = sh ? T(sh) : "";
+    });
+  };
+  // défilement automatique près des bords (liste longue, page qui dépasse l'écran)
+  const auto = setInterval(() => {
+    const p = P(last), box = sc ? sc.getBoundingClientRect() : null, lo = box ? A(box) : 0, hi = box ? lo + S(box) : (axis === "y" ? innerHeight : innerWidth);
+    const v = p < lo + 48 ? -12 : p > hi - 72 ? 12 : 0; if (!v) return;
+    if (sc) { if (axis === "y") sc.scrollTop += v; else sc.scrollLeft += v; } else window.scrollBy(axis === "y" ? 0 : v, axis === "y" ? v : 0);
+    update();
+  }, 16);
+  const move = ev => { if (ev.pointerId !== e.pointerId) return; ev.preventDefault(); last = ev; if (!raf) raf = requestAnimationFrame(update); };
+  const up = ev => {
+    if (ev.pointerId !== e.pointerId) return;
+    document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); document.removeEventListener("pointercancel", up);
+    clearInterval(auto); if (raf) cancelAnimationFrame(raf);
+    if (ev.type === "pointerup") { last = ev; update(); }
+    els.forEach(x => Object.assign(x.style, { transition: "", transform: "", position: "", zIndex: "", willChange: "" }));
+    item.classList.remove("dragging"); document.documentElement.classList.remove("is-dragging");
+    lastDragEnd = Date.now();
+    if (!moved || target === i0) return;
+    const rest = els.filter(x => x !== item), ref = rest[target];
+    if (ref) ref.parentElement.insertBefore(item, ref); else rest[rest.length - 1].after(item);
+    opts.onDrop(rest.slice(0, target).concat([item], rest.slice(target)));
+  };
+  document.addEventListener("pointermove", move, { passive: false });
+  document.addEventListener("pointerup", up); document.addEventListener("pointercancel", up);
+}
+// listes de l'appli : poignée ⠿ (data-drag) dans un élément data-sort-id d'une liste data-sortable
 document.addEventListener("pointerdown", e => {
-  const h = e.target.closest && e.target.closest("[data-drag]"); if (!h) return;
+  const h = e.target.closest && e.target.closest("[data-drag]"); if (!h || e.button) return;
   const item = h.closest("[data-sort-id]"), box = item && item.closest("[data-sortable]"); if (!box) return;
   e.preventDefault();
-  drag = { item, box, pid: e.pointerId, moved: false };
-  item.classList.add("dragging");
-  try { h.setPointerCapture(e.pointerId); } catch (err) { }
+  const axis = box.dataset.axis === "x" ? "x" : "y";
+  liveDrag(e, item, {
+    axis, scroller: axis === "x" && box.scrollWidth > box.clientWidth ? box : null,
+    items: () => Array.from(box.querySelectorAll("[data-sort-id]")).filter(x => x.parentElement === item.parentElement),
+    onDrop: order => {
+      const ids = order.map(x => x.dataset.sortId), kind = box.dataset.sortable;
+      if (kind === "tpl") {
+        const ts = templates();
+        ids.forEach((id, n) => { const t = ts.find(x => x.id === id); if (t && t.order !== n) { t.order = n; put("template", t); } });
+      } else if (kind === "var") {
+        const { t } = currentProgram(); if (!t) return;
+        const byId = {}; t.variants.forEach(v => { byId[v.id] = v; });
+        const next = ids.map(id => byId[id]).filter(Boolean);
+        if (next.length === t.variants.length) { t.variants = next; put("template", t); }
+      } else if (kind === "blk") { // blocs d'exercices de la configuration d'une séance (un superset se déplace en entier)
+        const { t, v } = currentProgram(); if (!v) return;
+        const byKey = {}; blocks(v.exercises).forEach(b => { byKey["t:" + (b.groupId || b.items[0].e.id)] = b.items.map(x => x.e); });
+        const next = ids.flatMap(k => byKey[k] || []);
+        if (next.length === v.exercises.length) { v.exercises = next; put("template", t); }
+      }
+      render();
+    }
+  });
 });
-document.addEventListener("pointermove", e => {
-  if (!drag || e.pointerId !== drag.pid) return;
-  e.preventDefault();
-  const under = document.elementFromPoint(e.clientX, e.clientY);
-  const over = under && under.closest("[data-sort-id]");
-  if (!over || over === drag.item || over.parentElement !== drag.item.parentElement) return;
-  const r = over.getBoundingClientRect();
-  const after = drag.box.dataset.axis === "x" ? e.clientX > r.left + r.width / 2 : e.clientY > r.top + r.height / 2;
-  over.parentElement.insertBefore(drag.item, after ? over.nextSibling : over);
-  drag.moved = true;
-}, { passive: false });
-function endDrag(e) {
-  if (!drag || (e && e.pointerId !== drag.pid)) return;
-  const d = drag; drag = null; d.item.classList.remove("dragging"); lastDragEnd = Date.now();
-  if (!d.moved) return;
-  const ids = Array.from(d.box.querySelectorAll("[data-sort-id]")).map(x => x.dataset.sortId);
-  if (d.box.dataset.sortable === "tpl") {
-    const ts = templates();
-    ids.forEach((id, n) => { const t = ts.find(x => x.id === id); if (t && t.order !== n) { t.order = n; put("template", t); } });
-  } else if (d.box.dataset.sortable === "var") {
-    const { t } = currentProgram(); if (!t) return;
-    const byId = {}; t.variants.forEach(v => { byId[v.id] = v; });
-    const next = ids.map(id => byId[id]).filter(Boolean);
-    if (next.length === t.variants.length) { t.variants = next; put("template", t); }
-  }
-  render();
-}
-document.addEventListener("pointerup", endDrag);
-document.addEventListener("pointercancel", endDrag);
 
 /* ================= Roue de choix des temps (repos, gainage) ================= */
 const fmtSecs = v => (v === 0 ? "Aucun" : v < 60 ? v + " s" : Math.floor(v / 60) + " min" + (v % 60 ? " " + pad(v % 60) : ""));
@@ -2491,6 +2539,8 @@ $app.addEventListener("click", async e => {
       else v.exercises.forEach(x => { if (x.groupId && x.groupId === ex.groupId) x.rest = val; });
       put("template", t); render();
     } break;
+    case "fold": { const k = b.dataset.k; if (folded.has(k)) folded.delete(k); else folded.add(k); render(); } break;
+    case "foldall": { const { v } = currentProgram(); if (!v) return; blocks(v.exercises).forEach(x => { const k = "t:" + (x.groupId || x.items[0].e.id); if (b.dataset.v === "1") folded.add(k); else folded.delete(k); }); render(); } break;
     case "tab": { const { t } = currentProgram(); if (t) go("program/" + t.id + "/" + b.dataset.v); } break;
     case "homeaddvar": { const t = getItem(b.dataset.t); if (!t) return; const v = { id: "v" + uid(), name: "Séance " + (t.variants.length + 1), exercises: [] }; t.variants.push(v); put("template", t); go("program/" + t.id + "/" + v.id); } break;
     case "addvar": { const { t } = currentProgram(); if (!t) return; const v = { id: "v" + uid(), name: "Séance " + (t.variants.length + 1), exercises: [] }; t.variants.push(v); put("template", t); go("program/" + t.id + "/" + v.id); } break;
