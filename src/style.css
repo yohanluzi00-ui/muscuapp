@@ -555,3 +555,12 @@ input.ro { background: var(--soft) !important; color: var(--ink); pointer-events
 .ord-row.new .ord-n { color: var(--accent); }
 .ord-row .tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 6px; margin-left: 4px; border-radius: 6px; vertical-align: 1px; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .ord-row.dragging { box-shadow: 0 8px 24px rgba(0, 0, 0, .18); position: relative; z-index: 2; border-radius: 10px; }
+/* Accueil : aperçu d'une séance (appui prolongé) */
+.variant[data-act="start"] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.pv { max-height: min(86vh, 760px); }
+.pv-list { list-style: none; margin: 4px -6px 0; padding: 0 6px; overflow-y: auto; flex: 1; counter-reset: pv; }
+.pv-list > li { padding: 9px 2px; border-bottom: 1px solid var(--line2); }
+.pv-ex { display: flex; flex-direction: column; gap: 1px; }
+.pv-ex + .pv-ex { margin-top: 6px; }
+.pv-group { border-left: 3px solid var(--accent); padding-left: 10px !important; }
+.pv-tag { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }

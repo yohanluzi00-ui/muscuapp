@@ -1063,7 +1063,7 @@ function viewProgram(tid, vid) {
   if (!v) return h;
   h += '<div class="card"><label class="fl">Nom de la séance<input class="f" data-p="vname" maxlength="60" value="' + esc(vLabel(v.name)) + '"></label>' +
     '<div class="row" style="margin-top:10px;flex-wrap:wrap">' +
-    '<button class="btn sm" data-act="dupvar">Dupliquer cette séance</button><button class="btn sm" data-act="sharevar">Partager cette séance</button>' +
+    '<button class="btn sm" data-act="dupvar">Dupliquer</button><button class="btn sm" data-act="sharevar">Partager</button>' +
     '<button class="btn sm danger" data-act="delvar">Supprimer cette séance</button>' + "</div></div>";
   h += '<div class="section-title">Exercices (' + v.exercises.length + ')</div><div class="stack">';
   const bl = blocks(v.exercises);
@@ -2117,7 +2117,7 @@ async function unpackBackup(txt) {
 const FAQ = [
   ["Démarrer", [
     ["creer", "Comment créer mon premier programme ?", "Sur l'accueil, appuie sur « + Nouveau programme » et donne-lui un nom (par exemple « Push » ou « Haut du corps »). Ajoute ensuite une séance avec « + Nouvelle séance », puis ses exercices avec « + Ajouter un exercice » : cherche (« dev », « pec »…) ou filtre par muscle, coche les exercices voulus, puis choisis leur ordre dans la séance. Ils arrivent avec les répétitions et le repos conseillés. Un exercice qui n'est pas dans la liste ? Tape son nom et coche « + Créer »."],
-    ["programme", "Quelle différence entre un programme et une séance ?", "Un programme regroupe plusieurs séances : par exemple le programme « Push Pull » avec « Séance 1 » et « Séance 2 », chacune avec ses exercices. Sur l'accueil, la séance marquée « Suggérée » est celle que tu n'as jamais faite, sinon celle faite il y a le plus longtemps."],
+    ["programme", "Quelle différence entre un programme et une séance ?", "Un programme regroupe plusieurs séances : par exemple le programme « Push Pull » avec « Séance 1 » et « Séance 2 », chacune avec ses exercices. Sur l'accueil, la séance marquée « Suggérée » est celle que tu n'as jamais faite, sinon celle faite il y a le plus longtemps. Un appui prolongé sur une séance affiche la liste de ses exercices."],
     ["types", "Quels types d'exercices puis-je créer ?", "Quatre types : <b>Poids × reps</b> (kilos et répétitions), <b>Reps uniquement</b> (pompes, tractions sans charge), <b>Temps</b> (gainage, étirements : le temps est pris par le chrono) et <b>Distance</b> (course, rameur, ateliers Hyrox, avec ou sans charge). Le type se choisit dans la configuration de l'exercice."],
     ["superset", "Comment faire un superset ou un dégressif ?", "Ajoute d'abord tes exercices, puis dans la configuration de la séance : « Enchaîner avec l'exercice suivant » relie deux exercices en superset ou biset (un 3e exercice ajouté au groupe en fait un triset), et le réglage « Dégressif » d'un exercice ajoute les baisses de charge. Dans un superset, le repos démarre seulement quand tout le tour est fini."]]],
   ["Pendant la séance", [
@@ -2135,7 +2135,7 @@ const FAQ = [
     ["synchro", "Mes données sont-elles sur mon téléphone et sur mon ordinateur ?", "Oui : avec ton compte, tout se synchronise automatiquement entre l'appli et fiitday.com. L'heure de la dernière synchro est dans Réglages › Compte. Sans réseau, fais ta séance normalement : elle sera envoyée au retour du réseau."],
     ["sauvegarde", "Comment faire une sauvegarde de mes données ?", "<a href=\"#/settings\">Réglages</a> › Données › « Enregistrer une sauvegarde » crée un fichier à garder sur ton téléphone, ton ordinateur ou dans un cloud (Google Drive…). « Restaurer une sauvegarde » le relit : ce qui a été supprimé depuis revient, et ce que tu as modifié depuis garde sa version la plus récente."],
     ["transfert", "Comment passer mes données sur un autre compte ?", "Dans l'ancien compte : Réglages › Données › « Créer un code ». Tu obtiens un code de 8 caractères, valable 1 heure. Dans le nouveau compte : « J'ai un code », puis tape-le. Ne le donne à personne d'autre : il donne accès à toutes tes données."],
-    ["partage", "Comment partager une séance avec un ami ?", "Dans la configuration de la séance, appuie sur « Partager cette séance » et envoie le lien (WhatsApp, SMS…). Ton ami, connecté à son compte Fiitday, ouvre le lien ou le colle dans Accueil › Importer, puis choisit où ajouter la séance."],
+    ["partage", "Comment partager une séance avec un ami ?", "Dans la configuration de la séance, appuie sur « Partager » et envoie le lien (WhatsApp, SMS…). Ton ami, connecté à son compte Fiitday, ouvre le lien ou le colle dans Accueil › Importer, puis choisit où ajouter la séance."],
     ["supprimer-compte", "Comment supprimer mon compte ?", "Réglages › Compte › « Supprimer mon compte », puis tape SUPPRIMER pour confirmer. Ton compte et toutes tes données sont effacés définitivement : fais une sauvegarde avant si tu veux les garder."]]],
   ["Appli et montre", [
     ["montre", "Comment être prévenu sur ma montre ?", "Dans l'appli Android : Réglages › Montre connectée › « Activée ». La montre vibre à la fin du repos et quand l'objectif d'un chrono est atteint, avec « Terminer » pour arrêter le chrono. Sur Galaxy Watch, dans l'appli Galaxy Wearable › Paramètres de la montre › Notifications : autorise Fiitday et choisis « Toujours afficher sur les deux » dans « Notifications du téléphone sur la montre »."],
@@ -2690,6 +2690,42 @@ $app.addEventListener("keydown", e => {
   const n = ins[ins.indexOf(e.target) + 1];
   if (n) n.focus(); else e.target.blur();
 });
+
+/* ================= Accueil : appui prolongé sur une séance = aperçu de ses exercices ================= */
+function tplLine(e) {
+  const n = Math.max(1, num(e.sets) || 1), tg = e.type === "dist" ? fmtNum(num(e.target) || 0) + " m" : e.type === "time" ? fmtHold(e.target) || "—" : (e.target || "—") + " reps";
+  return n + " × " + tg + (e.type === "reps" && dropsOf(e) ? " · dégressif" : "") + " · repos " + fmtRest(e.rest);
+}
+function peekVariant(tid, vid) {
+  const t = getItem(tid), v = t && t.variants.find(x => x.id === vid); if (!v) return;
+  const rows = blocks(v.exercises).map(b => b.groupId
+    ? '<li class="pv-group"><span class="pv-tag">' + esc(GROUP_LABEL[b.kind] || "Groupe") + "</span>" + b.items.map((x, k) => '<div class="pv-ex"><b>' + LETTERS[k] + ". " + esc(x.e.name) + '</b><span class="muted small">' + esc(tplLine(x.e)) + "</span></div>").join("") + "</li>"
+    : '<li><div class="pv-ex"><b>' + esc(b.items[0].e.name) + '</b><span class="muted small">' + esc(tplLine(b.items[0].e)) + "</span></div></li>").join("");
+  const d = document.createElement("div"); d.className = "modal sheet";
+  d.innerHTML = '<div class="modal-box pv" role="dialog" aria-modal="true" aria-label="' + esc(t.name + " · " + vLabel(v.name)) + '"><h3>' + esc(vLabel(v.name)) + '</h3><p class="muted small" style="margin:0">' + esc(t.name) + " · " + v.exercises.length + " exercice" + (v.exercises.length > 1 ? "s" : "") + "</p>" +
+    (rows ? '<ol class="pv-list">' + rows + "</ol>" : '<p class="muted">Pas encore d\'exercice dans cette séance.</p>') +
+    '<div class="modal-btns"><button class="btn" data-r="edit">Modifier</button><button class="btn primary" data-r="go">C\'est parti</button></div></div>';
+  document.body.appendChild(d);
+  d.addEventListener("click", e => {
+    if (e.target === d) { d.remove(); return; }
+    const b = e.target.closest("[data-r]"); if (!b) return;
+    d.remove();
+    if (b.dataset.r === "edit") go("program/" + tid + "/" + vid); else startWorkout(tid, vid, true);
+  });
+}
+let peekTimer = null, peekStart = null, peekDone = false;
+document.addEventListener("pointerdown", e => {
+  const b = e.target.closest && e.target.closest('.variant[data-act="start"]'); if (!b || e.button) return;
+  peekDone = false; peekStart = { x: e.clientX, y: e.clientY };
+  clearTimeout(peekTimer);
+  peekTimer = setTimeout(() => { peekDone = true; peekTimer = null; try { if (Native && Native.vibrate) Native.vibrate("[30]"); else if (navigator.vibrate) navigator.vibrate(30); } catch (err) { } peekVariant(b.dataset.t, b.dataset.v); }, 450);
+});
+const peekCancel = () => { clearTimeout(peekTimer); peekTimer = null; };
+document.addEventListener("pointermove", e => { if (peekTimer && peekStart && Math.hypot(e.clientX - peekStart.x, e.clientY - peekStart.y) > 10) peekCancel(); });
+["pointerup", "pointercancel", "scroll"].forEach(ev => document.addEventListener(ev, peekCancel, true));
+// après un appui prolongé, le toucher ne lance pas la séance (et pas de menu du navigateur)
+document.addEventListener("click", e => { if (peekDone && e.target.closest && e.target.closest('.variant[data-act="start"]')) { e.stopPropagation(); e.preventDefault(); peekDone = false; } }, true);
+document.addEventListener("contextmenu", e => { if (e.target.closest && e.target.closest('.variant[data-act="start"]')) e.preventDefault(); });
 
 /* ================= Démarrage ================= */
 applyTheme();
