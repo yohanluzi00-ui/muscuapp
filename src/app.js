@@ -1079,8 +1079,7 @@ function viewProgram(tid, vid) {
   bl.forEach((blk, bi) => {
     const nextField = bi < bl.length - 1 ? '<div class="fl next-rest"><span>Repos avant l\'exercice suivant</span><button type="button" class="f pick" data-act="picksec" data-sf="next" data-e="' + blk.items[0].i + '">' + fmtSecs(restNextOf(blk.items[0].e, v)) + "</button>" +
       '<span class="small">Démarre quand toutes les séries ' + (blk.groupId ? "du groupe" : "de cet exercice") + " sont validées. « Aucun » : le repos habituel.</span></div>" : "";
-    const moves = (bi > 0 ? '<button class="btn sm" data-act="up" data-b="' + bi + '" aria-label="Monter">↑</button>' : "") +
-      (bi < bl.length - 1 ? '<button class="btn sm" data-act="down" data-b="' + bi + '" aria-label="Descendre">↓</button>' : "");
+    const moves = ""; // l'ordre se change en glissant la poignée ⠿
     if (blk.groupId) {
       const f = blk.items[0].e, fi = blk.items[0].i, label = GROUP_LABEL[f.groupKind] || "Enchaînement";
       const k = "t:" + blk.groupId, fo = folded.has(k);
