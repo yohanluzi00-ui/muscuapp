@@ -2563,7 +2563,11 @@ let adminKpi = null, adminErr = "", adminBusy = false;
 async function loadAdmin() {
   if (adminBusy || !isAdmin()) return;
   adminBusy = true; adminErr = "";
-  try { adminKpi = await rpc("admin_kpis"); }
+  try {
+    const r = await rpc("admin_kpis");
+    if (r && r.denied) { adminKpi = null; adminErr = r.mfa ? "mfa" : "Accès refusé : réservé à l'administrateur."; } // refus noté côté serveur
+    else adminKpi = r;
+  }
   catch (e) { adminErr = /MFA/.test(e.message) ? "mfa" : e.code === "42501" ? "Accès refusé : réservé à l'administrateur." : e.message === "Failed to fetch" ? "Pas de connexion internet." : "Les chiffres n'ont pas pu être chargés (" + e.message + ")."; }
   finally { adminBusy = false; if (route().name === "admin") render(); }
 }
@@ -2581,6 +2585,40 @@ function adminChart(weeks, key, label) {
   });
   return '<div class="card" style="margin-top:10px"><div class="muted small" style="font-weight:600;margin-bottom:8px">' + esc(label) + "</div>" + svg + "</div>";
 }
+// bloc Sécurité : alertes (rouge / orange) puis les chiffres surveillés
+function secAlerts(s) {
+  const a = [], pl = (n, w) => n + " " + w + (n > 1 ? "s" : "");
+  if (s.other7 > 0) a.push(["red", pl(s.other7, "tentative") + " d'ouvrir l'Administration depuis " + ((s.otherUsers7 || 1) > 1 ? s.otherUsers7 + " autres comptes" : "1 autre compte") + " cette semaine."]);
+  if (s.mfaFail24 >= 3) a.push(["red", pl(s.mfaFail24, "code") + " à 6 chiffres faux ou abandonnés sur ton compte en 24 h. Si ce n'est pas toi, change ton mot de passe."]);
+  if (s.factors > 1) a.push(["orange", "Ton compte a " + s.factors + " appareils de double authentification : vérifie qu'ils sont tous à toi."]);
+  else if (s.factorNew7 > 0) a.push(["orange", "Une double authentification a été ajoutée à ton compte cette semaine. Si ce n'est pas toi, change ton mot de passe."]);
+  if (s.devices7 > 3) a.push(["orange", "Ton compte s'est connecté depuis " + s.devices7 + " appareils ou navigateurs différents cette semaine."]);
+  if (s.recovery24 >= 5) a.push(["orange", s.recovery24 + " demandes de réinitialisation de mot de passe en 24 h."]);
+  if (s.signups24 >= 30) a.push(["orange", s.signups24 + " inscriptions en 24 h : pic inhabituel (robots ?)."]);
+  if (s.xferFail24 >= 20) a.push(["orange", s.xferFail24 + " codes de transfert faux en 24 h : quelqu'un essaie peut-être de deviner un code."]);
+  return a;
+}
+function secBlock(s) {
+  if (!s) return "";
+  const al = secAlerts(s), worst = al.some(x => x[0] === "red") ? "red" : al.length ? "orange" : "ok";
+  const row = (l, v) => '<div class="sec-row"><span>' + l + '</span><b class="num">' + v + "</b></div>";
+  const when = t => t ? esc(fmtDate(Date.parse(t))) + " à " + esc(fmtTime(Date.parse(t))) : "—";
+  return '<div class="section-title">Sécurité</div><div class="card sec-card sec-' + worst + '">' +
+    (al.length ? '<b class="sec-head">' + (worst === "red" ? "À vérifier tout de suite" : "À surveiller") + '</b><ul class="sec-alerts">' + al.map(x => '<li class="' + x[0] + '">' + esc(x[1]) + "</li>").join("") + "</ul>"
+      : '<b class="sec-head">Rien d\'anormal</b>') +
+    '<div class="sec-rows">' +
+    row("Accès à l'Administration refusés (24 h)", s.denied24) +
+    row("… depuis un autre compte (7 jours)", s.other7) +
+    row("Codes à 6 chiffres faux ou abandonnés (7 jours)", s.mfaFail7) +
+    row("Appareils de double authentification", s.factors) +
+    row("Nouvelles connexions de ton compte (7 jours)", s.sessions7 + " · " + s.devices7 + " appareil" + (s.devices7 > 1 ? "s" : "")) +
+    row("Ta dernière connexion", when(s.lastLogin)) +
+    row("Mots de passe oubliés demandés (24 h)", s.recovery24) +
+    row("Inscriptions (24 h)", s.signups24) +
+    row("Codes de transfert faux (24 h)", s.xferFail24) +
+    row("Comptes bloqués", s.banned) + "</div>" +
+    '<div class="small muted" style="margin-top:8px">Les essais de mot de passe ratés ne sont pas comptés ici : Supabase freine automatiquement les essais répétés. Refus gardés 12 mois.</div></div>';
+}
 function viewAdmin() {
   const back = '<a class="back" href="#/settings">‹ Réglages</a>';
   if (!isAdmin()) return back + '<div class="card empty">Cette page n\'existe pas.</div>';
@@ -2593,6 +2631,7 @@ function viewAdmin() {
   const diff = (a, b) => { const d = a - b; return '<span class="adm-diff ' + (d > 0 ? "up" : d < 0 ? "down" : "") + '">' + (d > 0 ? "+" + d : d < 0 ? String(d) : "=") + "</span>"; };
   const tile = (label, v, sub) => '<div class="card stat"><div class="muted small">' + label + '</div><div class="v num">' + v + "</div>" + (sub ? '<div class="muted small">' + sub + "</div>" : "") + "</div>";
   return head +
+    secBlock(k.sec) +
     '<div class="section-title">Résumé de la semaine</div><div class="card adm-week">' +
     "<div><b class=\"num\">" + cur.i + "</b> inscription" + (cur.i > 1 ? "s" : "") + " " + diff(cur.i, prev.i) + "</div>" +
     "<div><b class=\"num\">" + cur.n + "</b> séance" + (cur.n > 1 ? "s" : "") + " terminée" + (cur.n > 1 ? "s" : "") + " " + diff(cur.n, prev.n) + "</div>" +

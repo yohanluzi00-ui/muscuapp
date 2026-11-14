@@ -664,3 +664,18 @@ html.is-dragging, html.is-dragging * { user-select: none; -webkit-user-select: n
 .pw-meter { color: var(--muted); margin: -2px 2px 4px; }
 .pw-weak { color: var(--danger); } .pw-mid { color: var(--accent); } .pw-strong { color: var(--ok-ink); }
 .pw-show { display: flex; gap: 8px; align-items: center; margin: 4px 2px; }
+/* Administration : bloc Sécurité */
+.sec-card { border-width: 1.5px; }
+.sec-card.sec-ok { border-color: color-mix(in srgb, var(--ok-ink) 45%, var(--line)); }
+.sec-card.sec-orange { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+.sec-card.sec-red { border-color: var(--danger); }
+.sec-head { display: block; font-size: 16px; }
+.sec-ok .sec-head { color: var(--ok-ink); }
+.sec-orange .sec-head { color: var(--accent); }
+.sec-red .sec-head { color: var(--danger); }
+.sec-alerts { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+.sec-alerts li.red { color: var(--danger); font-weight: 600; }
+.sec-rows { margin-top: 10px; border-top: 1px solid var(--line2); }
+.sec-row { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line2); font-size: 14px; }
+.sec-row span { color: var(--muted); min-width: 0; }
+.sec-row b { flex: none; text-align: right; }
