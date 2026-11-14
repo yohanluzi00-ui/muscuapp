@@ -679,3 +679,8 @@ html.is-dragging, html.is-dragging * { user-select: none; -webkit-user-select: n
 .sec-row { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line2); font-size: 14px; }
 .sec-row span { color: var(--muted); min-width: 0; }
 .sec-row b { flex: none; text-align: right; }
+/* Réglages : Vibration · Son · Aucune · Tester sur une ligne */
+.alert-row { display: flex; align-items: center; gap: 6px; margin-top: 10px; flex-wrap: nowrap; }
+.alert-row .seg { flex-wrap: nowrap; gap: 6px; min-width: 0; }
+.alert-row .seg button { padding: 0 11px; white-space: nowrap; }
+.alert-row .btn { flex: none; min-height: 40px; padding: 0 11px; white-space: nowrap; }
