@@ -2238,7 +2238,7 @@ function viewFaq(open) {
     FAQ.map(([cat, qs]) => '<section class="faq-cat"><div class="section-title">' + esc(cat) + '</div><div class="faq-box">' +
       qs.map(([id, q, a]) => '<details class="faq-q" id="faq-' + id + '"' + (id === open ? " open" : "") + "><summary>" + esc(nbsp(q)) + '</summary><div class="faq-a">' + nbsp(a) + "</div></details>").join("") + "</div></section>").join("") +
     '<p class="muted faq-none" hidden>Aucune question ne correspond. Essaie un autre mot.</p>' +
-    '<div class="card faq-more"><b>Pas trouvé ta réponse ?</b><div class="small muted" style="margin-top:4px">Écris-nous : l\'adresse de contact est dans Réglages › Informations légales › Mentions légales.</div></div>';
+    '<div class="card faq-more"><b>Tu n\'as pas trouvé ta réponse ?</b><div class="small muted" style="margin-top:4px">Écris-nous : l\'adresse de contact est dans Réglages › Informations légales › Mentions légales.</div></div>';
 }
 // recherche sans tenir compte des accents ni des majuscules ; une seule réponse : elle s'ouvre
 $app.addEventListener("input", e => {
