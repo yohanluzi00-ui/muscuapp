@@ -499,7 +499,9 @@ function softRender() {
 
 const LEGAL = { version: "2026-11-09", privacy: "https://fiitday.com/confidentialite.html", legal: "https://fiitday.com/mentions-legales.html", deletion: "https://fiitday.com/suppression-compte.html" };
 let consentAsked = false, nameAsked = false;
-const firstName = () => settings().firstName || (db.auth && db.auth.user && db.auth.user.name) || "";
+// un e-mail n'est jamais un prénom (le remplissage automatique du téléphone a pu en glisser un dans le champ Prénom)
+const cleanName = n => (n && !/@/.test(n) ? String(n) : "");
+const firstName = () => cleanName(settings().firstName) || cleanName(db.auth && db.auth.user && db.auth.user.name) || "";
 async function askNameIfNeeded() {
   if (nameAsked || !db.auth || (!db.lastServerAt && !syncState.at) || firstName() || !settings().consentAt) return;
   nameAsked = true;
@@ -2508,15 +2510,17 @@ function pwStrength(p) {
 function askPassword() {
   return new Promise(res => {
     const d = document.createElement("div"); d.className = "modal";
-    d.innerHTML = '<div class="modal-box" role="dialog" aria-modal="true" aria-label="Changer mon mot de passe"><h3>Changer mon mot de passe</h3>' +
+    d.innerHTML = '<div class="modal-box" role="dialog" aria-modal="true" aria-label="Changer mon mot de passe"><h3>Changer mon mot de passe</h3><form class="stack pw-form" autocomplete="on">' +
+      '<input type="email" name="username" autocomplete="username" value="' + esc(db.auth.user.email) + '" readonly hidden tabindex="-1" aria-hidden="true">' +
       '<label class="fl">Mot de passe actuel<input class="f" type="password" id="pw-cur" autocomplete="current-password"></label>' +
       '<label class="fl">Nouveau mot de passe<input class="f" type="password" id="pw-new" autocomplete="new-password"></label>' +
       '<div class="small pw-meter" id="pw-meter">12 caractères au moins. Le plus sûr : une phrase de 4 ou 5 mots avec un chiffre et un symbole, ou un mot de passe créé par un gestionnaire.</div>' +
       '<label class="fl">Confirme le nouveau mot de passe<input class="f" type="password" id="pw-new2" autocomplete="new-password"></label>' +
       '<label class="pw-show small"><input type="checkbox" id="pw-show"> Afficher les mots de passe</label>' +
-      '<p class="msg err" data-m></p><div class="modal-btns"><button class="btn" data-r="0">Annuler</button><button class="btn primary" data-r="1">Changer</button></div></div>';
+      '</form><p class="msg err" data-m></p><div class="modal-btns"><button class="btn" data-r="0">Annuler</button><button class="btn primary" data-r="1">Changer</button></div></div>';
     document.body.appendChild(d);
     const $i = id => d.querySelector("#" + id), m = d.querySelector("[data-m]");
+    d.querySelector("form").addEventListener("submit", e => { e.preventDefault(); d.querySelector('[data-r="1"]').click(); });
     $i("pw-cur").focus();
     $i("pw-new").addEventListener("input", e => { const v = e.target.value, st = pwStrength(v); $i("pw-meter").innerHTML = v ? 'Solidité : <b class="pw-' + st[1] + '">' + st[0] + "</b> · " + v.length + " caractères" : "12 caractères au moins."; });
     $i("pw-show").addEventListener("change", e => { ["pw-cur", "pw-new", "pw-new2"].forEach(id => { $i(id).type = e.target.checked ? "text" : "password"; }); });
@@ -3194,7 +3198,10 @@ $app.addEventListener("input", e => {
 });
 $app.addEventListener("change", e => {
   const el = e.target;
-  if (el.matches && el.matches("input[data-setname]")) { const st = settings(); st.firstName = el.value.trim().slice(0, 40); put("settings", st); toast("Prénom enregistré"); return; }
+  if (el.matches && el.matches("input[data-setname]")) {
+    if (/@/.test(el.value)) { toast("Tape ton prénom, pas ton e-mail"); return; }
+    const st = settings(); st.firstName = el.value.trim().slice(0, 40); put("settings", st); toast("Prénom enregistré"); return;
+  }
   if (el.dataset.p === "type") {
     const { t, v } = currentProgram(); if (!t) return;
     const ex = v.exercises[+el.dataset.e]; ex.type = el.value;
